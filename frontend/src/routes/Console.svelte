@@ -1,8 +1,8 @@
 <script>
-  import {link} from 'svelte-spa-router';
-  import {logout, isAuthenticated} from '../lib/auth.js';
-  import {push} from 'svelte-spa-router';
-  import {onMount} from 'svelte';
+  import { link } from 'svelte-spa-router';
+  import { logout, isAuthenticated } from '../lib/auth.js';
+  import { push } from 'svelte-spa-router';
+  import { onMount } from 'svelte';
 
   // Active section state
   let activeSection = 'documents';
@@ -60,11 +60,11 @@
         // In static mode, just show some documents if the API is not available
         if (window.isStaticMode) {
           console.log('In static mode, using mock documents');
-          documents = [{"id": 1, "title": "Document 1", "content": "This is document 1 content."}, {
-            "id": 2,
-            "title": "Document 2",
-            "content": "This is document 2 content."
-          }, {"id": 3, "title": "Document 3", "content": "This is document 3 content."}];
+          documents = [
+            {"id": 1, "title": "Document 1", "content": "This is document 1 content."},
+            {"id": 2, "title": "Document 2", "content": "This is document 2 content."},
+            {"id": 3, "title": "Document 3", "content": "This is document 3 content."}
+          ];
         } else {
           error = 'Failed to fetch documents';
         }
@@ -75,11 +75,11 @@
       // In static mode, just show some documents if the API fails
       if (window.isStaticMode) {
         console.log('In static mode, using mock documents');
-        documents = [{"id": 1, "title": "Document 1", "content": "This is document 1 content."}, {
-          "id": 2,
-          "title": "Document 2",
-          "content": "This is document 2 content."
-        }, {"id": 3, "title": "Document 3", "content": "This is document 3 content."}];
+        documents = [
+          {"id": 1, "title": "Document 1", "content": "This is document 1 content."},
+          {"id": 2, "title": "Document 2", "content": "This is document 2 content."},
+          {"id": 3, "title": "Document 3", "content": "This is document 3 content."}
+        ];
       } else {
         error = 'Network error';
       }
@@ -223,10 +223,7 @@
                 <div class="message-content">Can you summarize Document 1 for me?</div>
               </div>
               <div class="message system">
-                <div class="message-content">Document 1 contains information about AI competency evaluation procedures.
-                  It outlines several metrics for measuring performance including accuracy, response time, and knowledge
-                  breadth. The document also discusses implementation strategies for various organizational contexts.
-                </div>
+                <div class="message-content">Document 1 contains information about AI competency evaluation procedures. It outlines several metrics for measuring performance including accuracy, response time, and knowledge breadth. The document also discusses implementation strategies for various organizational contexts.</div>
               </div>
             </div>
             <div class="chat-input">
@@ -285,6 +282,8 @@
     display: flex;
     flex: 1;
     background-color: #f7fafc;
+    position: relative;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
   }
 
   .sidebar {
@@ -402,13 +401,13 @@
   }
 
   .content.expanded {
-    margin-left: -190px; /* 250px - 60px */
+    margin-left: 0; /* Don't use negative margin which causes horizontal scroll */
   }
 
   @media (max-width: 768px) {
     .content.expanded {
-      margin-left: 0; /* Don't push content off screen on mobile */
-      padding-left: 80px; /* Add padding to avoid content being hidden under sidebar */
+      margin-left: 0;
+      padding-left: 70px; /* Add padding to avoid content being hidden under sidebar */
     }
   }
 
