@@ -26,7 +26,7 @@
 </script>
 
 <div class="login-container">
-  <h1>Login</h1>
+  <h1>Iniciar Sesión</h1>
 
   <form on:submit|preventDefault={handleSubmit}>
     {#if error}
@@ -34,7 +34,7 @@
     {/if}
 
     <div class="form-group">
-      <label for="username">Username</label>
+      <label for="username">Usuario</label>
       <input
         type="text"
         id="username"
@@ -44,7 +44,7 @@
     </div>
 
     <div class="form-group">
-      <label for="password">Password</label>
+      <label for="password">Contraseña</label>
       <input
         type="password"
         id="password"
@@ -53,7 +53,7 @@
       />
     </div>
 
-    <button class="login_button" type="submit">Login</button>
+    <button class="login_button" type="submit">Iniciar Sesión</button>
   </form>
 </div>
 

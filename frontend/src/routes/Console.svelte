@@ -11,25 +11,25 @@
   let documents = [];
   let loading = true;
   let error = '';
-  
+
   // Document detail data
   let selectedDocument = null;
   let loadingDocument = false;
   let documentError = '';
-  
+
   // Permissions data
   let users = [];
   let loadingUsers = false;
   let usersError = '';
   let editingUser = null;
   let showUserModal = false;
-  
+
   // Chat data
   let messages = [
     {
       id: 1,
       type: 'system',
-      content: 'Welcome to AI Assistant. How can I help you today?',
+      content: 'Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?',
       timestamp: new Date(Date.now() - 60000)
     }
   ];
@@ -78,16 +78,16 @@
         push('/login');
       } else {
         console.error('Error fetching documents:', response.status, response.statusText);
-        error = 'Failed to fetch documents';
+        error = 'Error al cargar documentos';
       }
     } catch (err) {
       console.error('Document fetch error:', err);
-      error = 'Network error';
+      error = 'Error de conexión';
     } finally {
       loading = false;
     }
   }
-  
+
   // Fetch a specific document by ID
   async function fetchDocument(id) {
     try {
@@ -95,7 +95,7 @@
       selectedDocument = null;
       loadingDocument = true;
       documentError = '';
-      
+
       const response = await fetch(`/api/documents/${id}`, {
         credentials: 'include'
       });
@@ -106,25 +106,25 @@
         // User is not authenticated
         push('/login');
       } else if (response.status === 404) {
-        documentError = 'Document not found';
+        documentError = 'Documento no encontrado';
       } else {
         console.error('Error fetching document:', response.status, response.statusText);
-        documentError = 'Failed to fetch document';
+        documentError = 'Error al cargar el documento';
       }
     } catch (err) {
       console.error('Document detail fetch error:', err);
-      documentError = 'Network error';
+      documentError = 'Error de conexión';
     } finally {
       loadingDocument = false;
     }
   }
-  
+
   // View document details
   function viewDocument(id) {
     fetchDocument(id);
     activeSection = 'document-detail';
   }
-  
+
   // Back to documents list
   function backToDocuments() {
     selectedDocument = null;
@@ -192,7 +192,7 @@
         console.error('Error from chat API:', response.status);
 
         // Use fallback responses
-        let fallbackResponse = "I'm having trouble connecting to the server. Please try again later.";
+        let fallbackResponse = "Estoy teniendo problemas para conectarme al servidor. Por favor, inténtalo más tarde.";
 
         messages = [...messages, {
           id: messages.length + 1,
@@ -210,7 +210,7 @@
       messages = [...messages, {
         id: messages.length + 1,
         type: 'system',
-        content: "I'm having trouble connecting to the server. Please try again later.",
+        content: "Estoy teniendo problemas para conectarme al servidor. Por favor, inténtalo más tarde.",
         timestamp: new Date()
       }];
 
@@ -242,33 +242,33 @@
         push('/login');
       } else {
         console.error('Error fetching users:', response.status, response.statusText);
-        usersError = 'Failed to fetch users';
+        usersError = 'Error al cargar usuarios';
       }
     } catch (err) {
       console.error('Users fetch error:', err);
-      usersError = 'Network error';
+      usersError = 'Error de conexión';
     } finally {
       loadingUsers = false;
     }
   }
-  
+
   // User management functions
   function editUser(user) {
     editingUser = { ...user };
     showUserModal = true;
   }
-  
+
   function addNewUser() {
     editingUser = {
       id: null,
       email: '',
-      documentAccess: 'Read',
+      documentAccess: 'Lectura',
       chatAccess: false,
       isAdmin: false
     };
     showUserModal = true;
   }
-  
+
   async function saveUser() {
     try {
       if (editingUser.id) {
@@ -281,7 +281,7 @@
           body: JSON.stringify(editingUser),
           credentials: 'include'
         });
-        
+
         if (response.ok) {
           const updatedUser = await response.json();
           // Update local user data
@@ -292,7 +292,7 @@
           }
         } else {
           console.error('Error updating user:', response.status);
-          usersError = 'Failed to update user';
+          usersError = 'Error al actualizar usuario';
         }
       } else {
         // Add new user
@@ -304,56 +304,56 @@
           body: JSON.stringify(editingUser),
           credentials: 'include'
         });
-        
+
         if (response.ok) {
           const newUser = await response.json();
           users = [...users, newUser]; // Add to local data
         } else {
           console.error('Error creating user:', response.status);
-          usersError = 'Failed to create user';
+          usersError = 'Error al crear usuario';
         }
       }
-      
+
       closeUserModal();
     } catch (err) {
       console.error('Error saving user:', err);
-      usersError = 'Network error while saving user';
+      usersError = 'Error de conexión al guardar usuario';
     }
   }
-  
+
   async function deleteUser(userId) {
-    if (!confirm('Are you sure you want to delete this user?')) {
+    if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
       return;
     }
-    
+
     try {
       const response = await fetch(`/api/users/${userId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
-      
+
       if (response.ok) {
         // Remove from local data
         users = users.filter(u => u.id !== userId);
       } else {
         console.error('Error deleting user:', response.status);
-        usersError = 'Failed to delete user';
+        usersError = 'Error al eliminar usuario';
       }
     } catch (err) {
       console.error('Error deleting user:', err);
-      usersError = 'Network error while deleting user';
+      usersError = 'Error de conexión al eliminar usuario';
     }
   }
-  
+
   function closeUserModal() {
     showUserModal = false;
     editingUser = null;
   }
-  
+
   // Handle section change - load data as needed
   function switchSection(section) {
     activeSection = section;
-    
+
     // Load section-specific data if needed
     if (section === 'permissions' && users.length === 0 && !loadingUsers) {
       fetchUsers();
@@ -363,9 +363,9 @@
   onMount(() => {
     if ($isAuthenticated) {
       fetchDocuments();
-      // Pre-load permissions data 
+      // Pre-load permissions data
       fetchUsers();
-      
+
       // Check if we should activate a specific section (e.g. from redirect)
       const savedSection = localStorage.getItem('activeConsoleSection');
       if (savedSection) {
@@ -392,8 +392,8 @@
 
 <div class="console">
   <header class="console-header">
-    <h1>AI Competency Console</h1>
-    <button class="logout-button" on:click={handleLogout}>Logout</button>
+    <h1>Consola de Competencia de IA</h1>
+    <button class="logout-button" on:click={handleLogout}>Cerrar Sesión</button>
   </header>
 
   <div class="console-container">
@@ -405,13 +405,13 @@
         <li class={activeSection === 'documents' ? 'active' : ''}>
           <button on:click={() => switchSection('documents')}>
             <span class="icon">📄</span>
-            <span class="text">Documents</span>
+            <span class="text">Documentos</span>
           </button>
         </li>
         <li class={activeSection === 'permissions' ? 'active' : ''}>
           <button on:click={() => switchSection('permissions')}>
             <span class="icon">🔒</span>
-            <span class="text">Permissions</span>
+            <span class="text">Permisos</span>
           </button>
         </li>
         <li class={activeSection === 'chat' ? 'active' : ''}>
@@ -426,12 +426,12 @@
     <main class="content" class:expanded={sidebarCollapsed}>
       {#if activeSection === 'document-detail'}
         <div class="section-header">
-          <h2>Document Details</h2>
-          <button class="back-button" on:click={backToDocuments}>← Back to Documents</button>
+          <h2>Detalles del Documento</h2>
+          <button class="back-button" on:click={backToDocuments}>← Volver a Documentos</button>
         </div>
         <div class="document-detail-section">
           {#if loadingDocument}
-            <p>Loading document...</p>
+            <p>Cargando documento...</p>
           {:else if documentError}
             <p class="error">{documentError}</p>
           {:else if selectedDocument}
@@ -442,28 +442,27 @@
               </div>
             </div>
           {:else}
-            <p>Select a document to view details.</p>
+            <p>Selecciona un documento para ver detalles.</p>
           {/if}
         </div>
       {:else if activeSection === 'documents'}
         <div class="section-header">
-          <h2>Documents</h2>
-          <a href="#/documents" use:link class="view-all">View All Documents</a>
+          <h2>Documentos</h2>
         </div>
         <div class="documents-section">
           {#if loading}
-            <p>Loading documents...</p>
+            <p>Cargando documentos...</p>
           {:else if error}
             <p class="error">{error}</p>
           {:else if documents.length === 0}
-            <p>No documents found.</p>
+            <p>No se encontraron documentos.</p>
           {:else}
             <div class="document-cards">
               {#each documents as doc}
                 <div class="document-card">
                   <h3>{doc.title}</h3>
                   <p>{doc.content.substring(0, 100)}...</p>
-                  <button class="view-document-button" on:click={() => viewDocument(doc.id)}>View Document</button>
+                  <button class="view-document-button" on:click={() => viewDocument(doc.id)}>Ver Documento</button>
                 </div>
               {/each}
             </div>
@@ -471,25 +470,25 @@
         </div>
       {:else if activeSection === 'permissions'}
         <div class="section-header">
-          <h2>Permissions</h2>
+          <h2>Permisos</h2>
         </div>
         <div class="permissions-section">
           <div class="permissions-table">
             {#if loadingUsers}
-              <p>Loading users...</p>
+              <p>Cargando usuarios...</p>
             {:else if usersError}
               <p class="error">{usersError}</p>
             {:else if users.length === 0}
-              <p>No users found.</p>
+              <p>No se encontraron usuarios.</p>
             {:else}
               <table>
                 <thead>
                 <tr>
-                  <th>User</th>
-                  <th>Document Access</th>
-                  <th>Chat Access</th>
-                  <th>Admin Rights</th>
-                  <th>Actions</th>
+                  <th>Usuario</th>
+                  <th>Acceso a Documentos</th>
+                  <th>Acceso a Chat</th>
+                  <th>Derechos de Admin</th>
+                  <th>Acciones</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -497,11 +496,11 @@
                   <tr>
                     <td>{user.email}</td>
                     <td>{user.documentAccess}</td>
-                    <td>{user.chatAccess ? 'Enabled' : 'Disabled'}</td>
-                    <td>{user.isAdmin ? 'Yes' : 'No'}</td>
+                    <td>{user.chatAccess ? 'Habilitado' : 'Deshabilitado'}</td>
+                    <td>{user.isAdmin ? 'Sí' : 'No'}</td>
                     <td>
-                      <button class="edit-button" on:click={() => editUser(user)}>Edit</button>
-                      <button class="delete-button" on:click={() => deleteUser(user.id)}>Delete</button>
+                      <button class="edit-button" on:click={() => editUser(user)}>Editar</button>
+                      <button class="delete-button" on:click={() => deleteUser(user.id)}>Eliminar</button>
                     </td>
                   </tr>
                 {/each}
@@ -509,61 +508,61 @@
               </table>
             {/if}
           </div>
-          <button class="add-user-button" on:click={addNewUser}>Add New User</button>
+          <button class="add-user-button" on:click={addNewUser}>Agregar Nuevo Usuario</button>
         </div>
-        
+
         {#if showUserModal}
           <div class="modal-backdrop">
             <div class="modal">
-              <h2>{editingUser.id ? 'Edit User' : 'Add New User'}</h2>
-              
+              <h2>{editingUser.id ? 'Editar Usuario' : 'Agregar Nuevo Usuario'}</h2>
+
               <div class="form-group">
                 <label for="email">Email:</label>
                 <input type="email" id="email" bind:value={editingUser.email} required />
               </div>
-              
+
               <div class="form-group">
-                <label for="documentAccess">Document Access:</label>
+                <label for="documentAccess">Acceso a Documentos:</label>
                 <select id="documentAccess" bind:value={editingUser.documentAccess}>
-                  <option value="Read">Read</option>
-                  <option value="Read/Write">Read/Write</option>
-                  <option value="None">None</option>
+                  <option value="Lectura">Lectura</option>
+                  <option value="Lectura/Escritura">Lectura/Escritura</option>
+                  <option value="Ninguno">Ninguno</option>
                 </select>
               </div>
-              
+
               <div class="form-group checkbox">
                 <label>
                   <input type="checkbox" bind:checked={editingUser.chatAccess} />
-                  Enable Chat Access
+                  Habilitar Acceso a Chat
                 </label>
               </div>
-              
+
               <div class="form-group checkbox">
                 <label>
                   <input type="checkbox" bind:checked={editingUser.isAdmin} />
-                  Admin Rights
+                  Derechos de Administrador
                 </label>
               </div>
-              
+
               <div class="modal-actions">
-                <button class="cancel-button" on:click={closeUserModal}>Cancel</button>
-                <button class="save-button" on:click={saveUser}>Save</button>
+                <button class="cancel-button" on:click={closeUserModal}>Cancelar</button>
+                <button class="save-button" on:click={saveUser}>Guardar</button>
               </div>
             </div>
           </div>
         {/if}
       {:else if activeSection === 'chat'}
         <div class="section-header">
-          <h2>AI Chat</h2>
+          <h2>Chat IA</h2>
           <div class="chat-buttons">
             <button on:click={() => {messages = [
               {
                 id: 1,
                 type: 'system',
-                content: 'Welcome to AI Assistant. How can I help you today?',
+                content: 'Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?',
                 timestamp: new Date()
               }
-            ]}} class="clear-button">Clear Chat</button>
+            ]}} class="clear-button">Limpiar Chat</button>
           </div>
         </div>
         <div class="chat-section">
@@ -578,11 +577,11 @@
             </div>
             <div class="chat-input">
               <textarea
-                placeholder="Type your message here and press Enter to send..."
+                placeholder="Escribe tu mensaje aquí y presiona Enter para enviar..."
                 bind:value={userInput}
                 on:keydown={handleKeydown}
               ></textarea>
-              <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>Send</button>
+              <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>Enviar</button>
             </div>
           </div>
         </div>
@@ -802,14 +801,14 @@
   .document-detail-section {
     margin-bottom: 2rem;
   }
-  
+
   .document-detail {
     background-color: white;
     border-radius: 8px;
     padding: 2rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
-  
+
   .document-detail h1 {
     margin-top: 0;
     color: #2d3748;
@@ -818,12 +817,12 @@
     border-bottom: 1px solid #e2e8f0;
     padding-bottom: 0.75rem;
   }
-  
+
   .document-content {
     line-height: 1.6;
     color: #4a5568;
   }
-  
+
   .back-button {
     display: inline-flex;
     align-items: center;
@@ -835,7 +834,7 @@
     font-size: 0.875rem;
     font-weight: 500;
   }
-  
+
   /* Documents section */
   .document-cards {
     display: grid;
@@ -867,7 +866,7 @@
     font-size: 0.875rem;
     transition: all 0.2s;
   }
-  
+
   .document-card .view-document-button:hover {
     background-color: #4299e1;
     color: white;
@@ -912,7 +911,7 @@
     display: inline-block;
     margin-right: 0.5rem;
   }
-  
+
   .delete-button {
     background-color: #e53e3e;
     color: white;
@@ -933,7 +932,7 @@
     text-decoration: none;
     display: inline-block;
   }
-  
+
   /* Modal styles */
   .modal-backdrop {
     position: fixed;
@@ -962,7 +961,7 @@
     color: #2d3748;
     margin-bottom: 1.5rem;
   }
-  
+
   .form-group {
     margin-bottom: 1rem;
   }

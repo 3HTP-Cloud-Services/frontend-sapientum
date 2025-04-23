@@ -22,11 +22,11 @@
         push('/login');
       } else {
         console.error('Error fetching documents:', response.status, response.statusText);
-        error = 'Failed to fetch documents';
+        error = 'Error al cargar documentos';
       }
     } catch (err) {
       console.error('Document fetch error:', err);
-      error = 'Network error';
+      error = 'Error de conexión';
     } finally {
       loading = false;
     }
@@ -46,19 +46,19 @@
 
 <div>
   <div class="nav-bar">
-    <h1>Documents</h1>
+    <h1>Documentos</h1>
     <div class="nav-buttons">
-      <a href="#/console" use:link class="back-link">Back to Console</a>
-      <button class="logout_button" on:click={handleLogout}>Logout</button>
+      <a href="#/console" use:link class="back-link">Volver a la Consola</a>
+      <button class="logout_button" on:click={handleLogout}>Cerrar Sesión</button>
     </div>
   </div>
 
   {#if loading}
-    <p>Loading documents...</p>
+    <p>Cargando documentos...</p>
   {:else if error}
     <p class="error">{error}</p>
   {:else if documents.length === 0}
-    <p>No documents found.</p>
+    <p>No se encontraron documentos.</p>
   {:else}
     <ul class="document-list">
       {#each documents as doc}

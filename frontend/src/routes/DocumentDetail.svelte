@@ -23,14 +23,14 @@
         // User is not authenticated
         push('/login');
       } else if (response.status === 404) {
-        error = 'Document not found';
+        error = 'Documento no encontrado';
       } else {
         console.error('Error fetching document:', response.status, response.statusText);
-        error = 'Failed to fetch document';
+        error = 'Error al cargar el documento';
       }
     } catch (err) {
       console.error('Document fetch error:', err);
-      error = 'Network error';
+      error = 'Error de conexión';
     } finally {
       loading = false;
     }
@@ -44,12 +44,12 @@
 
 <div>
   <div class="nav-bar">
-    <a href="#/documents" use:link>← Back to Documents</a>
-    <a href="#/console" use:link>Back to Console</a>
+    <a href="#/documents" use:link>← Volver a Documentos</a>
+    <a href="#/console" use:link>Volver a la Consola</a>
   </div>
 
   {#if loading}
-    <p>Loading document...</p>
+    <p>Cargando documento...</p>
   {:else if error}
     <p class="error">{error}</p>
   {:else if document}
