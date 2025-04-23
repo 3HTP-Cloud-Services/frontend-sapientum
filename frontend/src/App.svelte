@@ -8,7 +8,6 @@
   import DocumentDetail from './routes/DocumentDetail.svelte';
   import Console from './routes/Console.svelte';
   import Permissions from './routes/Permissions.svelte';
-  import Chat from './routes/Chat.svelte';
 
   // Define routes
   const routes = {
@@ -17,8 +16,7 @@
     '/documents': Documents,
     '/login': Login,
     '/documents/:id': DocumentDetail,
-    '/permissions': Permissions,
-    '/chat': Chat
+    '/permissions': Permissions
   };
 
   onMount(async () => {

@@ -22,33 +22,11 @@
         push('/login');
       } else {
         console.error('Error fetching documents:', response.status, response.statusText);
-
-        // In static mode, just show some documents if the API is not available
-        if (window.location.pathname === '/' && !window.location.href.includes('localhost:5173')) {
-          console.log('In static mode, using mock documents');
-          documents = [
-            {"id": 1, "title": "Static Document 1", "content": "This is static document 1 content."},
-            {"id": 2, "title": "Static Document 2", "content": "This is static document 2 content."},
-            {"id": 3, "title": "Static Document 3", "content": "This is static document 3 content."}
-          ];
-        } else {
-          error = 'Failed to fetch documents';
-        }
+        error = 'Failed to fetch documents';
       }
     } catch (err) {
       console.error('Document fetch error:', err);
-
-      // In static mode, just show some documents if the API fails
-      if (window.location.pathname === '/' && !window.location.href.includes('localhost:5173')) {
-        console.log('In static mode, using mock documents');
-        documents = [
-          {"id": 1, "title": "Static Document 1", "content": "This is static document 1 content."},
-          {"id": 2, "title": "Static Document 2", "content": "This is static document 2 content."},
-          {"id": 3, "title": "Static Document 3", "content": "This is static document 3 content."}
-        ];
-      } else {
-        error = 'Network error';
-      }
+      error = 'Network error';
     } finally {
       loading = false;
     }

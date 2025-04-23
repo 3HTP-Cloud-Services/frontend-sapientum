@@ -26,33 +26,11 @@
         error = 'Document not found';
       } else {
         console.error('Error fetching document:', response.status, response.statusText);
-
-        // In static mode, just show mock document if the API fails
-        if (window.location.pathname === '/' && !window.location.href.includes('localhost:5173')) {
-          console.log('In static mode, using mock document');
-          document = {
-            "id": parseInt(id),
-            "title": `Static Document ${id}`,
-            "content": `This is static document ${id} content. It's used as a fallback when the API isn't available.`
-          };
-        } else {
-          error = 'Failed to fetch document';
-        }
+        error = 'Failed to fetch document';
       }
     } catch (err) {
       console.error('Document fetch error:', err);
-
-      // In static mode, just show mock document if the API fails
-      if (window.location.pathname === '/' && !window.location.href.includes('localhost:5173')) {
-        console.log('In static mode, using mock document');
-        document = {
-          "id": parseInt(id),
-          "title": `Static Document ${id}`,
-          "content": `This is static document ${id} content. It's used as a fallback when the API isn't available.`
-        };
-      } else {
-        error = 'Network error';
-      }
+      error = 'Network error';
     } finally {
       loading = false;
     }

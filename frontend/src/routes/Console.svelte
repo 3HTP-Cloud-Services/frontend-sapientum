@@ -69,33 +69,11 @@
         push('/login');
       } else {
         console.error('Error fetching documents:', response.status, response.statusText);
-
-        // In static mode, just show some documents if the API is not available
-        if (window.isStaticMode) {
-          console.log('In static mode, using mock documents');
-          documents = [
-            {"id": 1, "title": "Document 1", "content": "This is document 1 content."},
-            {"id": 2, "title": "Document 2", "content": "This is document 2 content."},
-            {"id": 3, "title": "Document 3", "content": "This is document 3 content."}
-          ];
-        } else {
-          error = 'Failed to fetch documents';
-        }
+        error = 'Failed to fetch documents';
       }
     } catch (err) {
       console.error('Document fetch error:', err);
-
-      // In static mode, just show some documents if the API fails
-      if (window.isStaticMode) {
-        console.log('In static mode, using mock documents');
-        documents = [
-          {"id": 1, "title": "Document 1", "content": "This is document 1 content."},
-          {"id": 2, "title": "Document 2", "content": "This is document 2 content."},
-          {"id": 3, "title": "Document 3", "content": "This is document 3 content."}
-        ];
-      } else {
-        error = 'Network error';
-      }
+      error = 'Network error';
     } finally {
       loading = false;
     }
@@ -109,7 +87,7 @@
   }
 
   // Function to send a chat message
-  function sendMessage() {
+  async function sendMessage() {
     if (!userInput.trim()) return;
 
     // Add user message
@@ -119,54 +97,72 @@
       content: userInput,
       timestamp: new Date()
     };
-    
+
     messages = [...messages, userMessage];
-    
-    // Clear input
+
+    // Clear input and store the message for sending
+    const messageToSend = userInput;
     userInput = '';
-    
+
     // Scroll to bottom after rendering user message
     setTimeout(scrollToBottom, 0);
-    
-    // Simulate AI response after a delay
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(userMessage.content);
+
+    try {
+      // Call the backend API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: messageToSend }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Add AI response
+        messages = [...messages, {
+          id: messages.length + 1,
+          type: 'system',
+          content: data.response,
+          timestamp: new Date()
+        }];
+
+        // Scroll to bottom after rendering AI response
+        setTimeout(scrollToBottom, 0);
+      } else if (response.status === 401) {
+        // User is not authenticated
+        push('/login');
+      } else {
+        // Fall back to client-side response if API fails
+        console.error('Error from chat API:', response.status);
+
+        // Use fallback responses
+        let fallbackResponse = "I'm having trouble connecting to the server. Please try again later.";
+
+        messages = [...messages, {
+          id: messages.length + 1,
+          type: 'system',
+          content: fallbackResponse,
+          timestamp: new Date()
+        }];
+
+        setTimeout(scrollToBottom, 0);
+      }
+    } catch (error) {
+      console.error('Network error when calling chat API:', error);
+
+      // Handle network errors with fallback
       messages = [...messages, {
         id: messages.length + 1,
         type: 'system',
-        content: aiResponse,
+        content: "I'm having trouble connecting to the server. Please try again later.",
         timestamp: new Date()
       }];
-      
-      // Scroll to bottom after rendering AI response
-      setTimeout(scrollToBottom, 0);
-    }, 1000);
-  }
 
-  // Function to generate AI response
-  function generateAIResponse(userQuery) {
-    // Mock AI response based on user query
-    const responses = {
-      'hello': 'Hello! How can I assist you today?',
-      'help': 'I can help you with document summaries, answer questions about the system, or provide guidance on AI competency evaluation.',
-      'document': 'Which document would you like me to summarize or provide information about?',
-      'summarize': 'I can summarize documents for you. Please specify which document you would like me to summarize.',
-      'document 1': 'Document 1 contains information about AI competency evaluation procedures. It outlines metrics for measuring performance including accuracy, response time, and knowledge breadth.',
-      'document 2': 'Document 2 describes implementation strategies for AI systems in various organizational contexts, including best practices for deployment and integration.',
-      'document 3': 'Document 3 provides case studies of successful AI implementations with detailed analysis of outcomes and lessons learned.',
-      'permissions': 'User permissions are managed by administrators. There are different access levels for documents and chat functionality.',
-    };
-    
-    // Check if query contains any keywords
-    const lowerQuery = userQuery.toLowerCase();
-    for (const [keyword, response] of Object.entries(responses)) {
-      if (lowerQuery.includes(keyword)) {
-        return response;
-      }
+      setTimeout(scrollToBottom, 0);
     }
-    
-    // Default response
-    return "I'm not sure I understand your question. Could you please rephrase or provide more details?";
   }
 
   // Handle key press for chat input
@@ -187,7 +183,7 @@
 
     // Add resize event listener
     window.addEventListener('resize', checkMobile);
-    
+
     // Scroll chat to bottom on initial load
     setTimeout(scrollToBottom, 0);
 
@@ -303,7 +299,16 @@
       {:else if activeSection === 'chat'}
         <div class="section-header">
           <h2>AI Chat</h2>
-          <a href="#/chat" use:link class="view-all">Open Full Chat</a>
+          <div class="chat-buttons">
+            <button on:click={() => {messages = [
+              {
+                id: 1,
+                type: 'system',
+                content: 'Welcome to AI Assistant. How can I help you today?',
+                timestamp: new Date()
+              }
+            ]}} class="clear-button">Clear Chat</button>
+          </div>
         </div>
         <div class="chat-section">
           <div class="chat-container">
@@ -316,12 +321,12 @@
               {/each}
             </div>
             <div class="chat-input">
-              <textarea 
-                placeholder="Type your message here..." 
+              <textarea
+                placeholder="Type your message here and press Enter to send..."
                 bind:value={userInput}
                 on:keydown={handleKeydown}
               ></textarea>
-              <button class="send-button" on:click={sendMessage}>Send</button>
+              <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>Send</button>
             </div>
           </div>
         </div>
@@ -521,6 +526,22 @@
     text-decoration: none;
   }
 
+  .chat-buttons {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .clear-button {
+    background-color: #a0aec0;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+  }
+
   /* Documents section */
   .document-cards {
     display: grid;
@@ -608,7 +629,7 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     overflow: hidden;
   }
-  
+
   .chat-section {
     margin-bottom: 2rem;
   }
@@ -641,7 +662,7 @@
     background-color: #4299e1;
     color: white;
   }
-  
+
   .message-time {
     font-size: 0.75rem;
     margin-top: 0.25rem;

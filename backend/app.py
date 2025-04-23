@@ -20,10 +20,64 @@ USER = {
 
 # Mock documents data
 DOCUMENTS = [
-    {"id": 1, "title": "Document 1", "content": "This is document 1 content."},
-    {"id": 2, "title": "Document 2", "content": "This is document 2 content."},
-    {"id": 3, "title": "Document 3", "content": "This is document 3 content."}
+    {
+        "id": 1, 
+        "title": "AI Competency Evaluation Procedures", 
+        "content": "This document outlines metrics for measuring AI performance including accuracy, response time, and knowledge breadth. The document also discusses implementation strategies for various organizational contexts and best practices for evaluating AI competency across different domains. The evaluation should include both quantitative metrics and qualitative assessments."
+    },
+    {
+        "id": 2, 
+        "title": "Implementation Strategies for AI Systems", 
+        "content": "This document describes implementation strategies for AI systems in various organizational contexts, including best practices for deployment and integration. It covers technical considerations, stakeholder management, and risk mitigation techniques. The document also provides a framework for assessing organizational readiness for AI adoption."
+    },
+    {
+        "id": 3, 
+        "title": "AI Implementation Case Studies", 
+        "content": "This document provides case studies of successful AI implementations with detailed analysis of outcomes and lessons learned. Each case study examines the challenges faced, solutions implemented, and results achieved. The document concludes with common patterns and best practices derived from these real-world examples."
+    }
 ]
+
+# AI chat responses
+def generate_ai_response(user_query):
+    # Mock AI response based on user query
+    responses = {
+        'hello': 'Hello! How can I assist you today?',
+        'help': 'I can help you with document summaries, answer questions about the system, or provide guidance on AI competency evaluation.',
+        'document': 'Which document would you like me to summarize or provide information about?',
+        'summarize': 'I can summarize documents for you. Please specify which document you would like me to summarize.',
+        'permissions': 'User permissions are managed by administrators. There are different access levels for documents and chat functionality.',
+    }
+    
+    # Create responses based on actual document data
+    doc_responses = {}
+    for doc in DOCUMENTS:
+        doc_id = str(doc['id'])
+        doc_title = doc['title'].lower()
+        # Add response for document by ID
+        doc_responses[f'document {doc_id}'] = f"{doc['title']} - {doc['content'][:150]}..."
+        # Add response for document by title
+        doc_responses[doc_title] = f"{doc['title']} - {doc['content'][:150]}..."
+    
+    # Merge the two dictionaries
+    all_responses = {**responses, **doc_responses}
+    
+    # Check if query contains any keywords
+    lower_query = user_query.lower()
+    
+    # First check for exact matches
+    for keyword, response in all_responses.items():
+        if keyword in lower_query:
+            return response
+    
+    # Then check for partial matches on document titles
+    for doc in DOCUMENTS:
+        title_words = doc['title'].lower().split()
+        for word in title_words:
+            if len(word) > 3 and word in lower_query:  # Only match on words longer than 3 chars
+                return f"I found a document that might interest you: {doc['title']} - {doc['content'][:100]}..."
+    
+    # Default response
+    return "I'm not sure I understand your question. Could you please rephrase or provide more details?"
 
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -65,6 +119,25 @@ def get_document(doc_id):
             return jsonify(doc)
     
     return jsonify({"error": "Document not found"}), 404
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.json
+    user_message = data.get('message', '')
+    
+    if not user_message:
+        return jsonify({"error": "Message cannot be empty"}), 400
+    
+    # Generate response
+    ai_response = generate_ai_response(user_message)
+    
+    return jsonify({
+        "response": ai_response,
+        "timestamp": None  # Frontend will set the timestamp
+    })
 
 # Catch-all route for serving static files in static mode
 @app.route('/', defaults={'path': ''})
