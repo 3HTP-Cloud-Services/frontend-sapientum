@@ -12,6 +12,19 @@
   let loading = true;
   let error = '';
 
+  // Chat data
+  let messages = [
+    {
+      id: 1,
+      type: 'system',
+      content: 'Welcome to AI Assistant. How can I help you today?',
+      timestamp: new Date(Date.now() - 60000)
+    }
+  ];
+  let userInput = '';
+  let chatContainer;
+  let messagesContainer;
+
   // Sidebar state
   let sidebarCollapsed = false;
   let isMobile = false;
@@ -88,6 +101,82 @@
     }
   }
 
+  // Function to scroll chat to bottom
+  function scrollToBottom() {
+    if (messagesContainer) {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+  }
+
+  // Function to send a chat message
+  function sendMessage() {
+    if (!userInput.trim()) return;
+
+    // Add user message
+    const userMessage = {
+      id: messages.length + 1,
+      type: 'user',
+      content: userInput,
+      timestamp: new Date()
+    };
+    
+    messages = [...messages, userMessage];
+    
+    // Clear input
+    userInput = '';
+    
+    // Scroll to bottom after rendering user message
+    setTimeout(scrollToBottom, 0);
+    
+    // Simulate AI response after a delay
+    setTimeout(() => {
+      const aiResponse = generateAIResponse(userMessage.content);
+      messages = [...messages, {
+        id: messages.length + 1,
+        type: 'system',
+        content: aiResponse,
+        timestamp: new Date()
+      }];
+      
+      // Scroll to bottom after rendering AI response
+      setTimeout(scrollToBottom, 0);
+    }, 1000);
+  }
+
+  // Function to generate AI response
+  function generateAIResponse(userQuery) {
+    // Mock AI response based on user query
+    const responses = {
+      'hello': 'Hello! How can I assist you today?',
+      'help': 'I can help you with document summaries, answer questions about the system, or provide guidance on AI competency evaluation.',
+      'document': 'Which document would you like me to summarize or provide information about?',
+      'summarize': 'I can summarize documents for you. Please specify which document you would like me to summarize.',
+      'document 1': 'Document 1 contains information about AI competency evaluation procedures. It outlines metrics for measuring performance including accuracy, response time, and knowledge breadth.',
+      'document 2': 'Document 2 describes implementation strategies for AI systems in various organizational contexts, including best practices for deployment and integration.',
+      'document 3': 'Document 3 provides case studies of successful AI implementations with detailed analysis of outcomes and lessons learned.',
+      'permissions': 'User permissions are managed by administrators. There are different access levels for documents and chat functionality.',
+    };
+    
+    // Check if query contains any keywords
+    const lowerQuery = userQuery.toLowerCase();
+    for (const [keyword, response] of Object.entries(responses)) {
+      if (lowerQuery.includes(keyword)) {
+        return response;
+      }
+    }
+    
+    // Default response
+    return "I'm not sure I understand your question. Could you please rephrase or provide more details?";
+  }
+
+  // Handle key press for chat input
+  function handleKeydown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+
   onMount(() => {
     if ($isAuthenticated) {
       fetchDocuments();
@@ -98,6 +187,9 @@
 
     // Add resize event listener
     window.addEventListener('resize', checkMobile);
+    
+    // Scroll chat to bottom on initial load
+    setTimeout(scrollToBottom, 0);
 
     // Cleanup function
     return () => {
@@ -215,20 +307,21 @@
         </div>
         <div class="chat-section">
           <div class="chat-container">
-            <div class="chat-messages">
-              <div class="message system">
-                <div class="message-content">Welcome to AI Assistant. How can I help you today?</div>
-              </div>
-              <div class="message user">
-                <div class="message-content">Can you summarize Document 1 for me?</div>
-              </div>
-              <div class="message system">
-                <div class="message-content">Document 1 contains information about AI competency evaluation procedures. It outlines several metrics for measuring performance including accuracy, response time, and knowledge breadth. The document also discusses implementation strategies for various organizational contexts.</div>
-              </div>
+            <div class="chat-messages" bind:this={messagesContainer}>
+              {#each messages as message (message.id)}
+                <div class={`message ${message.type}`}>
+                  <div class="message-content">{message.content}</div>
+                  <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>
+              {/each}
             </div>
             <div class="chat-input">
-              <textarea placeholder="Type your message here..." disabled></textarea>
-              <a href="#/chat" use:link class="send-button">Open Chat</a>
+              <textarea 
+                placeholder="Type your message here..." 
+                bind:value={userInput}
+                on:keydown={handleKeydown}
+              ></textarea>
+              <button class="send-button" on:click={sendMessage}>Send</button>
             </div>
           </div>
         </div>
@@ -515,6 +608,10 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     overflow: hidden;
   }
+  
+  .chat-section {
+    margin-bottom: 2rem;
+  }
 
   .chat-messages {
     flex: 1;
@@ -530,17 +627,26 @@
     padding: 0.75rem 1rem;
     border-radius: 8px;
     position: relative;
+    margin-bottom: 0.5rem;
   }
 
   .message.system {
     align-self: flex-start;
     background-color: #edf2f7;
+    color: #2d3748;
   }
 
   .message.user {
     align-self: flex-end;
     background-color: #4299e1;
     color: white;
+  }
+  
+  .message-time {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    opacity: 0.7;
+    text-align: right;
   }
 
   .chat-input {
@@ -571,8 +677,10 @@
     font-weight: bold;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     height: 40px;
     text-decoration: none;
+    min-width: 80px;
   }
 
   /* Mobile optimizations */
