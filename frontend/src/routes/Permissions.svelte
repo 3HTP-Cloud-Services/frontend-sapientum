@@ -4,32 +4,38 @@
   import { link } from 'svelte-spa-router';
   import { isAuthenticated } from '../lib/auth.js';
 
-  let users = [
-    {
-      id: 1,
-      email: 'user@example.com',
-      documentAccess: 'Read',
-      chatAccess: true,
-      isAdmin: false
-    },
-    {
-      id: 2,
-      email: 'admin@example.com',
-      documentAccess: 'Read/Write',
-      chatAccess: true,
-      isAdmin: true
-    },
-    {
-      id: 3,
-      email: 'guest@example.com',
-      documentAccess: 'Read',
-      chatAccess: false,
-      isAdmin: false
-    }
-  ];
-
+  let users = [];
+  let loading = true;
+  let error = '';
   let editingUser = null;
   let showModal = false;
+  
+  // Fetch users from the backend
+  async function fetchUsers() {
+    try {
+      loading = true;
+      error = '';
+      
+      const response = await fetch('/api/users', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        users = await response.json();
+      } else if (response.status === 401) {
+        // User is not authenticated
+        push('/login');
+      } else {
+        console.error('Error fetching users:', response.status, response.statusText);
+        error = 'Failed to fetch user data';
+      }
+    } catch (err) {
+      console.error('User fetch error:', err);
+      error = 'Network error';
+    } finally {
+      loading = false;
+    }
+  }
 
   function editUser(user) {
     editingUser = { ...user };
@@ -47,26 +53,92 @@
     showModal = true;
   }
 
-  function saveUser() {
-    if (editingUser.id) {
-      // Update existing user
-      const index = users.findIndex(u => u.id === editingUser.id);
-      if (index !== -1) {
-        users[index] = editingUser;
-        users = [...users];
+  async function saveUser() {
+    try {
+      if (editingUser.id) {
+        // Update existing user
+        const response = await fetch(`/api/users/${editingUser.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(editingUser),
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const updatedUser = await response.json();
+          // Update local user data
+          const index = users.findIndex(u => u.id === updatedUser.id);
+          if (index !== -1) {
+            users[index] = updatedUser;
+            users = [...users]; // Trigger reactivity
+          }
+        } else {
+          console.error('Error updating user:', response.status);
+          error = 'Failed to update user';
+        }
+      } else {
+        // Add new user
+        const response = await fetch('/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(editingUser),
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const newUser = await response.json();
+          users = [...users, newUser]; // Add to local data
+        } else {
+          console.error('Error creating user:', response.status);
+          error = 'Failed to create user';
+        }
       }
-    } else {
-      // Add new user
-      users = [...users, editingUser];
+      
+      closeModal();
+    } catch (err) {
+      console.error('Error saving user:', err);
+      error = 'Network error while saving user';
+    }
+  }
+  
+  async function deleteUser(userId) {
+    if (!confirm('Are you sure you want to delete this user?')) {
+      return;
     }
     
-    closeModal();
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        // Remove from local data
+        users = users.filter(u => u.id !== userId);
+      } else {
+        console.error('Error deleting user:', response.status);
+        error = 'Failed to delete user';
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      error = 'Network error while deleting user';
+    }
   }
 
   function closeModal() {
     showModal = false;
     editingUser = null;
   }
+  
+  onMount(() => {
+    if ($isAuthenticated) {
+      fetchUsers();
+    }
+  });
 </script>
 
 <div>
@@ -76,31 +148,42 @@
   </div>
 
   <div class="permissions-section">
-    <div class="permissions-table">
-      <table>
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Document Access</th>
-            <th>Chat Access</th>
-            <th>Admin Rights</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each users as user}
+    {#if loading}
+      <p>Loading users...</p>
+    {:else if error}
+      <p class="error">{error}</p>
+    {:else if users.length === 0}
+      <p>No users found.</p>
+    {:else}
+      <div class="permissions-table">
+        <table>
+          <thead>
             <tr>
-              <td>{user.email}</td>
-              <td>{user.documentAccess}</td>
-              <td>{user.chatAccess ? 'Enabled' : 'Disabled'}</td>
-              <td>{user.isAdmin ? 'Yes' : 'No'}</td>
-              <td><button class="edit-button" on:click={() => editUser(user)}>Edit</button></td>
+              <th>User</th>
+              <th>Document Access</th>
+              <th>Chat Access</th>
+              <th>Admin Rights</th>
+              <th>Actions</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-    <button class="add-user-button" on:click={addNewUser}>Add New User</button>
+          </thead>
+          <tbody>
+            {#each users as user}
+              <tr>
+                <td>{user.email}</td>
+                <td>{user.documentAccess}</td>
+                <td>{user.chatAccess ? 'Enabled' : 'Disabled'}</td>
+                <td>{user.isAdmin ? 'Yes' : 'No'}</td>
+                <td>
+                  <button class="edit-button" on:click={() => editUser(user)}>Edit</button>
+                  <button class="delete-button" on:click={() => deleteUser(user.id)}>Delete</button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <button class="add-user-button" on:click={addNewUser}>Add New User</button>
+    {/if}
   </div>
 
   {#if showModal}
@@ -197,6 +280,16 @@
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     cursor: pointer;
+    margin-right: 0.5rem;
+  }
+  
+  .delete-button {
+    background-color: #e53e3e;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
   }
 
   .add-user-button {
@@ -235,6 +328,14 @@
     margin-top: 0;
     color: #2d3748;
     margin-bottom: 1.5rem;
+  }
+  
+  .error {
+    color: #ff6b6b;
+    padding: 1rem;
+    background-color: #fee;
+    border-radius: 4px;
+    margin-bottom: 1rem;
   }
 
   .form-group {

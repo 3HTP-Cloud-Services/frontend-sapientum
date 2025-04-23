@@ -18,6 +18,31 @@ USER = {
     "password": "user123"
 }
 
+# Users with permissions
+USERS = [
+    {
+        "id": 1,
+        "email": "user@example.com",
+        "documentAccess": "Read",
+        "chatAccess": True,
+        "isAdmin": False
+    },
+    {
+        "id": 2,
+        "email": "admin@example.com",
+        "documentAccess": "Read/Write",
+        "chatAccess": True,
+        "isAdmin": True
+    },
+    {
+        "id": 3,
+        "email": "guest@example.com",
+        "documentAccess": "Read",
+        "chatAccess": False,
+        "isAdmin": False
+    }
+]
+
 # Mock documents data
 DOCUMENTS = [
     {
@@ -138,6 +163,78 @@ def chat():
         "response": ai_response,
         "timestamp": None  # Frontend will set the timestamp
     })
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    return jsonify(USERS)
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+def get_user(user_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    for user in USERS:
+        if user['id'] == user_id:
+            return jsonify(user)
+    
+    return jsonify({"error": "User not found"}), 404
+
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.json
+    if not data or not data.get('email'):
+        return jsonify({"error": "Email is required"}), 400
+    
+    # Get the next available ID
+    next_id = max([user['id'] for user in USERS]) + 1 if USERS else 1
+    
+    new_user = {
+        "id": next_id,
+        "email": data.get('email'),
+        "documentAccess": data.get('documentAccess', 'Read'),
+        "chatAccess": data.get('chatAccess', False),
+        "isAdmin": data.get('isAdmin', False)
+    }
+    
+    USERS.append(new_user)
+    return jsonify(new_user), 201
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    for i, user in enumerate(USERS):
+        if user['id'] == user_id:
+            # Update user with provided fields
+            for key in ['email', 'documentAccess', 'chatAccess', 'isAdmin']:
+                if key in data:
+                    USERS[i][key] = data[key]
+            return jsonify(USERS[i])
+    
+    return jsonify({"error": "User not found"}), 404
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    for i, user in enumerate(USERS):
+        if user['id'] == user_id:
+            deleted_user = USERS.pop(i)
+            return jsonify({"success": True, "deleted": deleted_user})
+    
+    return jsonify({"error": "User not found"}), 404
 
 # Catch-all route for serving static files in static mode
 @app.route('/', defaults={'path': ''})

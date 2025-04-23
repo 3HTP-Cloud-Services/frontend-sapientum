@@ -37,9 +37,8 @@
   }
 
   onMount(() => {
-    if ($isAuthenticated && params.id) {
-      fetchDocument(params.id);
-    }
+    // Redirect to the Console component with document view
+    push('/console');
   });
 </script>
 

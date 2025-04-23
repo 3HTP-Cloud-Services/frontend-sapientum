@@ -11,7 +11,17 @@
   let documents = [];
   let loading = true;
   let error = '';
-
+  
+  // Document detail data
+  let selectedDocument = null;
+  let loadingDocument = false;
+  let documentError = '';
+  
+  // Permissions data
+  let users = [];
+  let loadingUsers = false;
+  let usersError = '';
+  
   // Chat data
   let messages = [
     {
@@ -43,10 +53,7 @@
     sidebarCollapsed = !sidebarCollapsed;
   }
 
-  // Function to switch between sections
-  function switchSection(section) {
-    activeSection = section;
-  }
+  // This function definition is moved down in the file
 
   // Handle logout
   async function handleLogout() {
@@ -77,6 +84,50 @@
     } finally {
       loading = false;
     }
+  }
+  
+  // Fetch a specific document by ID
+  async function fetchDocument(id) {
+    try {
+      // Clear any previous document
+      selectedDocument = null;
+      loadingDocument = true;
+      documentError = '';
+      
+      const response = await fetch(`/api/documents/${id}`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        selectedDocument = await response.json();
+      } else if (response.status === 401) {
+        // User is not authenticated
+        push('/login');
+      } else if (response.status === 404) {
+        documentError = 'Document not found';
+      } else {
+        console.error('Error fetching document:', response.status, response.statusText);
+        documentError = 'Failed to fetch document';
+      }
+    } catch (err) {
+      console.error('Document detail fetch error:', err);
+      documentError = 'Network error';
+    } finally {
+      loadingDocument = false;
+    }
+  }
+  
+  // View document details
+  function viewDocument(id) {
+    fetchDocument(id);
+    activeSection = 'document-detail';
+  }
+  
+  // Back to documents list
+  function backToDocuments() {
+    selectedDocument = null;
+    documentError = '';
+    activeSection = 'documents';
   }
 
   // Function to scroll chat to bottom
@@ -173,9 +224,46 @@
     }
   }
 
+  // Fetch users for permissions section
+  async function fetchUsers() {
+    try {
+      loadingUsers = true;
+      const response = await fetch('/api/users', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        users = await response.json();
+      } else if (response.status === 401) {
+        // User is not authenticated
+        push('/login');
+      } else {
+        console.error('Error fetching users:', response.status, response.statusText);
+        usersError = 'Failed to fetch users';
+      }
+    } catch (err) {
+      console.error('Users fetch error:', err);
+      usersError = 'Network error';
+    } finally {
+      loadingUsers = false;
+    }
+  }
+  
+  // Handle section change - load data as needed
+  function switchSection(section) {
+    activeSection = section;
+    
+    // Load section-specific data if needed
+    if (section === 'permissions' && users.length === 0 && !loadingUsers) {
+      fetchUsers();
+    }
+  }
+
   onMount(() => {
     if ($isAuthenticated) {
       fetchDocuments();
+      // Pre-load permissions data 
+      fetchUsers();
     }
 
     // Check if mobile on initial load
@@ -228,7 +316,28 @@
     </nav>
 
     <main class="content" class:expanded={sidebarCollapsed}>
-      {#if activeSection === 'documents'}
+      {#if activeSection === 'document-detail'}
+        <div class="section-header">
+          <h2>Document Details</h2>
+          <button class="back-button" on:click={backToDocuments}>← Back to Documents</button>
+        </div>
+        <div class="document-detail-section">
+          {#if loadingDocument}
+            <p>Loading document...</p>
+          {:else if documentError}
+            <p class="error">{documentError}</p>
+          {:else if selectedDocument}
+            <div class="document-detail">
+              <h1>{selectedDocument.title}</h1>
+              <div class="document-content">
+                {selectedDocument.content}
+              </div>
+            </div>
+          {:else}
+            <p>Select a document to view details.</p>
+          {/if}
+        </div>
+      {:else if activeSection === 'documents'}
         <div class="section-header">
           <h2>Documents</h2>
           <a href="#/documents" use:link class="view-all">View All Documents</a>
@@ -246,7 +355,7 @@
                 <div class="document-card">
                   <h3>{doc.title}</h3>
                   <p>{doc.content.substring(0, 100)}...</p>
-                  <a href="#/documents/{doc.id}" use:link>View Document</a>
+                  <button class="view-document-button" on:click={() => viewDocument(doc.id)}>View Document</button>
                 </div>
               {/each}
             </div>
@@ -259,40 +368,36 @@
         </div>
         <div class="permissions-section">
           <div class="permissions-table">
-            <table>
-              <thead>
-              <tr>
-                <th>User</th>
-                <th>Document Access</th>
-                <th>Chat Access</th>
-                <th>Admin Rights</th>
-                <th>Actions</th>
-              </tr>
-              </thead>
-              <tbody>
-              <tr>
-                <td>user@example.com</td>
-                <td>Read</td>
-                <td>Enabled</td>
-                <td>No</td>
-                <td><a href="#/permissions" use:link class="edit-link">Edit</a></td>
-              </tr>
-              <tr>
-                <td>admin@example.com</td>
-                <td>Read/Write</td>
-                <td>Enabled</td>
-                <td>Yes</td>
-                <td><a href="#/permissions" use:link class="edit-link">Edit</a></td>
-              </tr>
-              <tr>
-                <td>guest@example.com</td>
-                <td>Read</td>
-                <td>Disabled</td>
-                <td>No</td>
-                <td><a href="#/permissions" use:link class="edit-link">Edit</a></td>
-              </tr>
-              </tbody>
-            </table>
+            {#if loadingUsers}
+              <p>Loading users...</p>
+            {:else if usersError}
+              <p class="error">{usersError}</p>
+            {:else if users.length === 0}
+              <p>No users found.</p>
+            {:else}
+              <table>
+                <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Document Access</th>
+                  <th>Chat Access</th>
+                  <th>Admin Rights</th>
+                  <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {#each users as user}
+                  <tr>
+                    <td>{user.email}</td>
+                    <td>{user.documentAccess}</td>
+                    <td>{user.chatAccess ? 'Enabled' : 'Disabled'}</td>
+                    <td>{user.isAdmin ? 'Yes' : 'No'}</td>
+                    <td><a href="#/permissions" use:link class="edit-link">Edit</a></td>
+                  </tr>
+                {/each}
+                </tbody>
+              </table>
+            {/if}
           </div>
           <a href="#/permissions" use:link class="add-user-button">Manage Users</a>
         </div>
@@ -542,6 +647,44 @@
     font-size: 0.875rem;
   }
 
+  /* Document detail view */
+  .document-detail-section {
+    margin-bottom: 2rem;
+  }
+  
+  .document-detail {
+    background-color: white;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .document-detail h1 {
+    margin-top: 0;
+    color: #2d3748;
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.75rem;
+  }
+  
+  .document-content {
+    line-height: 1.6;
+    color: #4a5568;
+  }
+  
+  .back-button {
+    display: inline-flex;
+    align-items: center;
+    color: #4299e1;
+    background: none;
+    border: none;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  
   /* Documents section */
   .document-cards {
     display: grid;
@@ -561,11 +704,22 @@
     color: #2d3748;
   }
 
-  .document-card a {
+  .document-card .view-document-button {
     display: inline-block;
     margin-top: 1rem;
     color: #4299e1;
-    text-decoration: none;
+    background: none;
+    border: 1px solid #4299e1;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+  }
+  
+  .document-card .view-document-button:hover {
+    background-color: #4299e1;
+    color: white;
   }
 
   /* Permissions section */
