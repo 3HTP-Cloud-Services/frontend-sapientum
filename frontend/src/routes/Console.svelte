@@ -21,6 +21,8 @@
   let users = [];
   let loadingUsers = false;
   let usersError = '';
+  let editingUser = null;
+  let showUserModal = false;
   
   // Chat data
   let messages = [
@@ -228,6 +230,7 @@
   async function fetchUsers() {
     try {
       loadingUsers = true;
+      usersError = '';
       const response = await fetch('/api/users', {
         credentials: 'include'
       });
@@ -249,6 +252,104 @@
     }
   }
   
+  // User management functions
+  function editUser(user) {
+    editingUser = { ...user };
+    showUserModal = true;
+  }
+  
+  function addNewUser() {
+    editingUser = {
+      id: null,
+      email: '',
+      documentAccess: 'Read',
+      chatAccess: false,
+      isAdmin: false
+    };
+    showUserModal = true;
+  }
+  
+  async function saveUser() {
+    try {
+      if (editingUser.id) {
+        // Update existing user
+        const response = await fetch(`/api/users/${editingUser.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(editingUser),
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const updatedUser = await response.json();
+          // Update local user data
+          const index = users.findIndex(u => u.id === updatedUser.id);
+          if (index !== -1) {
+            users[index] = updatedUser;
+            users = [...users]; // Trigger reactivity
+          }
+        } else {
+          console.error('Error updating user:', response.status);
+          usersError = 'Failed to update user';
+        }
+      } else {
+        // Add new user
+        const response = await fetch('/api/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(editingUser),
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const newUser = await response.json();
+          users = [...users, newUser]; // Add to local data
+        } else {
+          console.error('Error creating user:', response.status);
+          usersError = 'Failed to create user';
+        }
+      }
+      
+      closeUserModal();
+    } catch (err) {
+      console.error('Error saving user:', err);
+      usersError = 'Network error while saving user';
+    }
+  }
+  
+  async function deleteUser(userId) {
+    if (!confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        // Remove from local data
+        users = users.filter(u => u.id !== userId);
+      } else {
+        console.error('Error deleting user:', response.status);
+        usersError = 'Failed to delete user';
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      usersError = 'Network error while deleting user';
+    }
+  }
+  
+  function closeUserModal() {
+    showUserModal = false;
+    editingUser = null;
+  }
+  
   // Handle section change - load data as needed
   function switchSection(section) {
     activeSection = section;
@@ -264,6 +365,13 @@
       fetchDocuments();
       // Pre-load permissions data 
       fetchUsers();
+      
+      // Check if we should activate a specific section (e.g. from redirect)
+      const savedSection = localStorage.getItem('activeConsoleSection');
+      if (savedSection) {
+        activeSection = savedSection;
+        localStorage.removeItem('activeConsoleSection'); // Clear after use
+      }
     }
 
     // Check if mobile on initial load
@@ -364,7 +472,6 @@
       {:else if activeSection === 'permissions'}
         <div class="section-header">
           <h2>Permissions</h2>
-          <a href="#/permissions" use:link class="view-all">Manage All Permissions</a>
         </div>
         <div class="permissions-section">
           <div class="permissions-table">
@@ -392,15 +499,59 @@
                     <td>{user.documentAccess}</td>
                     <td>{user.chatAccess ? 'Enabled' : 'Disabled'}</td>
                     <td>{user.isAdmin ? 'Yes' : 'No'}</td>
-                    <td><a href="#/permissions" use:link class="edit-link">Edit</a></td>
+                    <td>
+                      <button class="edit-button" on:click={() => editUser(user)}>Edit</button>
+                      <button class="delete-button" on:click={() => deleteUser(user.id)}>Delete</button>
+                    </td>
                   </tr>
                 {/each}
                 </tbody>
               </table>
             {/if}
           </div>
-          <a href="#/permissions" use:link class="add-user-button">Manage Users</a>
+          <button class="add-user-button" on:click={addNewUser}>Add New User</button>
         </div>
+        
+        {#if showUserModal}
+          <div class="modal-backdrop">
+            <div class="modal">
+              <h2>{editingUser.id ? 'Edit User' : 'Add New User'}</h2>
+              
+              <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" bind:value={editingUser.email} required />
+              </div>
+              
+              <div class="form-group">
+                <label for="documentAccess">Document Access:</label>
+                <select id="documentAccess" bind:value={editingUser.documentAccess}>
+                  <option value="Read">Read</option>
+                  <option value="Read/Write">Read/Write</option>
+                  <option value="None">None</option>
+                </select>
+              </div>
+              
+              <div class="form-group checkbox">
+                <label>
+                  <input type="checkbox" bind:checked={editingUser.chatAccess} />
+                  Enable Chat Access
+                </label>
+              </div>
+              
+              <div class="form-group checkbox">
+                <label>
+                  <input type="checkbox" bind:checked={editingUser.isAdmin} />
+                  Admin Rights
+                </label>
+              </div>
+              
+              <div class="modal-actions">
+                <button class="cancel-button" on:click={closeUserModal}>Cancel</button>
+                <button class="save-button" on:click={saveUser}>Save</button>
+              </div>
+            </div>
+          </div>
+        {/if}
       {:else if activeSection === 'chat'}
         <div class="section-header">
           <h2>AI Chat</h2>
@@ -759,6 +910,16 @@
     cursor: pointer;
     text-decoration: none;
     display: inline-block;
+    margin-right: 0.5rem;
+  }
+  
+  .delete-button {
+    background-color: #e53e3e;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
   }
 
   .add-user-button {
@@ -771,6 +932,92 @@
     font-weight: bold;
     text-decoration: none;
     display: inline-block;
+  }
+  
+  /* Modal styles */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+
+  .modal {
+    background-color: white;
+    border-radius: 8px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .modal h2 {
+    margin-top: 0;
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #4a5568;
+  }
+
+  .form-group.checkbox label {
+    display: flex;
+    align-items: center;
+    font-weight: normal;
+  }
+
+  .form-group.checkbox input {
+    margin-right: 0.5rem;
+  }
+
+  input[type="email"],
+  select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .cancel-button {
+    background-color: #e2e8f0;
+    color: #4a5568;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .save-button {
+    background-color: #4299e1;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
   }
 
   /* Chat section */

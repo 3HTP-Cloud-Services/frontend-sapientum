@@ -39,6 +39,13 @@
       console.log('Empty location detected, pushing to console');
       push('/console');
     }
+    
+    // Redirect from standalone permissions page to console with permissions section
+    if ($location === '/permissions') {
+      console.log('Redirecting from permissions to console with permissions section');
+      localStorage.setItem('activeConsoleSection', 'permissions');
+      push('/console');
+    }
 
     // Debug log the current route
     console.log('Current route at mount:', $location);
