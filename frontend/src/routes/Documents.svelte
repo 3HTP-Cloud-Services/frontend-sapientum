@@ -48,7 +48,7 @@
   <div class="nav-bar">
     <h1>Documentos</h1>
     <div class="nav-buttons">
-      <a href="#/console" use:link class="back-link">Volver a la Consola</a>
+      <a href="#/console" use:link class="back-link">Volver a la Consola?????</a>
       <button class="logout_button" on:click={handleLogout}>Cerrar Sesión</button>
     </div>
   </div>
@@ -83,20 +83,20 @@
     border-radius: 4px;
     cursor: pointer;
   }
-  
+
   .nav-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
   }
-  
+
   .nav-buttons {
     display: flex;
     align-items: center;
     gap: 1rem;
   }
-  
+
   .back-link {
     color: #4299e1;
     text-decoration: none;

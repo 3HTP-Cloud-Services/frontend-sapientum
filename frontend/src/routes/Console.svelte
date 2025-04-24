@@ -3,7 +3,14 @@
   import { logout, isAuthenticated } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
+  import { i18nStore } from '../lib/i18n.js';
 
+  $: i18n = $i18nStore;
+  function setLocale(locale) {
+    if ($i18nStore) {
+      $i18nStore.locale = locale;
+    }
+  }
   // Active section state
   let activeSection = 'documents';
 
@@ -392,8 +399,16 @@
 
 <div class="console">
   <header class="console-header">
-    <h1>Consola de Administración Sapientum AI</h1>
-    <button class="logout-button" on:click={handleLogout}>Cerrar Sesión</button>
+    <h1>{$i18nStore.t('title')}</h1>
+    <div class="header-controls">
+      <div>
+        <button class={`locale_button en_button ${$i18nStore.locale === 'en' ? 'selected' : ''}`}
+                on:click={() => setLocale('en')}>English</button>
+        <button class={`locale_button es_button ${$i18nStore.locale === 'es' ? 'selected' : ''}`}
+                on:click={() => setLocale('es')}>Español</button>
+      </div>
+      <button class="logout-button" on:click={handleLogout}>Cerrar Sesión</button>
+    </div>
   </header>
 
   <div class="console-container">
@@ -606,7 +621,6 @@
     width: 100%;
     color: #333;
   }
-
   .console-header {
     display: flex;
     justify-content: space-between;
@@ -619,6 +633,35 @@
   .console-header h1 {
     margin: 0;
     font-size: 1.5rem;
+    margin-right: auto; /* This pushes everything else to the right */
+  }
+
+  /* Create a container for the right-aligned elements */
+  .console-header .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px; /* Space between language buttons and logout */
+  }
+
+  /* Base style for locale buttons */
+  .locale_button {
+    margin: 0 4px;
+    color: white;
+    background-color: #718096;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .locale_button.selected {
+    background-color: #4a72b3;
+    border: 2px solid white;
+  }
+
+  .locale_button:hover {
+    opacity: 0.9;
   }
 
   .logout-button {
