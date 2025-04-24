@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
+  import { fade } from 'svelte/transition';
 
   // Document data
   export let documents = [];
@@ -16,7 +17,6 @@
   // Export active section change function and store
   export let switchSection;
   export let activeSectionStore;
-  export let hidden = false;
 
   // Fetch documents for the documents section
   export async function fetchDocuments() {
@@ -86,22 +86,16 @@
     documentError = '';
     switchSection('documents');
   }
-  
-  // Initialize on component mount
-  onMount(() => {
-    if (!hidden && documents.length === 0 && !loading) {
-      fetchDocuments();
-    }
-  });
-  
-  // Refresh data when becoming visible - always reload when component becomes visible
-  $: if (!hidden) {
-    console.log("Documents component became visible");
+
+  // Watch for section changes and reload data when this section is active
+  $: if ($activeSectionStore === 'documents') {
+    console.log("Documents section is now active");
+    documents = [];
+    loading = true;
     fetchDocuments();
   }
 </script>
 
-<div style="display: {hidden ? 'none' : 'block'}">
 {#if $activeSectionStore === 'document-detail'}
   <div class="section-header">
     <h2>Detalles del Documento</h2>
@@ -129,13 +123,13 @@
   </div>
   <div class="documents-section">
     {#if loading}
-      <p>Cargando documentos...</p>
+      <p transition:fade={{ duration: 150 }}>Cargando documentos...</p>
     {:else if error}
-      <p class="error">{error}</p>
-    {:else if documents.length === 0}
-      <p>No se encontraron documentos.</p>
+      <p class="error" transition:fade={{ duration: 150 }}>{error}</p>
+    {:else if documents.length === 0 && !loading}
+      <p transition:fade={{ duration: 150 }}>No se encontraron documentos.</p>
     {:else}
-      <div class="document-cards">
+      <div class="document-cards" transition:fade={{ duration: 150 }}>
         {#each documents as doc}
           <div class="document-card">
             <h3>{doc.title}</h3>
@@ -147,7 +141,6 @@
     {/if}
   </div>
 {/if}
-</div>
 <style>
   /* Document detail view */
   .document-detail-section {

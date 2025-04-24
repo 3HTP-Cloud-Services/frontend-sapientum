@@ -1,6 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
 
   // Permissions data
   export let users = [];
@@ -8,7 +9,7 @@
   export let usersError = '';
   export let editingUser = null;
   export let showUserModal = false;
-  export let hidden = false;
+  export let activeSectionStore;
 
   // Fetch users for permissions section
   export async function fetchUsers() {
@@ -134,58 +135,54 @@
     editingUser = null;
   }
 
-  // Initialize on component mount
-  onMount(() => {
-    if (!hidden && users.length === 0 && !loadingUsers) {
-      fetchUsers();
-    }
-  });
-
-  // Refresh data when becoming visible - always reload when component becomes visible
-  $: if (!hidden) {
-    console.log("Permissions component became visible");
+  // Watch for section changes and reload data when this section is active
+  $: if ($activeSectionStore === 'permissions') {
+    console.log("Permissions section is now active");
+    users = [];
+    loadingUsers = true;
     fetchUsers();
   }
 </script>
 
-<div style="display: {hidden ? 'none' : 'block'}">
 <div class="section-header">
   <h2>Permisos</h2>
 </div>
 <div class="permissions-section">
   <div class="permissions-table">
     {#if loadingUsers}
-      <p>Cargando usuarios...</p>
+      <p transition:fade={{ duration: 150 }}>Cargando usuarios...</p>
     {:else if usersError}
-      <p class="error">{usersError}</p>
-    {:else if users.length === 0}
-      <p>No se encontraron usuarios.</p>
+      <p class="error" transition:fade={{ duration: 150 }}>{usersError}</p>
+    {:else if users.length === 0 && !loadingUsers}
+      <p transition:fade={{ duration: 150 }}>No se encontraron usuarios.</p>
     {:else}
-      <table>
-        <thead>
-        <tr>
-          <th>Usuario</th>
-          <th>Acceso a Documentos</th>
-          <th>Acceso a Chat</th>
-          <th>Derechos de Admin</th>
-          <th>Acciones</th>
-        </tr>
-        </thead>
-        <tbody>
-        {#each users as user}
+      <div transition:fade={{ duration: 150 }}>
+        <table>
+          <thead>
           <tr>
-            <td>{user.email}</td>
-            <td>{user.documentAccess}</td>
-            <td>{user.chatAccess ? 'Habilitado' : 'Deshabilitado'}</td>
-            <td>{user.isAdmin ? 'Sí' : 'No'}</td>
-            <td>
-              <button class="edit-button" on:click={() => editUser(user)}>Editar</button>
-              <button class="delete-button" on:click={() => deleteUser(user.id)}>Eliminar</button>
-            </td>
+            <th>Usuario</th>
+            <th>Acceso a Documentos</th>
+            <th>Acceso a Chat</th>
+            <th>Derechos de Admin</th>
+            <th>Acciones</th>
           </tr>
-        {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+          {#each users as user}
+            <tr>
+              <td>{user.email}</td>
+              <td>{user.documentAccess}</td>
+              <td>{user.chatAccess ? 'Habilitado' : 'Deshabilitado'}</td>
+              <td>{user.isAdmin ? 'Sí' : 'No'}</td>
+              <td>
+                <button class="edit-button" on:click={() => editUser(user)}>Editar</button>
+                <button class="delete-button" on:click={() => deleteUser(user.id)}>Eliminar</button>
+              </td>
+            </tr>
+          {/each}
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
   <button class="add-user-button" on:click={addNewUser}>Agregar Nuevo Usuario</button>
@@ -232,7 +229,6 @@
   </div>
 
 {/if}
-</div>
 <style>
 
   /* Permissions section */

@@ -14,7 +14,7 @@
   export let userInput = '';
   export let chatContainer;
   export let messagesContainer;
-  export let hidden = false;
+  export let activeSectionStore;
 
   // Function to scroll chat to bottom
   export function scrollToBottom() {
@@ -114,9 +114,14 @@
     // Scroll chat to bottom on initial load
     setTimeout(scrollToBottom, 0);
   });
+  
+  // Watch for section changes to scroll chat to bottom when active
+  $: if ($activeSectionStore === 'chat') {
+    console.log("Chat section is now active");
+    setTimeout(scrollToBottom, 300);
+  }
 </script>
 
-<div style="display: {hidden ? 'none' : 'block'}">
 <div class="section-header">
   <h2>Chat IA</h2>
   <div class="chat-buttons">
@@ -149,7 +154,6 @@
       <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>Enviar</button>
     </div>
   </div>
-</div>
 </div>
 <style>
 

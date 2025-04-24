@@ -2,9 +2,10 @@
   import { link } from 'svelte-spa-router';
   import { logout, isAuthenticated } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { i18nStore } from '../lib/i18n.js';
   import { writable } from 'svelte/store';
+  import { fade, fly } from 'svelte/transition';
 
   // Import component modules
   import Documents from '../components/Documents.svelte';
@@ -84,27 +85,15 @@
     push('/login');
   }
 
-  // Handle section change - load data as needed
+  // Handle section change - just update the section state
   function switchSection(section) {
     console.log(`Switching to section: ${section}`);
-    // Update both at the same time to ensure reactivity
+    
+    // Update section state - components will react to this change
     activeSection = section;
     $activeSectionStore = section;
     
-    // Short timeout to allow components to get the updated visibility state
-    setTimeout(() => {
-      // Direct calls to the components to ensure data loading
-      if (section === 'documents') {
-        console.log("Directly calling fetchDocuments");
-        fetchDocuments();
-      } else if (section === 'permissions') {
-        console.log("Directly calling fetchUsers");
-        fetchUsers(); 
-      } else if (section === 'chat') {
-        console.log("Directly scrolling chat to bottom");
-        scrollToBottom();
-      }
-    }, 50);  // Slightly longer timeout to ensure components are ready
+    // No additional logic needed - components handle their own state and data loading
   }
 
   // Component references
@@ -112,51 +101,30 @@
   let permissionsComponent;
   let chatComponent;
 
-  // Function delegations - always reload data regardless of current state
-  async function fetchDocuments() {
-    // Use timeout to ensure component is available after reactivity
-    setTimeout(() => {
-      if (documentsComponent) {
-        console.log("Fetching documents from component");
-        documentsComponent.fetchDocuments();
-      } else {
-        console.log("Documents component not yet available");
-      }
-    }, 0);
-  }
-
-  async function fetchUsers() {
-    // Use timeout to ensure component is available after reactivity
-    setTimeout(() => {
-      if (permissionsComponent) {
-        console.log("Fetching users from component");
-        permissionsComponent.fetchUsers();
-      } else {
-        console.log("Permissions component not yet available");
-      }
-    }, 0);
-  }
+  // No longer fetching data in parent component - each component handles its own data loading
 
   function scrollToBottom() {
-    if (chatComponent) {
-      chatComponent.scrollToBottom();
+    try {
+      if (chatComponent && typeof chatComponent.scrollToBottom === 'function') {
+        chatComponent.scrollToBottom();
+      } else if (messagesContainer) {
+        // Direct access to the container as a fallback
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    } catch (err) {
+      console.warn('Could not scroll chat to bottom:', err);
     }
   }
 
   onMount(() => {
     if ($isAuthenticated) {
-      // Load documents on mount
-      if (activeSection === 'documents') {
-        fetchDocuments();
-      }
-
-      // Pre-load permissions data
-      fetchUsers();
-
+      // Set initial section (we don't need to fetch data here - components will do it)
+      
       // Check if we should activate a specific section (e.g. from redirect)
       const savedSection = localStorage.getItem('activeConsoleSection');
       if (savedSection) {
         activeSection = savedSection;
+        $activeSectionStore = savedSection;
         localStorage.removeItem('activeConsoleSection'); // Clear after use
       }
     }
@@ -216,35 +184,46 @@
     </nav>
 
     <main class="content" class:expanded={sidebarCollapsed}>
-      <Documents
-        {documents}
-        {loading}
-        {error}
-        {selectedDocument}
-        {loadingDocument}
-        {documentError}
-        switchSection={switchSection}
-        bind:this={documentsComponent}
-        activeSectionStore={activeSectionStore}
-        hidden={activeSection !== 'documents' && activeSection !== 'document-detail'}
-      />
-      <Permissions
-        {users}
-        {loadingUsers}
-        {usersError}
-        {editingUser}
-        {showUserModal}
-        bind:this={permissionsComponent}
-        hidden={activeSection !== 'permissions'}
-      />
-      <Chat
-        {messages}
-        {userInput}
-        {chatContainer}
-        {messagesContainer}
-        bind:this={chatComponent}
-        hidden={activeSection !== 'chat'}
-      />
+      {#key activeSection}
+        <div 
+          class="section-wrapper" 
+          in:fly={{ x: 150, duration: 250, delay: 100 }} 
+          out:fade={{ duration: 100 }}
+        >
+          {#if activeSection === 'documents' || activeSection === 'document-detail'}
+            <Documents
+              {documents}
+              {loading}
+              {error}
+              {selectedDocument}
+              {loadingDocument}
+              {documentError}
+              switchSection={switchSection}
+              bind:this={documentsComponent}
+              activeSectionStore={activeSectionStore}
+            />
+          {:else if activeSection === 'permissions'}
+            <Permissions
+              {users}
+              {loadingUsers}
+              {usersError}
+              {editingUser}
+              {showUserModal}
+              bind:this={permissionsComponent}
+              {activeSectionStore}
+            />
+          {:else if activeSection === 'chat'}
+            <Chat
+              {messages}
+              {userInput}
+              {chatContainer}
+              {messagesContainer}
+              bind:this={chatComponent}
+              {activeSectionStore}
+            />
+          {/if}
+        </div>
+      {/key}
     </main>
   </div>
 </div>
@@ -438,6 +417,20 @@
     padding: 2rem;
     overflow: auto;
     transition: all 0.3s ease;
+    position: relative;
+  }
+  
+  .section-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 2rem;
+    overflow: auto;
+    background-color: #f7fafc;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   .content.expanded {
