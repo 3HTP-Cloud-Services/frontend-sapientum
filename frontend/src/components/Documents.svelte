@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
   import { fade } from 'svelte/transition';
+  import { i18nStore } from '../lib/i18n.js';
 
   // Document data
   export let documents = [];
@@ -98,12 +99,12 @@
 
 {#if $activeSectionStore === 'document-detail'}
   <div class="section-header">
-    <h2>Detalles del Documento</h2>
-    <button class="back-button" on:click={backToDocuments}>← Volver a Documentos</button>
+    <h2>{$i18nStore.t('document_details')}</h2>
+    <button class="back-button" on:click={backToDocuments}>← {$i18nStore.t('back_to_documents')}</button>
   </div>
   <div class="document-detail-section">
     {#if loadingDocument}
-      <p>Cargando documento...</p>
+      <p>{$i18nStore.t('loading_document')}</p>
     {:else if documentError}
       <p class="error">{documentError}</p>
     {:else if selectedDocument}
@@ -114,27 +115,27 @@
         </div>
       </div>
     {:else}
-      <p>Selecciona un documento para ver detalles.</p>
+      <p>{$i18nStore.t('select_document')}</p>
     {/if}
   </div>
 {:else}
   <div class="section-header">
-    <h2>Documentos</h2>
+    <h2>{$i18nStore.t('sidebar_documents')}</h2>
   </div>
   <div class="documents-section">
     {#if loading}
-      <p transition:fade={{ duration: 150 }}>Cargando documentos...</p>
+      <p transition:fade={{ duration: 150 }}>{$i18nStore.t('loading_documents')}</p>
     {:else if error}
       <p class="error" transition:fade={{ duration: 150 }}>{error}</p>
     {:else if documents.length === 0 && !loading}
-      <p transition:fade={{ duration: 150 }}>No se encontraron documentos.</p>
+      <p transition:fade={{ duration: 150 }}>{$i18nStore.t('no_documents')}</p>
     {:else}
       <div class="document-cards" transition:fade={{ duration: 150 }}>
         {#each documents as doc}
           <div class="document-card">
             <h3>{doc.title}</h3>
             <p>{doc.content.substring(0, 100)}...</p>
-            <button class="view-document-button" on:click={() => viewDocument(doc.id)}>Ver Documento</button>
+            <button class="view-document-button" on:click={() => viewDocument(doc.id)}>{$i18nStore.t('view_document')}</button>
           </div>
         {/each}
       </div>

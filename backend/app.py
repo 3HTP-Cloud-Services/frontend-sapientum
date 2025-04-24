@@ -129,6 +129,130 @@ def check_auth():
         return jsonify({"authenticated": True})
     return jsonify({"authenticated": False}), 401
 
+@app.route('/api/i18n', methods=['GET'])
+def get_translations():
+    # Return translations for title and logout button in both languages
+    # This endpoint is not authenticated to allow the app to initialize properly
+    translations = {
+        "es": {
+            # App general
+            "title": "Consola de Administración Sapientum AI",
+            "logout": "Cerrar Sesión",
+            "i18n_warning": "No se pudo conseguir la traducción necesaria",
+            
+            # Login page
+            "login_title": "Iniciar Sesión",
+            "username": "Usuario",
+            "password": "Contraseña",
+            "login_button": "Iniciar Sesión",
+            
+            # Sidebar
+            "sidebar_documents": "Documentos",
+            "sidebar_permissions": "Permisos",
+            "sidebar_chat": "Chat",
+            
+            # Documents section
+            "document_details": "Detalles del Documento",
+            "back_to_documents": "Volver a Documentos",
+            "loading_document": "Cargando documento...",
+            "loading_documents": "Cargando documentos...",
+            "no_documents": "No se encontraron documentos.",
+            "select_document": "Selecciona un documento para ver detalles.",
+            "view_document": "Ver Documento",
+            
+            # Permissions section
+            "user_column": "Usuario",
+            "doc_access_column": "Acceso a Documentos",
+            "chat_access_column": "Acceso a Chat",
+            "admin_rights_column": "Derechos de Admin",
+            "actions_column": "Acciones",
+            "loading_users": "Cargando usuarios...",
+            "no_users": "No se encontraron usuarios.",
+            "enabled": "Habilitado",
+            "disabled": "Deshabilitado",
+            "yes": "Sí",
+            "no": "No",
+            "edit_button": "Editar",
+            "delete_button": "Eliminar",
+            "add_user_button": "Agregar Nuevo Usuario",
+            "edit_user": "Editar Usuario",
+            "add_new_user": "Agregar Nuevo Usuario",
+            "email_label": "Email:",
+            "doc_access_label": "Acceso a Documentos:",
+            "enable_chat_access": "Habilitar Acceso a Chat",
+            "admin_rights": "Derechos de Administrador",
+            "cancel_button": "Cancelar",
+            "save_button": "Guardar",
+            
+            # Chat section
+            "chat_title": "Chat IA",
+            "clear_chat": "Limpiar Chat",
+            "sending": "Enviando...",
+            "chat_placeholder": "Escribe tu mensaje aquí y presiona Enter para enviar...",
+            "send_button": "Enviar",
+            "ai_welcome": "Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?"
+        },
+        "en": {
+            # App general
+            "title": "Sapientum AI Administration Console",
+            "logout": "Log Out",
+            "i18n_warning": "Could not get the necessary translation",
+            
+            # Login page
+            "login_title": "Log In",
+            "username": "Username",
+            "password": "Password",
+            "login_button": "Log In",
+            
+            # Sidebar
+            "sidebar_documents": "Documents",
+            "sidebar_permissions": "Permissions",
+            "sidebar_chat": "Chat",
+            
+            # Documents section
+            "document_details": "Document Details",
+            "back_to_documents": "Back to Documents",
+            "loading_document": "Loading document...",
+            "loading_documents": "Loading documents...",
+            "no_documents": "No documents found.",
+            "select_document": "Select a document to view details.",
+            "view_document": "View Document",
+            
+            # Permissions section
+            "user_column": "User",
+            "doc_access_column": "Document Access",
+            "chat_access_column": "Chat Access",
+            "admin_rights_column": "Admin Rights",
+            "actions_column": "Actions",
+            "loading_users": "Loading users...",
+            "no_users": "No users found.",
+            "enabled": "Enabled",
+            "disabled": "Disabled",
+            "yes": "Yes",
+            "no": "No",
+            "edit_button": "Edit",
+            "delete_button": "Delete",
+            "add_user_button": "Add New User",
+            "edit_user": "Edit User",
+            "add_new_user": "Add New User",
+            "email_label": "Email:",
+            "doc_access_label": "Document Access:",
+            "enable_chat_access": "Enable Chat Access",
+            "admin_rights": "Admin Rights",
+            "cancel_button": "Cancel",
+            "save_button": "Save",
+            
+            # Chat section
+            "chat_title": "AI Chat",
+            "clear_chat": "Clear Chat",
+            "sending": "Sending...",
+            "chat_placeholder": "Type your message here and press Enter to send...",
+            "send_button": "Send",
+            "ai_welcome": "Welcome to the AI Assistant. How can I help you today?"
+        }
+    }
+    return jsonify(translations)
+
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
     if not session.get('logged_in'):

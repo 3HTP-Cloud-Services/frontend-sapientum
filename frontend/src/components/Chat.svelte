@@ -1,16 +1,21 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
+  import { i18nStore } from '../lib/i18n.js';
 
-  // Chat data
-  export let messages = [
-    {
-      id: 1,
-      type: 'system',
-      content: 'Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?',
-      timestamp: new Date(Date.now() - 60000)
-    }
-  ];
+  // Chat data - initialize with translated welcome message
+  export let messages = [];
+  
+  $: if (!messages.length && $i18nStore) {
+    messages = [
+      {
+        id: 1,
+        type: 'system',
+        content: $i18nStore.t('ai_welcome'),
+        timestamp: new Date(Date.now() - 60000)
+      }
+    ];
+  }
   export let userInput = '';
   export let chatContainer;
   export let messagesContainer;
@@ -123,16 +128,16 @@
 </script>
 
 <div class="section-header">
-  <h2>Chat IA</h2>
+  <h2>{$i18nStore.t('chat_title')}</h2>
   <div class="chat-buttons">
     <button on:click={() => {messages = [
       {
         id: 1,
         type: 'system',
-        content: 'Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?',
+        content: $i18nStore.t('ai_welcome'),
         timestamp: new Date()
       }
-    ]}} class="clear-button">Limpiar Chat</button>
+    ]}} class="clear-button">{$i18nStore.t('clear_chat')}</button>
   </div>
 </div>
 <div class="chat-section">
@@ -147,11 +152,11 @@
     </div>
     <div class="chat-input">
       <textarea
-        placeholder="Escribe tu mensaje aquí y presiona Enter para enviar..."
+        placeholder={$i18nStore.t('chat_placeholder')}
         bind:value={userInput}
         on:keydown={handleKeydown}
       ></textarea>
-      <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>Enviar</button>
+      <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>{$i18nStore.t('send_button')}</button>
     </div>
   </div>
 </div>

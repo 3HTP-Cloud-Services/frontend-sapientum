@@ -88,11 +88,11 @@
   // Handle section change - just update the section state
   function switchSection(section) {
     console.log(`Switching to section: ${section}`);
-    
+
     // Update section state - components will react to this change
     activeSection = section;
     $activeSectionStore = section;
-    
+
     // No additional logic needed - components handle their own state and data loading
   }
 
@@ -119,7 +119,7 @@
   onMount(() => {
     if ($isAuthenticated) {
       // Set initial section (we don't need to fetch data here - components will do it)
-      
+
       // Check if we should activate a specific section (e.g. from redirect)
       const savedSection = localStorage.getItem('activeConsoleSection');
       if (savedSection) {
@@ -152,7 +152,9 @@
         <button class={`locale_button es_button ${$i18nStore.locale === 'es' ? 'selected' : ''}`}
                 on:click={() => setLocale('es')}>Español</button>
       </div>
-      <button class="logout-button" on:click={handleLogout}>Cerrar Sesión</button>
+      <div class="logout_container">
+        <button class="logout-button" on:click={handleLogout}>{$i18nStore.t('logout')}</button>
+      </div>
     </div>
   </header>
 
@@ -165,19 +167,19 @@
         <li class={activeSection === 'documents' || activeSection === 'document-detail' ? 'active' : ''}>
           <button on:click={() => switchSection('documents')}>
             <span class="icon">📄</span>
-            <span class="text">Documentos</span>
+            <span class="text">{$i18nStore.t('sidebar_documents')}</span>
           </button>
         </li>
         <li class={activeSection === 'permissions' ? 'active' : ''}>
           <button on:click={() => switchSection('permissions')}>
             <span class="icon">🔒</span>
-            <span class="text">Permisos</span>
+            <span class="text">{$i18nStore.t('sidebar_permissions')}</span>
           </button>
         </li>
         <li class={activeSection === 'chat' ? 'active' : ''}>
           <button on:click={() => switchSection('chat')}>
             <span class="icon">💬</span>
-            <span class="text">Chat</span>
+            <span class="text">{$i18nStore.t('sidebar_chat')}</span>
           </button>
         </li>
       </ul>
@@ -185,9 +187,9 @@
 
     <main class="content" class:expanded={sidebarCollapsed}>
       {#key activeSection}
-        <div 
-          class="section-wrapper" 
-          in:fly={{ x: 150, duration: 250, delay: 100 }} 
+        <div
+          class="section-wrapper"
+          in:fly={{ x: 150, duration: 250, delay: 100 }}
           out:fade={{ duration: 100 }}
         >
           {#if activeSection === 'documents' || activeSection === 'document-detail'}
@@ -229,6 +231,9 @@
 </div>
 
 <style>
+  .logout_container {
+    min-width: 150px;
+  }
   .error {
     color: #ff6b6b;
     padding: 1rem;
@@ -419,7 +424,7 @@
     transition: all 0.3s ease;
     position: relative;
   }
-  
+
   .section-wrapper {
     position: absolute;
     top: 0;

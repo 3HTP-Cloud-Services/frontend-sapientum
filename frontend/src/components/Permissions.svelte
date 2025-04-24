@@ -2,6 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
+  import { i18nStore } from '../lib/i18n.js';
 
   // Permissions data
   export let users = [];
@@ -145,26 +146,26 @@
 </script>
 
 <div class="section-header">
-  <h2>Permisos</h2>
+  <h2>{$i18nStore.t('sidebar_permissions')}</h2>
 </div>
 <div class="permissions-section">
   <div class="permissions-table">
     {#if loadingUsers}
-      <p transition:fade={{ duration: 150 }}>Cargando usuarios...</p>
+      <p transition:fade={{ duration: 150 }}>{$i18nStore.t('loading_users')}</p>
     {:else if usersError}
       <p class="error" transition:fade={{ duration: 150 }}>{usersError}</p>
     {:else if users.length === 0 && !loadingUsers}
-      <p transition:fade={{ duration: 150 }}>No se encontraron usuarios.</p>
+      <p transition:fade={{ duration: 150 }}>{$i18nStore.t('no_users')}</p>
     {:else}
       <div transition:fade={{ duration: 150 }}>
         <table>
           <thead>
           <tr>
-            <th>Usuario</th>
-            <th>Acceso a Documentos</th>
-            <th>Acceso a Chat</th>
-            <th>Derechos de Admin</th>
-            <th>Acciones</th>
+            <th>{$i18nStore.t('user_column')}</th>
+            <th>{$i18nStore.t('doc_access_column')}</th>
+            <th>{$i18nStore.t('chat_access_column')}</th>
+            <th>{$i18nStore.t('admin_rights_column')}</th>
+            <th>{$i18nStore.t('actions_column')}</th>
           </tr>
           </thead>
           <tbody>
@@ -172,11 +173,11 @@
             <tr>
               <td>{user.email}</td>
               <td>{user.documentAccess}</td>
-              <td>{user.chatAccess ? 'Habilitado' : 'Deshabilitado'}</td>
-              <td>{user.isAdmin ? 'Sí' : 'No'}</td>
+              <td>{user.chatAccess ? $i18nStore.t('enabled') : $i18nStore.t('disabled')}</td>
+              <td>{user.isAdmin ? $i18nStore.t('yes') : $i18nStore.t('no')}</td>
               <td>
-                <button class="edit-button" on:click={() => editUser(user)}>Editar</button>
-                <button class="delete-button" on:click={() => deleteUser(user.id)}>Eliminar</button>
+                <button class="edit-button" on:click={() => editUser(user)}>{$i18nStore.t('edit_button')}</button>
+                <button class="delete-button" on:click={() => deleteUser(user.id)}>{$i18nStore.t('delete_button')}</button>
               </td>
             </tr>
           {/each}
@@ -185,21 +186,21 @@
       </div>
     {/if}
   </div>
-  <button class="add-user-button" on:click={addNewUser}>Agregar Nuevo Usuario</button>
+  <button class="add-user-button" on:click={addNewUser}>{$i18nStore.t('add_user_button')}</button>
 </div>
 
 {#if showUserModal}
   <div class="modal-backdrop">
     <div class="modal">
-      <h2>{editingUser.id ? 'Editar Usuario' : 'Agregar Nuevo Usuario'}</h2>
+      <h2>{editingUser.id ? $i18nStore.t('edit_user') : $i18nStore.t('add_new_user')}</h2>
 
       <div class="form-group">
-        <label for="email">Email:</label>
+        <label for="email">{$i18nStore.t('email_label')}</label>
         <input type="email" id="email" bind:value={editingUser.email} required />
       </div>
 
       <div class="form-group">
-        <label for="documentAccess">Acceso a Documentos:</label>
+        <label for="documentAccess">{$i18nStore.t('doc_access_label')}</label>
         <select id="documentAccess" bind:value={editingUser.documentAccess}>
           <option value="Lectura">Lectura</option>
           <option value="Lectura/Escritura">Lectura/Escritura</option>
@@ -210,20 +211,20 @@
       <div class="form-group checkbox">
         <label>
           <input type="checkbox" bind:checked={editingUser.chatAccess} />
-          Habilitar Acceso a Chat
+          {$i18nStore.t('enable_chat_access')}
         </label>
       </div>
 
       <div class="form-group checkbox">
         <label>
           <input type="checkbox" bind:checked={editingUser.isAdmin} />
-          Derechos de Administrador
+          {$i18nStore.t('admin_rights')}
         </label>
       </div>
 
       <div class="modal-actions">
-        <button class="cancel-button" on:click={closeUserModal}>Cancelar</button>
-        <button class="save-button" on:click={saveUser}>Guardar</button>
+        <button class="cancel-button" on:click={closeUserModal}>{$i18nStore.t('cancel_button')}</button>
+        <button class="save-button" on:click={saveUser}>{$i18nStore.t('save_button')}</button>
       </div>
     </div>
   </div>
