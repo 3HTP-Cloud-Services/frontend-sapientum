@@ -16,6 +16,7 @@
   // Export active section change function and store
   export let switchSection;
   export let activeSectionStore;
+  export let hidden = false;
 
   // Fetch documents for the documents section
   export async function fetchDocuments() {
@@ -85,8 +86,22 @@
     documentError = '';
     switchSection('documents');
   }
+  
+  // Initialize on component mount
+  onMount(() => {
+    if (!hidden && documents.length === 0 && !loading) {
+      fetchDocuments();
+    }
+  });
+  
+  // Refresh data when becoming visible - always reload when component becomes visible
+  $: if (!hidden) {
+    console.log("Documents component became visible");
+    fetchDocuments();
+  }
 </script>
 
+<div style="display: {hidden ? 'none' : 'block'}">
 {#if $activeSectionStore === 'document-detail'}
   <div class="section-header">
     <h2>Detalles del Documento</h2>
@@ -132,6 +147,7 @@
     {/if}
   </div>
 {/if}
+</div>
 <style>
   /* Document detail view */
   .document-detail-section {

@@ -24,7 +24,11 @@
   let activeSection = 'documents';
 
   // Keep store and local variable in sync
-  $: $activeSectionStore = activeSection;
+  $: {
+    $activeSectionStore = activeSection;
+    // When activeSection changes, make sure the components get the memo
+    console.log(`Active section changed to ${activeSection}`);
+  }
 
   // Document data
   let documents = [];
@@ -82,12 +86,25 @@
 
   // Handle section change - load data as needed
   function switchSection(section) {
+    console.log(`Switching to section: ${section}`);
+    // Update both at the same time to ensure reactivity
     activeSection = section;
-
-    // Load section-specific data if needed
-    if (section === 'permissions' && users.length === 0 && !loadingUsers) {
-      fetchUsers();
-    }
+    $activeSectionStore = section;
+    
+    // Short timeout to allow components to get the updated visibility state
+    setTimeout(() => {
+      // Direct calls to the components to ensure data loading
+      if (section === 'documents') {
+        console.log("Directly calling fetchDocuments");
+        fetchDocuments();
+      } else if (section === 'permissions') {
+        console.log("Directly calling fetchUsers");
+        fetchUsers(); 
+      } else if (section === 'chat') {
+        console.log("Directly scrolling chat to bottom");
+        scrollToBottom();
+      }
+    }, 50);  // Slightly longer timeout to ensure components are ready
   }
 
   // Component references
@@ -95,17 +112,29 @@
   let permissionsComponent;
   let chatComponent;
 
-  // Function delegations
+  // Function delegations - always reload data regardless of current state
   async function fetchDocuments() {
-    if (documentsComponent) {
-      return documentsComponent.fetchDocuments();
-    }
+    // Use timeout to ensure component is available after reactivity
+    setTimeout(() => {
+      if (documentsComponent) {
+        console.log("Fetching documents from component");
+        documentsComponent.fetchDocuments();
+      } else {
+        console.log("Documents component not yet available");
+      }
+    }, 0);
   }
 
   async function fetchUsers() {
-    if (permissionsComponent) {
-      return permissionsComponent.fetchUsers();
-    }
+    // Use timeout to ensure component is available after reactivity
+    setTimeout(() => {
+      if (permissionsComponent) {
+        console.log("Fetching users from component");
+        permissionsComponent.fetchUsers();
+      } else {
+        console.log("Permissions component not yet available");
+      }
+    }, 0);
   }
 
   function scrollToBottom() {
@@ -187,36 +216,35 @@
     </nav>
 
     <main class="content" class:expanded={sidebarCollapsed}>
-      {#if activeSection === 'documents' || activeSection === 'document-detail'}
-        <Documents
-          {documents}
-          {loading}
-          {error}
-          {selectedDocument}
-          {loadingDocument}
-          {documentError}
-          switchSection={switchSection}
-          bind:this={documentsComponent}
-          activeSectionStore={activeSectionStore}
-        />
-      {:else if activeSection === 'permissions'}
-        <Permissions
-          {users}
-          {loadingUsers}
-          {usersError}
-          {editingUser}
-          {showUserModal}
-          bind:this={permissionsComponent}
-        />
-      {:else if activeSection === 'chat'}
-        <Chat
-          {messages}
-          {userInput}
-          {chatContainer}
-          {messagesContainer}
-          bind:this={chatComponent}
-        />
-      {/if}
+      <Documents
+        {documents}
+        {loading}
+        {error}
+        {selectedDocument}
+        {loadingDocument}
+        {documentError}
+        switchSection={switchSection}
+        bind:this={documentsComponent}
+        activeSectionStore={activeSectionStore}
+        hidden={activeSection !== 'documents' && activeSection !== 'document-detail'}
+      />
+      <Permissions
+        {users}
+        {loadingUsers}
+        {usersError}
+        {editingUser}
+        {showUserModal}
+        bind:this={permissionsComponent}
+        hidden={activeSection !== 'permissions'}
+      />
+      <Chat
+        {messages}
+        {userInput}
+        {chatContainer}
+        {messagesContainer}
+        bind:this={chatComponent}
+        hidden={activeSection !== 'chat'}
+      />
     </main>
   </div>
 </div>

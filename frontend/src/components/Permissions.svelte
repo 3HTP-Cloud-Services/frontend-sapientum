@@ -8,6 +8,7 @@
   export let usersError = '';
   export let editingUser = null;
   export let showUserModal = false;
+  export let hidden = false;
 
   // Fetch users for permissions section
   export async function fetchUsers() {
@@ -132,8 +133,22 @@
     showUserModal = false;
     editingUser = null;
   }
+
+  // Initialize on component mount
+  onMount(() => {
+    if (!hidden && users.length === 0 && !loadingUsers) {
+      fetchUsers();
+    }
+  });
+
+  // Refresh data when becoming visible - always reload when component becomes visible
+  $: if (!hidden) {
+    console.log("Permissions component became visible");
+    fetchUsers();
+  }
 </script>
 
+<div style="display: {hidden ? 'none' : 'block'}">
 <div class="section-header">
   <h2>Permisos</h2>
 </div>
@@ -215,153 +230,155 @@
       </div>
     </div>
   </div>
-  <style>
 
-    /* Permissions section */
-    .permissions-table {
-      margin-bottom: 1.5rem;
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background-color: white;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    th, td {
-      padding: 0.75rem 1rem;
-      text-align: left;
-    }
-
-    th {
-      background-color: #edf2f7;
-      font-weight: bold;
-      color: #4a5568;
-    }
-
-    tr:nth-child(even) {
-      background-color: #f7fafc;
-    }
-
-    .edit-button, .edit-link {
-      background-color: #4299e1;
-      color: white;
-      border: none;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-      margin-right: 0.5rem;
-    }
-
-    .delete-button {
-      background-color: #e53e3e;
-      color: white;
-      border: none;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .add-user-button {
-      background-color: #48bb78;
-      color: white;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-      text-decoration: none;
-      display: inline-block;
-    }
-
-    /* Modal styles */
-    .modal-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 100;
-    }
-
-    .modal {
-      background-color: white;
-      border-radius: 8px;
-      padding: 2rem;
-      width: 100%;
-      max-width: 500px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    .modal h2 {
-      margin-top: 0;
-      color: #2d3748;
-      margin-bottom: 1.5rem;
-    }
-
-    .form-group {
-      margin-bottom: 1rem;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-      color: #4a5568;
-    }
-
-    .form-group.checkbox label {
-      display: flex;
-      align-items: center;
-      font-weight: normal;
-    }
-
-    .form-group.checkbox input {
-      margin-right: 0.5rem;
-    }
-
-    input[type="email"],
-    select {
-      width: 100%;
-      padding: 0.5rem;
-      border: 1px solid #e2e8f0;
-      border-radius: 4px;
-      font-size: 1rem;
-    }
-
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 1rem;
-      margin-top: 1.5rem;
-    }
-
-    .cancel-button {
-      background-color: #e2e8f0;
-      color: #4a5568;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .save-button {
-      background-color: #4299e1;
-      color: white;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 500;
-    }
-  </style>
 {/if}
+</div>
+<style>
+
+  /* Permissions section */
+  .permissions-table {
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  th, td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+
+  th {
+    background-color: #edf2f7;
+    font-weight: bold;
+    color: #4a5568;
+  }
+
+  tr:nth-child(even) {
+    background-color: #f7fafc;
+  }
+
+  .edit-button, .edit-link {
+    background-color: #4299e1;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+
+  .delete-button {
+    background-color: #e53e3e;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .add-user-button {
+    background-color: #48bb78;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  /* Modal styles */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+
+  .modal {
+    background-color: white;
+    border-radius: 8px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .modal h2 {
+    margin-top: 0;
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+  }
+
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #4a5568;
+  }
+
+  .form-group.checkbox label {
+    display: flex;
+    align-items: center;
+    font-weight: normal;
+  }
+
+  .form-group.checkbox input {
+    margin-right: 0.5rem;
+  }
+
+  input[type="email"],
+  select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .cancel-button {
+    background-color: #e2e8f0;
+    color: #4a5568;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .save-button {
+    background-color: #4299e1;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+</style>

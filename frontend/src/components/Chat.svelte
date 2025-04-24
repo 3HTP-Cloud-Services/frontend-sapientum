@@ -14,6 +14,7 @@
   export let userInput = '';
   export let chatContainer;
   export let messagesContainer;
+  export let hidden = false;
 
   // Function to scroll chat to bottom
   export function scrollToBottom() {
@@ -115,6 +116,7 @@
   });
 </script>
 
+<div style="display: {hidden ? 'none' : 'block'}">
 <div class="section-header">
   <h2>Chat IA</h2>
   <div class="chat-buttons">
@@ -147,6 +149,7 @@
       <button class="send-button" on:click={sendMessage} disabled={!userInput.trim()}>Enviar</button>
     </div>
   </div>
+</div>
 </div>
 <style>
 
