@@ -392,7 +392,7 @@
 
 <div class="console">
   <header class="console-header">
-    <h1>Consola de Competencia de IA</h1>
+    <h1>Consola de Administración Sapientum AI</h1>
     <button class="logout-button" on:click={handleLogout}>Cerrar Sesión</button>
   </header>
 
