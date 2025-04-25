@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
+import json
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -113,117 +114,21 @@ def check_auth():
         return jsonify({"authenticated": True})
     return jsonify({"authenticated": False}), 401
 
-TRANSLATIONS = {
-    "es": {
-        "title": "Consola de Administración Sapientum AI",
-        "logout": "Cerrar Sesión",
-        "i18n_warning": "No se pudo conseguir la traducción necesaria",
-        "login_title": "Iniciar Sesión",
-        "username": "Usuario",
-        "password": "Contraseña",
-        "login_button": "Iniciar Sesión",
-        "sidebar_documents": "Catalogo",
-        "sidebar_permissions": "Permisos",
-        "sidebar_chat": "Chat",
-        "sidebar_translations": "Traducciones",
-        "document_details": "Detalles del Documento",
-        "back_to_documents": "Volver a Documentos",
-        "loading_document": "Cargando documento...",
-        "loading_documents": "Cargando documentos...",
-        "no_documents": "No se encontraron documentos.",
-        "select_document": "Selecciona un documento para ver detalles.",
-        "view_document": "Ver Documento",
-        "user_column": "Usuario",
-        "doc_access_column": "Acceso a Documentos",
-        "chat_access_column": "Acceso a Chat",
-        "admin_rights_column": "Derechos de Admin",
-        "actions_column": "Acciones",
-        "loading_users": "Cargando usuarios...",
-        "no_users": "No se encontraron usuarios.",
-        "enabled": "Habilitado",
-        "disabled": "Deshabilitado",
-        "yes": "Sí",
-        "no": "No",
-        "edit_button": "Editar",
-        "delete_button": "Eliminar",
-        "add_user_button": "Agregar Nuevo Usuario",
-        "edit_user": "Editar Usuario",
-        "add_new_user": "Agregar Nuevo Usuario",
-        "email_label": "Email:",
-        "doc_access_label": "Acceso a Documentos:",
-        "enable_chat_access": "Habilitar Acceso a Chat",
-        "admin_rights": "Derechos de Administrador",
-        "cancel_button": "Cancelar",
-        "save_button": "Guardar",
-        "chat_title": "Chat IA",
-        "clear_chat": "Limpiar Chat",
-        "sending": "Enviando...",
-        "chat_placeholder": "Escribe tu mensaje aquí y presiona Enter para enviar...",
-        "send_button": "Enviar",
-        "ai_welcome": "Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?",
-        "translations_title": "Administración de Traducciones",
-        "loading_translations": "Cargando traducciones...",
-        "key_column": "Clave",
-        "value_column": "Valor",
-        "actions_column": "Acciones"
-    },
-    "en": {
-        "title": "Sapientum AI Administration Console",
-        "logout": "Log Out",
-        "i18n_warning": "Could not get the necessary translation",
-        "login_title": "Log In",
-        "username": "Username",
-        "password": "Password",
-        "login_button": "Log In",
-        "sidebar_documents": "Catalogue",
-        "sidebar_permissions": "Permissions",
-        "sidebar_chat": "Chat",
-        "sidebar_translations": "Translations",
-        "document_details": "Document Details",
-        "back_to_documents": "Back to Documents",
-        "loading_document": "Loading document...",
-        "loading_documents": "Loading documents...",
-        "no_documents": "No documents found.",
-        "select_document": "Select a document to view details.",
-        "view_document": "View Document",
-        "user_column": "User",
-        "doc_access_column": "Document Access",
-        "chat_access_column": "Chat Access",
-        "admin_rights_column": "Admin Rights",
-        "actions_column": "Actions",
-        "loading_users": "Loading users...",
-        "no_users": "No users found.",
-        "enabled": "Enabled",
-        "disabled": "Disabled",
-        "yes": "Yes",
-        "no": "No",
-        "edit_button": "Edit",
-        "delete_button": "Delete",
-        "add_user_button": "Add New User",
-        "edit_user": "Edit User",
-        "add_new_user": "Add New User",
-        "email_label": "Email:",
-        "doc_access_label": "Document Access:",
-        "enable_chat_access": "Enable Chat Access",
-        "admin_rights": "Admin Rights",
-        "cancel_button": "Cancel",
-        "save_button": "Save",
-        "chat_title": "AI Chat",
-        "clear_chat": "Clear Chat",
-        "sending": "Sending...",
-        "chat_placeholder": "Type your message here and press Enter to send...",
-        "send_button": "Send",
-        "ai_welcome": "Welcome to the AI Assistant. How can I help you today?",
-        "translations_title": "Translation Management",
-        "loading_translations": "Loading translations...",
-        "key_column": "Key",
-        "value_column": "Value",
-        "actions_column": "Actions"
-    }
-}
-
 @app.route('/api/i18n', methods=['GET'])
 def get_translations():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    json_path = os.path.join(current_dir, 'i18n/data.json')
+    try:
+        with open(json_path, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        app.logger.error(f"Data file not found: {json_path}")
+        return {}
+    except json.JSONDecodeError:
+        app.logger.error(f"Invalid JSON in data file: {json_path}")
+        return {
+            "i18n_warning": "Error al obtener traducción",
+        }
     return jsonify(TRANSLATIONS)
 
 @app.route('/api/i18n', methods=['POST'])
