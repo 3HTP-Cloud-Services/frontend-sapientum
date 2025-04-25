@@ -6,7 +6,6 @@
   import Login from './routes/Login.svelte';
   import Console from './routes/Console.svelte';
 
-  // Define routes
   const routes = {
     '/': Console,
     '/console': Console,
@@ -14,7 +13,6 @@
   };
 
   onMount(async () => {
-    // Use the global static mode flag
     if (window.isStaticMode) {
       console.log('App component running in static mode');
       // In static mode, we'll still try auth checks since our API is available
@@ -35,7 +33,6 @@
     }
 
 
-    // Debug log the current route
     console.log('Current route at mount:', $location);
   });
 

@@ -7,10 +7,10 @@
   import { writable } from 'svelte/store';
   import { fade, fly } from 'svelte/transition';
 
-  // Import component modules
   import Documents from '../components/Documents.svelte';
   import Permissions from '../components/Permissions.svelte';
   import Chat from '../components/Chat.svelte';
+  import Translations from '../components/Translations.svelte';
 
   $: i18n = $i18nStore;
   function setLocale(locale) {
@@ -19,36 +19,29 @@
     }
   }
 
-  // Create active section store to share with components
   const activeSectionStore = writable('documents');
   // Active section state
   let activeSection = 'documents';
 
-  // Keep store and local variable in sync
   $: {
     $activeSectionStore = activeSection;
-    // When activeSection changes, make sure the components get the memo
     console.log(`Active section changed to ${activeSection}`);
   }
 
-  // Document data
   let documents = [];
   let loading = true;
   let error = '';
 
-  // Document detail data
   let selectedDocument = null;
   let loadingDocument = false;
   let documentError = '';
 
-  // Permissions data
   let users = [];
   let loadingUsers = false;
   let usersError = '';
   let editingUser = null;
   let showUserModal = false;
 
-  // Chat data
   let messages = [
     {
       id: 1,
@@ -61,54 +54,44 @@
   let chatContainer;
   let messagesContainer;
 
-  // Sidebar state
   let sidebarCollapsed = false;
   let isMobile = false;
 
-  // Check if device is mobile
   function checkMobile() {
     isMobile = window.innerWidth <= 768;
-    // On mobile, start with sidebar in collapsed state
     if (isMobile && !sidebarCollapsed) {
       sidebarCollapsed = true;
     }
   }
 
-  // Toggle sidebar visibility
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
   }
 
-  // Handle logout
   async function handleLogout() {
     await logout();
     push('/login');
   }
 
-  // Handle section change - just update the section state
   function switchSection(section) {
     console.log(`Switching to section: ${section}`);
 
-    // Update section state - components will react to this change
     activeSection = section;
     $activeSectionStore = section;
 
-    // No additional logic needed - components handle their own state and data loading
   }
 
-  // Component references
   let documentsComponent;
   let permissionsComponent;
   let chatComponent;
+  let translationsComponent;
 
-  // No longer fetching data in parent component - each component handles its own data loading
 
   function scrollToBottom() {
     try {
       if (chatComponent && typeof chatComponent.scrollToBottom === 'function') {
         chatComponent.scrollToBottom();
       } else if (messagesContainer) {
-        // Direct access to the container as a fallback
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
     } catch (err) {
@@ -118,9 +101,6 @@
 
   onMount(() => {
     if ($isAuthenticated) {
-      // Set initial section (we don't need to fetch data here - components will do it)
-
-      // Check if we should activate a specific section (e.g. from redirect)
       const savedSection = localStorage.getItem('activeConsoleSection');
       if (savedSection) {
         activeSection = savedSection;
@@ -129,13 +109,10 @@
       }
     }
 
-    // Check if mobile on initial load
     checkMobile();
 
-    // Add resize event listener
     window.addEventListener('resize', checkMobile);
 
-    // Cleanup function
     return () => {
       window.removeEventListener('resize', checkMobile);
     };
@@ -182,6 +159,12 @@
             <span class="text">{$i18nStore.t('sidebar_chat')}</span>
           </button>
         </li>
+        <li class={activeSection === 'translations' ? 'active' : ''}>
+          <button on:click={() => switchSection('translations')}>
+            <span class="icon">🌐</span>
+            <span class="text">{$i18nStore.t('sidebar_translations')}</span>
+          </button>
+        </li>
       </ul>
     </nav>
 
@@ -221,6 +204,11 @@
               {chatContainer}
               {messagesContainer}
               bind:this={chatComponent}
+              {activeSectionStore}
+            />
+          {:else if activeSection === 'translations'}
+            <Translations
+              bind:this={translationsComponent}
               {activeSectionStore}
             />
           {/if}

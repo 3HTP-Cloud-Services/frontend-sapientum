@@ -4,7 +4,6 @@
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../lib/i18n.js';
 
-  // Permissions data
   export let users = [];
   export let loadingUsers = false;
   export let usersError = '';
@@ -12,7 +11,6 @@
   export let showUserModal = false;
   export let activeSectionStore;
 
-  // Fetch users for permissions section
   export async function fetchUsers() {
     try {
       loadingUsers = true;
@@ -38,7 +36,6 @@
     }
   }
 
-  // User management functions
   export function editUser(user) {
     editingUser = { ...user };
     showUserModal = true;
@@ -58,7 +55,6 @@
   export async function saveUser() {
     try {
       if (editingUser.id) {
-        // Update existing user
         const response = await fetch(`/api/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
@@ -70,7 +66,6 @@
 
         if (response.ok) {
           const updatedUser = await response.json();
-          // Update local user data
           const index = users.findIndex(u => u.id === updatedUser.id);
           if (index !== -1) {
             users[index] = updatedUser;
@@ -81,7 +76,6 @@
           usersError = 'Error al actualizar usuario';
         }
       } else {
-        // Add new user
         const response = await fetch('/api/users', {
           method: 'POST',
           headers: {
@@ -119,7 +113,6 @@
       });
 
       if (response.ok) {
-        // Remove from local data
         users = users.filter(u => u.id !== userId);
       } else {
         console.error('Error deleting user:', response.status);
@@ -136,7 +129,6 @@
     editingUser = null;
   }
 
-  // Watch for section changes and reload data when this section is active
   $: if ($activeSectionStore === 'permissions') {
     console.log("Permissions section is now active");
     users = [];

@@ -5,21 +5,17 @@
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../lib/i18n.js';
 
-  // Document data
   export let documents = [];
   export let loading = true;
   export let error = '';
 
-  // Document detail data
   export let selectedDocument = null;
   export let loadingDocument = false;
   export let documentError = '';
 
-  // Export active section change function and store
   export let switchSection;
   export let activeSectionStore;
 
-  // Fetch documents for the documents section
   export async function fetchDocuments() {
     try {
       loading = true;
@@ -30,7 +26,6 @@
       if (response.ok) {
         documents = await response.json();
       } else if (response.status === 401) {
-        // User is not authenticated
         push('/login');
       } else {
         console.error('Error fetching documents:', response.status, response.statusText);
@@ -44,7 +39,6 @@
     }
   }
 
-  // Fetch a specific document by ID
   export async function fetchDocument(id) {
     try {
       // Clear any previous document
@@ -75,20 +69,17 @@
     }
   }
 
-  // View document details
   export function viewDocument(id) {
     fetchDocument(id);
     switchSection('document-detail');
   }
 
-  // Back to documents list
   export function backToDocuments() {
     selectedDocument = null;
     documentError = '';
     switchSection('documents');
   }
 
-  // Watch for section changes and reload data when this section is active
   $: if ($activeSectionStore === 'documents') {
     console.log("Documents section is now active");
     documents = [];

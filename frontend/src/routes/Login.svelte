@@ -6,7 +6,7 @@
   let username = '';
   let password = '';
   let error = '';
-  
+
   function setLocale(locale) {
     if ($i18nStore) {
       $i18nStore.locale = locale;
@@ -34,7 +34,7 @@
 
 <div class="login-container">
   <div class="language-selector">
-    <button class={`locale_button ${$i18nStore.locale === 'en' ? 'selected' : ''}`} 
+    <button class={`locale_button ${$i18nStore.locale === 'en' ? 'selected' : ''}`}
             on:click={() => setLocale('en')}>English</button>
     <button class={`locale_button ${$i18nStore.locale === 'es' ? 'selected' : ''}`}
             on:click={() => setLocale('es')}>Español</button>

@@ -2,23 +2,18 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
 
-# Get the current directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Path to static folder - will be used when serving static files
 static_folder = os.path.join(current_dir, 'static')
 
-# Initialize Flask app - can switch between API mode and static mode
 app = Flask(__name__, static_folder=static_folder)
 app.secret_key = os.urandom(24)
 CORS(app, supports_credentials=True)
 
-# Hardcoded user for now
 USER = {
     "username": "user",
     "password": "user123"
 }
 
-# Users with permissions
 USERS = [
     {
         "id": 1,
@@ -43,7 +38,6 @@ USERS = [
     }
 ]
 
-# Mock documents data
 DOCUMENTS = [
     {
         "id": 1, 
@@ -62,9 +56,7 @@ DOCUMENTS = [
     }
 ]
 
-# AI chat responses
 def generate_ai_response(user_query):
-    # Mock AI response based on user query
     responses = {
         'hola': '¡Hola! ¿Cómo puedo ayudarte hoy?',
         'ayuda': 'Puedo ayudarte con resúmenes de documentos, responder preguntas sobre el sistema o proporcionar orientación sobre la evaluación de competencia de IA.',
@@ -75,35 +67,27 @@ def generate_ai_response(user_query):
         'help': 'Puedo ayudarte con resúmenes de documentos, responder preguntas sobre el sistema o proporcionar orientación sobre la evaluación de competencia de IA.',
     }
     
-    # Create responses based on actual document data
     doc_responses = {}
     for doc in DOCUMENTS:
         doc_id = str(doc['id'])
         doc_title = doc['title'].lower()
-        # Add response for document by ID
         doc_responses[f'document {doc_id}'] = f"{doc['title']} - {doc['content'][:150]}..."
-        # Add response for document by title
         doc_responses[doc_title] = f"{doc['title']} - {doc['content'][:150]}..."
     
-    # Merge the two dictionaries
     all_responses = {**responses, **doc_responses}
     
-    # Check if query contains any keywords
     lower_query = user_query.lower()
     
-    # First check for exact matches
     for keyword, response in all_responses.items():
         if keyword in lower_query:
             return response
     
-    # Then check for partial matches on document titles
     for doc in DOCUMENTS:
         title_words = doc['title'].lower().split()
         for word in title_words:
-            if len(word) > 3 and word in lower_query:  # Only match on words longer than 3 chars
+            if len(word) > 3 and word in lower_query:
                 return f"Encontré un documento que podría interesarte: {doc['title']} - {doc['content'][:100]}..."
     
-    # Default response
     return "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
 
 @app.route('/api/login', methods=['POST'])
@@ -129,129 +113,144 @@ def check_auth():
         return jsonify({"authenticated": True})
     return jsonify({"authenticated": False}), 401
 
+TRANSLATIONS = {
+    "es": {
+        "title": "Consola de Administración Sapientum AI",
+        "logout": "Cerrar Sesión",
+        "i18n_warning": "No se pudo conseguir la traducción necesaria",
+        "login_title": "Iniciar Sesión",
+        "username": "Usuario",
+        "password": "Contraseña",
+        "login_button": "Iniciar Sesión",
+        "sidebar_documents": "Catalogo",
+        "sidebar_permissions": "Permisos",
+        "sidebar_chat": "Chat",
+        "sidebar_translations": "Traducciones",
+        "document_details": "Detalles del Documento",
+        "back_to_documents": "Volver a Documentos",
+        "loading_document": "Cargando documento...",
+        "loading_documents": "Cargando documentos...",
+        "no_documents": "No se encontraron documentos.",
+        "select_document": "Selecciona un documento para ver detalles.",
+        "view_document": "Ver Documento",
+        "user_column": "Usuario",
+        "doc_access_column": "Acceso a Documentos",
+        "chat_access_column": "Acceso a Chat",
+        "admin_rights_column": "Derechos de Admin",
+        "actions_column": "Acciones",
+        "loading_users": "Cargando usuarios...",
+        "no_users": "No se encontraron usuarios.",
+        "enabled": "Habilitado",
+        "disabled": "Deshabilitado",
+        "yes": "Sí",
+        "no": "No",
+        "edit_button": "Editar",
+        "delete_button": "Eliminar",
+        "add_user_button": "Agregar Nuevo Usuario",
+        "edit_user": "Editar Usuario",
+        "add_new_user": "Agregar Nuevo Usuario",
+        "email_label": "Email:",
+        "doc_access_label": "Acceso a Documentos:",
+        "enable_chat_access": "Habilitar Acceso a Chat",
+        "admin_rights": "Derechos de Administrador",
+        "cancel_button": "Cancelar",
+        "save_button": "Guardar",
+        "chat_title": "Chat IA",
+        "clear_chat": "Limpiar Chat",
+        "sending": "Enviando...",
+        "chat_placeholder": "Escribe tu mensaje aquí y presiona Enter para enviar...",
+        "send_button": "Enviar",
+        "ai_welcome": "Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?",
+        "translations_title": "Administración de Traducciones",
+        "loading_translations": "Cargando traducciones...",
+        "key_column": "Clave",
+        "value_column": "Valor",
+        "actions_column": "Acciones"
+    },
+    "en": {
+        "title": "Sapientum AI Administration Console",
+        "logout": "Log Out",
+        "i18n_warning": "Could not get the necessary translation",
+        "login_title": "Log In",
+        "username": "Username",
+        "password": "Password",
+        "login_button": "Log In",
+        "sidebar_documents": "Catalogue",
+        "sidebar_permissions": "Permissions",
+        "sidebar_chat": "Chat",
+        "sidebar_translations": "Translations",
+        "document_details": "Document Details",
+        "back_to_documents": "Back to Documents",
+        "loading_document": "Loading document...",
+        "loading_documents": "Loading documents...",
+        "no_documents": "No documents found.",
+        "select_document": "Select a document to view details.",
+        "view_document": "View Document",
+        "user_column": "User",
+        "doc_access_column": "Document Access",
+        "chat_access_column": "Chat Access",
+        "admin_rights_column": "Admin Rights",
+        "actions_column": "Actions",
+        "loading_users": "Loading users...",
+        "no_users": "No users found.",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "yes": "Yes",
+        "no": "No",
+        "edit_button": "Edit",
+        "delete_button": "Delete",
+        "add_user_button": "Add New User",
+        "edit_user": "Edit User",
+        "add_new_user": "Add New User",
+        "email_label": "Email:",
+        "doc_access_label": "Document Access:",
+        "enable_chat_access": "Enable Chat Access",
+        "admin_rights": "Admin Rights",
+        "cancel_button": "Cancel",
+        "save_button": "Save",
+        "chat_title": "AI Chat",
+        "clear_chat": "Clear Chat",
+        "sending": "Sending...",
+        "chat_placeholder": "Type your message here and press Enter to send...",
+        "send_button": "Send",
+        "ai_welcome": "Welcome to the AI Assistant. How can I help you today?",
+        "translations_title": "Translation Management",
+        "loading_translations": "Loading translations...",
+        "key_column": "Key",
+        "value_column": "Value",
+        "actions_column": "Actions"
+    }
+}
+
 @app.route('/api/i18n', methods=['GET'])
 def get_translations():
-    # Return translations for title and logout button in both languages
-    # This endpoint is not authenticated to allow the app to initialize properly
-    translations = {
-        "es": {
-            # App general
-            "title": "Consola de Administración Sapientum AI",
-            "logout": "Cerrar Sesión",
-            "i18n_warning": "No se pudo conseguir la traducción necesaria",
-            
-            # Login page
-            "login_title": "Iniciar Sesión",
-            "username": "Usuario",
-            "password": "Contraseña",
-            "login_button": "Iniciar Sesión",
-            
-            # Sidebar
-            "sidebar_documents": "Documentos",
-            "sidebar_permissions": "Permisos",
-            "sidebar_chat": "Chat",
-            
-            # Documents section
-            "document_details": "Detalles del Documento",
-            "back_to_documents": "Volver a Documentos",
-            "loading_document": "Cargando documento...",
-            "loading_documents": "Cargando documentos...",
-            "no_documents": "No se encontraron documentos.",
-            "select_document": "Selecciona un documento para ver detalles.",
-            "view_document": "Ver Documento",
-            
-            # Permissions section
-            "user_column": "Usuario",
-            "doc_access_column": "Acceso a Documentos",
-            "chat_access_column": "Acceso a Chat",
-            "admin_rights_column": "Derechos de Admin",
-            "actions_column": "Acciones",
-            "loading_users": "Cargando usuarios...",
-            "no_users": "No se encontraron usuarios.",
-            "enabled": "Habilitado",
-            "disabled": "Deshabilitado",
-            "yes": "Sí",
-            "no": "No",
-            "edit_button": "Editar",
-            "delete_button": "Eliminar",
-            "add_user_button": "Agregar Nuevo Usuario",
-            "edit_user": "Editar Usuario",
-            "add_new_user": "Agregar Nuevo Usuario",
-            "email_label": "Email:",
-            "doc_access_label": "Acceso a Documentos:",
-            "enable_chat_access": "Habilitar Acceso a Chat",
-            "admin_rights": "Derechos de Administrador",
-            "cancel_button": "Cancelar",
-            "save_button": "Guardar",
-            
-            # Chat section
-            "chat_title": "Chat IA",
-            "clear_chat": "Limpiar Chat",
-            "sending": "Enviando...",
-            "chat_placeholder": "Escribe tu mensaje aquí y presiona Enter para enviar...",
-            "send_button": "Enviar",
-            "ai_welcome": "Bienvenido al Asistente de IA. ¿Cómo puedo ayudarte hoy?"
-        },
-        "en": {
-            # App general
-            "title": "Sapientum AI Administration Console",
-            "logout": "Log Out",
-            "i18n_warning": "Could not get the necessary translation",
-            
-            # Login page
-            "login_title": "Log In",
-            "username": "Username",
-            "password": "Password",
-            "login_button": "Log In",
-            
-            # Sidebar
-            "sidebar_documents": "Documents",
-            "sidebar_permissions": "Permissions",
-            "sidebar_chat": "Chat",
-            
-            # Documents section
-            "document_details": "Document Details",
-            "back_to_documents": "Back to Documents",
-            "loading_document": "Loading document...",
-            "loading_documents": "Loading documents...",
-            "no_documents": "No documents found.",
-            "select_document": "Select a document to view details.",
-            "view_document": "View Document",
-            
-            # Permissions section
-            "user_column": "User",
-            "doc_access_column": "Document Access",
-            "chat_access_column": "Chat Access",
-            "admin_rights_column": "Admin Rights",
-            "actions_column": "Actions",
-            "loading_users": "Loading users...",
-            "no_users": "No users found.",
-            "enabled": "Enabled",
-            "disabled": "Disabled",
-            "yes": "Yes",
-            "no": "No",
-            "edit_button": "Edit",
-            "delete_button": "Delete",
-            "add_user_button": "Add New User",
-            "edit_user": "Edit User",
-            "add_new_user": "Add New User",
-            "email_label": "Email:",
-            "doc_access_label": "Document Access:",
-            "enable_chat_access": "Enable Chat Access",
-            "admin_rights": "Admin Rights",
-            "cancel_button": "Cancel",
-            "save_button": "Save",
-            
-            # Chat section
-            "chat_title": "AI Chat",
-            "clear_chat": "Clear Chat",
-            "sending": "Sending...",
-            "chat_placeholder": "Type your message here and press Enter to send...",
-            "send_button": "Send",
-            "ai_welcome": "Welcome to the AI Assistant. How can I help you today?"
-        }
-    }
-    return jsonify(translations)
+    return jsonify(TRANSLATIONS)
+
+@app.route('/api/i18n', methods=['POST'])
+def update_translations():
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+    
+    data = request.json
+    if not data:
+        return jsonify({"error": "No se proporcionaron datos"}), 400
+    
+    if 'language' not in data or 'updates' not in data:
+        return jsonify({"error": "Se requiere 'language' y 'updates'"}), 400
+    
+    language = data['language']
+    updates = data['updates']
+    
+    if language not in TRANSLATIONS:
+        return jsonify({"error": f"Idioma '{language}' no soportado"}), 400
+    
+    for key, value in updates.items():
+        if key in TRANSLATIONS[language]:
+            TRANSLATIONS[language][key] = value
+        else:
+            return jsonify({"error": f"Clave de traducción '{key}' no encontrada"}), 400
+    
+    return jsonify({"success": True, "message": "Traducciones actualizadas correctamente"})
 
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
@@ -282,7 +281,6 @@ def chat():
     if not user_message:
         return jsonify({"error": "El mensaje no puede estar vacío"}), 400
     
-    # Generate response
     ai_response = generate_ai_response(user_message)
     
     return jsonify({

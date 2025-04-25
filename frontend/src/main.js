@@ -10,15 +10,12 @@ window.isStaticMode = window.location.pathname === '/' &&
 
 await initializeI18n();
 
-// Log startup mode for debugging
 if (window.isStaticMode) {
   console.log('Application starting in STATIC mode');
 } else {
   console.log('Application starting in DEVELOPMENT mode');
 }
 
-// For Svelte 5, we should use create() instead of new App()
-// But with compatibility mode, both should work
 const app = new App({
   target: document.getElementById('app'),
 })

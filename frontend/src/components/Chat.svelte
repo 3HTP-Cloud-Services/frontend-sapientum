@@ -3,9 +3,8 @@
   import { onMount } from 'svelte';
   import { i18nStore } from '../lib/i18n.js';
 
-  // Chat data - initialize with translated welcome message
   export let messages = [];
-  
+
   $: if (!messages.length && $i18nStore) {
     messages = [
       {
@@ -21,18 +20,15 @@
   export let messagesContainer;
   export let activeSectionStore;
 
-  // Function to scroll chat to bottom
   export function scrollToBottom() {
     if (messagesContainer) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
   }
 
-  // Function to send a chat message
   export async function sendMessage() {
     if (!userInput.trim()) return;
 
-    // Add user message
     const userMessage = {
       id: messages.length + 1,
       type: 'user',
@@ -42,15 +38,12 @@
 
     messages = [...messages, userMessage];
 
-    // Clear input and store the message for sending
     const messageToSend = userInput;
     userInput = '';
 
-    // Scroll to bottom after rendering user message
     setTimeout(scrollToBottom, 0);
 
     try {
-      // Call the backend API
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -63,7 +56,6 @@
       if (response.ok) {
         const data = await response.json();
 
-        // Add AI response
         messages = [...messages, {
           id: messages.length + 1,
           type: 'system',
@@ -71,16 +63,12 @@
           timestamp: new Date()
         }];
 
-        // Scroll to bottom after rendering AI response
         setTimeout(scrollToBottom, 0);
       } else if (response.status === 401) {
-        // User is not authenticated
         push('/login');
       } else {
-        // Fall back to client-side response if API fails
         console.error('Error from chat API:', response.status);
 
-        // Use fallback responses
         let fallbackResponse = "Estoy teniendo problemas para conectarme al servidor. Por favor, inténtalo más tarde.";
 
         messages = [...messages, {
@@ -95,7 +83,6 @@
     } catch (error) {
       console.error('Network error when calling chat API:', error);
 
-      // Handle network errors with fallback
       messages = [...messages, {
         id: messages.length + 1,
         type: 'system',
@@ -107,7 +94,6 @@
     }
   }
 
-  // Handle key press for chat input
   export function handleKeydown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -116,11 +102,9 @@
   }
 
   onMount(() => {
-    // Scroll chat to bottom on initial load
     setTimeout(scrollToBottom, 0);
   });
-  
-  // Watch for section changes to scroll chat to bottom when active
+
   $: if ($activeSectionStore === 'chat') {
     console.log("Chat section is now active");
     setTimeout(scrollToBottom, 300);
