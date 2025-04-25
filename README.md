@@ -2,37 +2,6 @@
 
 A simple document management application with authentication, built with Svelte 5 frontend and Flask backend.
 
-## Features
-
-- User authentication with session management
-- Document listing page
-- Document detail view
-- Authentication-protected routes
-- Hardcoded user for testing (username: `user`, password: `user123`)
-
-## Project Structure
-
-```
-svelte_flask/
-├── backend/             # Flask backend
-│   ├── app.py           # Main Flask application
-│   └── requirements.txt # Python dependencies
-└── frontend/            # Svelte 5 frontend
-    ├── src/             # Source files
-    │   ├── lib/         # Shared utilities
-    │   │   └── auth.js  # Authentication logic
-    │   ├── routes/      # Page components
-    │   │   ├── Login.svelte
-    │   │   ├── Documents.svelte
-    │   │   └── DocumentDetail.svelte
-    │   ├── App.svelte   # Main app component
-    │   ├── main.js      # Entry point
-    │   └── app.css      # Global styles
-    ├── public/          # Static assets
-    ├── index.html       # HTML template
-    ├── package.json     # Frontend dependencies
-    └── vite.config.js   # Vite configuration
-```
 
 ## Setup Instructions
 
