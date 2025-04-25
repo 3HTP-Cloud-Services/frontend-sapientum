@@ -10,7 +10,6 @@
   import Documents from '../components/Documents.svelte';
   import Permissions from '../components/Permissions.svelte';
   import Chat from '../components/Chat.svelte';
-  import Translations from '../components/Translations.svelte';
 
   $: i18n = $i18nStore;
   function setLocale(locale) {
@@ -159,12 +158,6 @@
             <span class="text">{$i18nStore.t('sidebar_chat')}</span>
           </button>
         </li>
-        <li class={activeSection === 'translations' ? 'active' : ''}>
-          <button on:click={() => switchSection('translations')}>
-            <span class="icon">🌐</span>
-            <span class="text">{$i18nStore.t('sidebar_translations')}</span>
-          </button>
-        </li>
       </ul>
     </nav>
 
@@ -204,11 +197,6 @@
               {chatContainer}
               {messagesContainer}
               bind:this={chatComponent}
-              {activeSectionStore}
-            />
-          {:else if activeSection === 'translations'}
-            <Translations
-              bind:this={translationsComponent}
               {activeSectionStore}
             />
           {/if}
