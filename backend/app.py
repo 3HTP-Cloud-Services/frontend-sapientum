@@ -3,7 +3,15 @@ from flask_cors import CORS
 import os
 import json
 from catalog import get_all_catalogs, get_catalog_by_id
-from auth import authenticate_user, get_user_role
+from auth import (
+    authenticate_user, 
+    get_user_role, 
+    get_all_users, 
+    get_user_by_id, 
+    update_user_in_dynamo, 
+    create_user_in_dynamo, 
+    delete_user_from_dynamo
+)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -228,16 +236,17 @@ def get_users():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    return jsonify(USERS)
+    users = get_all_users()
+    return jsonify(users)
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    for user in USERS:
-        if user['id'] == user_id:
-            return jsonify(user)
+    user = get_user_by_id(user_id)
+    if user:
+        return jsonify(user)
     
     return jsonify({"error": "Usuario no encontrado"}), 404
 
@@ -250,19 +259,23 @@ def create_user():
     if not data or not data.get('email'):
         return jsonify({"error": "El email es requerido"}), 400
     
-    # Get the next available ID
-    next_id = max([user['id'] for user in USERS]) + 1 if USERS else 1
+    users = get_all_users()
+    next_id = max([user['id'] for user in users]) + 1 if users else 1
     
     new_user = {
         "id": next_id,
+        "original_username": data.get('email'),
         "email": data.get('email'),
-        "documentAccess": data.get('documentAccess', 'Read'),
+        "documentAccess": data.get('documentAccess', 'Lectura'),
         "chatAccess": data.get('chatAccess', False),
-        "isAdmin": data.get('isAdmin', False)
+        "isAdmin": data.get('isAdmin', False),
+        "role": "admin" if data.get('isAdmin', False) else "user"
     }
     
-    USERS.append(new_user)
-    return jsonify(new_user), 201
+    if create_user_in_dynamo(new_user):
+        return jsonify(new_user), 201
+    else:
+        return jsonify({"error": "Error al crear usuario en DynamoDB"}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
@@ -273,27 +286,36 @@ def update_user(user_id):
     if not data:
         return jsonify({"error": "No se proporcionaron datos"}), 400
     
-    for i, user in enumerate(USERS):
-        if user['id'] == user_id:
-            # Update user with provided fields
-            for key in ['email', 'documentAccess', 'chatAccess', 'isAdmin']:
-                if key in data:
-                    USERS[i][key] = data[key]
-            return jsonify(USERS[i])
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
     
-    return jsonify({"error": "Usuario no encontrado"}), 404
+    for key in ['email', 'documentAccess', 'chatAccess', 'isAdmin']:
+        if key in data:
+            user[key] = data[key]
+    
+    user['role'] = 'admin' if user['isAdmin'] else 'user'
+    
+    if update_user_in_dynamo(user):
+        return jsonify(user)
+    else:
+        return jsonify({"error": "Error al actualizar usuario en DynamoDB"}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    for i, user in enumerate(USERS):
-        if user['id'] == user_id:
-            deleted_user = USERS.pop(i)
-            return jsonify({"success": True, "eliminado": deleted_user})
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
     
-    return jsonify({"error": "Usuario no encontrado"}), 404
+    username = user.get('original_username') or user.get('email')
+    
+    if delete_user_from_dynamo(username):
+        return jsonify({"success": True, "eliminado": user})
+    else:
+        return jsonify({"error": "Error al eliminar usuario de DynamoDB"}), 500
 
 # Catch-all route for serving static files in static mode
 @app.route('/', defaults={'path': ''})

@@ -154,8 +154,6 @@
           <thead>
           <tr>
             <th>{$i18nStore.t('user_column')}</th>
-            <th>{$i18nStore.t('doc_access_column')}</th>
-            <th>{$i18nStore.t('chat_access_column')}</th>
             <th>{$i18nStore.t('admin_rights_column')}</th>
             <th>{$i18nStore.t('actions_column')}</th>
           </tr>
@@ -163,9 +161,7 @@
           <tbody>
           {#each users as user}
             <tr>
-              <td>{user.email}</td>
-              <td>{user.documentAccess}</td>
-              <td>{user.chatAccess ? $i18nStore.t('enabled') : $i18nStore.t('disabled')}</td>
+              <td>{user.username}</td>
               <td>{user.isAdmin ? $i18nStore.t('yes') : $i18nStore.t('no')}</td>
               <td>
                 <button class="edit-button" on:click={() => editUser(user)}>{$i18nStore.t('edit_button')}</button>
