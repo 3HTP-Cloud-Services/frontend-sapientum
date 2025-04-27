@@ -19,7 +19,7 @@
   export async function fetchDocuments() {
     try {
       loading = true;
-      const response = await fetch('/api/documents', {
+      const response = await fetch('/api/catalogs', {
         credentials: 'include'
       });
 
@@ -28,11 +28,11 @@
       } else if (response.status === 401) {
         push('/login');
       } else {
-        console.error('Error fetching documents:', response.status, response.statusText);
-        error = 'Error al cargar documentos';
+        console.error('Error fetching catalogs:', response.status, response.statusText);
+        error = 'Error al cargar catálogos';
       }
     } catch (err) {
-      console.error('Document fetch error:', err);
+      console.error('Catalog fetch error:', err);
       error = 'Error de conexión';
     } finally {
       loading = false;
@@ -46,7 +46,7 @@
       loadingDocument = true;
       documentError = '';
 
-      const response = await fetch(`/api/documents/${id}`, {
+      const response = await fetch(`/api/catalogs/${id}`, {
         credentials: 'include'
       });
 
@@ -56,13 +56,13 @@
         // User is not authenticated
         push('/login');
       } else if (response.status === 404) {
-        documentError = 'Documento no encontrado';
+        documentError = 'Catálogo no encontrado';
       } else {
-        console.error('Error fetching document:', response.status, response.statusText);
-        documentError = 'Error al cargar el documento';
+        console.error('Error fetching catalog:', response.status, response.statusText);
+        documentError = 'Error al cargar el catálogo';
       }
     } catch (err) {
-      console.error('Document detail fetch error:', err);
+      console.error('Catalog detail fetch error:', err);
       documentError = 'Error de conexión';
     } finally {
       loadingDocument = false;
@@ -100,9 +100,12 @@
       <p class="error">{documentError}</p>
     {:else if selectedDocument}
       <div class="document-detail">
-        <h1>{selectedDocument.title}</h1>
+        <h1>{selectedDocument.name}</h1>
         <div class="document-content">
-          {selectedDocument.content}
+          {selectedDocument.description}
+        </div>
+        <div class="document-type">
+          Tipo: {selectedDocument.type}
         </div>
       </div>
     {:else}
@@ -124,8 +127,9 @@
       <div class="document-cards" transition:fade={{ duration: 150 }}>
         {#each documents as doc}
           <div class="document-card">
-            <h3>{doc.title}</h3>
-            <p>{doc.content.substring(0, 100)}...</p>
+            <h3>{doc.name}</h3>
+            <p>{doc.description && doc.description.substring(0, 100)}...</p>
+            <div class="catalog-type">{doc.type}</div>
             <button class="view-document-button" on:click={() => viewDocument(doc.id)}>{$i18nStore.t('view_document')}</button>
           </div>
         {/each}
@@ -158,6 +162,13 @@
   .document-content {
     line-height: 1.6;
     color: #4a5568;
+  }
+  
+  .document-type {
+    margin-top: 1.5rem;
+    font-size: 0.875rem;
+    color: #718096;
+    font-weight: 500;
   }
 
   .back-button {
@@ -207,5 +218,15 @@
   .document-card .view-document-button:hover {
     background-color: #4299e1;
     color: white;
+  }
+  
+  .catalog-type {
+    display: inline-block;
+    background-color: #e2e8f0;
+    color: #4a5568;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
   }
 </style>

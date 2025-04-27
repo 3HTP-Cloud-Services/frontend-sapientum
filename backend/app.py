@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
 import json
+from catalog import get_all_catalogs, get_catalog_by_id
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -11,7 +12,7 @@ app.secret_key = os.urandom(24)
 CORS(app, supports_credentials=True)
 
 USER = {
-    "username": "user",
+    "username": "jpnunez@3htp.com",
     "password": "user123"
 }
 
@@ -157,23 +158,34 @@ def update_translations():
     
     return jsonify({"success": True, "message": "Traducciones actualizadas correctamente"})
 
+@app.route('/api/catalogs', methods=['GET'])
+def get_catalogs():
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+    
+    catalogs = get_all_catalogs()
+    return jsonify(catalogs)
+
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-    
-    return jsonify(DOCUMENTS)
+    # Redirect to catalogs for backward compatibility
+    return get_catalogs()
 
-@app.route('/api/documents/<int:doc_id>', methods=['GET'])
-def get_document(doc_id):
+@app.route('/api/catalogs/<string:catalog_id>', methods=['GET'])
+def get_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    for doc in DOCUMENTS:
-        if doc['id'] == doc_id:
-            return jsonify(doc)
+    catalog = get_catalog_by_id(catalog_id)
+    if catalog:
+        return jsonify(catalog)
     
-    return jsonify({"error": "Documento no encontrado"}), 404
+    return jsonify({"error": "Catálogo no encontrado"}), 404
+
+@app.route('/api/documents/<path:doc_id>', methods=['GET'])
+def get_document(doc_id):
+    # Redirect to get_catalog for backward compatibility
+    return get_catalog(doc_id)
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
