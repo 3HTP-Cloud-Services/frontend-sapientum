@@ -1,6 +1,8 @@
 import { writable } from 'svelte/store';
 
 export const isAuthenticated = writable(false);
+export const userRole = writable(null);
+export const userEmail = writable(null);
 
 export const checkAuth = async () => {
   try {
@@ -11,14 +13,27 @@ export const checkAuth = async () => {
     if (response.ok) {
       const data = await response.json();
       isAuthenticated.set(data.authenticated);
+      
+      if (data.authenticated) {
+        userRole.set(data.role);
+        userEmail.set(data.email);
+      } else {
+        userRole.set(null);
+        userEmail.set(null);
+      }
+      
       return data.authenticated;
     } else {
       isAuthenticated.set(false);
+      userRole.set(null);
+      userEmail.set(null);
       return false;
     }
   } catch (error) {
     console.error('Auth check error:', error);
     isAuthenticated.set(false);
+    userRole.set(null);
+    userEmail.set(null);
     return false;
   }
 };
@@ -38,7 +53,9 @@ export const login = async (username, password) => {
     
     if (response.ok && data.success) {
       isAuthenticated.set(true);
-      return { success: true };
+      userRole.set(data.role);
+      userEmail.set(username);
+      return { success: true, role: data.role };
     } else {
       return { success: false, message: data.message || 'Login failed' };
     }
@@ -55,6 +72,8 @@ export const logout = async () => {
       credentials: 'include'
     });
     isAuthenticated.set(false);
+    userRole.set(null);
+    userEmail.set(null);
   } catch (error) {
     console.error('Logout error:', error);
   }

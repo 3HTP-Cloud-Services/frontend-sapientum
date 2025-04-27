@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 import json
 from catalog import get_all_catalogs, get_catalog_by_id
+from auth import authenticate_user, get_user_role
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -95,24 +96,41 @@ def generate_ai_response(user_query):
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    username = data.get('username')
+    email = data.get('username')
     password = data.get('password')
     
-    if username == USER['username'] and password == USER['password']:
+    user, error_message = authenticate_user(email, password)
+    
+    if user:
         session['logged_in'] = True
-        return jsonify({"success": True})
+        session['user_email'] = email
+        session['user_role'] = user.get('role')
+        
+        return jsonify({
+            "success": True,
+            "role": user.get('role')
+        })
+    
+    if error_message == "Unknown User":
+        return jsonify({"success": False, "message": "Unknown User"}), 401
     
     return jsonify({"success": False, "message": "Credenciales inválidas"}), 401
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
     session.pop('logged_in', None)
+    session.pop('user_email', None)
+    session.pop('user_role', None)
     return jsonify({"success": True})
 
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
     if session.get('logged_in'):
-        return jsonify({"authenticated": True})
+        return jsonify({
+            "authenticated": True,
+            "email": session.get('user_email'),
+            "role": session.get('user_role')
+        })
     return jsonify({"authenticated": False}), 401
 
 @app.route('/api/i18n', methods=['GET'])

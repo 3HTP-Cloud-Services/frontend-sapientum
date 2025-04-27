@@ -100,7 +100,7 @@
       <p class="error">{documentError}</p>
     {:else if selectedDocument}
       <div class="document-detail">
-        <h1>{selectedDocument.name}</h1>
+        <h1>{selectedDocument.catalog_name}</h1>
         <div class="document-content">
           {selectedDocument.description}
         </div>
@@ -127,7 +127,7 @@
       <div class="document-cards" transition:fade={{ duration: 150 }}>
         {#each documents as doc}
           <div class="document-card">
-            <h3>{doc.name}</h3>
+            <h3>{doc.catalog_name}</h3>
             <p>{doc.description && doc.description.substring(0, 100)}...</p>
             <div class="catalog-type">{doc.type}</div>
             <button class="view-document-button" on:click={() => viewDocument(doc.id)}>{$i18nStore.t('view_document')}</button>
@@ -163,7 +163,7 @@
     line-height: 1.6;
     color: #4a5568;
   }
-  
+
   .document-type {
     margin-top: 1.5rem;
     font-size: 0.875rem;
@@ -219,7 +219,7 @@
     background-color: #4299e1;
     color: white;
   }
-  
+
   .catalog-type {
     display: inline-block;
     background-color: #e2e8f0;
