@@ -7,7 +7,8 @@
   import { writable } from 'svelte/store';
   import { fade, fly } from 'svelte/transition';
 
-  import Documents from '../components/Documents.svelte';
+  import Catalog from '../components/Catalog.svelte';
+  import Catalog_Permissions from '../components/Catalog_Permissions.svelte';
   import Permissions from '../components/Permissions.svelte';
   import Chat from '../components/Chat.svelte';
 
@@ -18,22 +19,22 @@
     }
   }
 
-  const activeSectionStore = writable('documents');
+  const activeSectionStore = writable('catalogs');
   // Active section state
-  let activeSection = 'documents';
+  let activeSection = 'catalogs';
 
   $: {
     $activeSectionStore = activeSection;
     console.log(`Active section changed to ${activeSection}`);
   }
 
-  let documents = [];
+  let catalogs = [];
   let loading = true;
   let error = '';
 
-  let selectedDocument = null;
-  let loadingDocument = false;
-  let documentError = '';
+  let selectedCatalog = null;
+  let loadingCatalog = false;
+  let catalogError = '';
 
   let users = [];
   let loadingUsers = false;
@@ -80,7 +81,8 @@
 
   }
 
-  let documentsComponent;
+  let catalogComponent;
+  let catalogPermissionsComponent;
   let permissionsComponent;
   let chatComponent;
   let translationsComponent;
@@ -140,10 +142,10 @@
         <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
       </div>
       <ul>
-        <li class={activeSection === 'documents' || activeSection === 'document-detail' ? 'active' : ''}>
-          <button on:click={() => switchSection('documents')}>
+        <li class={activeSection === 'catalogs' || activeSection === 'catalog-detail' || activeSection === 'catalog-permissions' ? 'active' : ''}>
+          <button on:click={() => switchSection('catalogs')}>
             <span class="icon">📄</span>
-            <span class="text">{$i18nStore.t('sidebar_documents')}</span>
+            <span class="text">{$i18nStore.t('sidebar_catalogs')}</span>
           </button>
         </li>
         <li class={activeSection === 'permissions' ? 'active' : ''}>
@@ -168,17 +170,23 @@
           in:fly={{ x: 150, duration: 250, delay: 100 }}
           out:fade={{ duration: 100 }}
         >
-          {#if activeSection === 'documents' || activeSection === 'document-detail'}
-            <Documents
-              {documents}
+          {#if activeSection === 'catalogs' || activeSection === 'catalog-detail'}
+            <Catalog
+              catalogs={catalogs}
               {loading}
               {error}
-              {selectedDocument}
-              {loadingDocument}
-              {documentError}
+              selectedCatalog={selectedCatalog}
+              loadingCatalog={loadingCatalog}
+              catalogError={catalogError}
               switchSection={switchSection}
-              bind:this={documentsComponent}
+              bind:this={catalogComponent}
               activeSectionStore={activeSectionStore}
+            />
+          {:else if activeSection === 'catalog-permissions'}
+            <Catalog_Permissions
+              switchSection={switchSection}
+              activeSectionStore={activeSectionStore}
+              bind:this={catalogPermissionsComponent}
             />
           {:else if activeSection === 'permissions'}
             <Permissions

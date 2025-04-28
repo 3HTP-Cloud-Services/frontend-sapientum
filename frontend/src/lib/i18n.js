@@ -110,6 +110,13 @@ export function t(key, options) {
   i18nStore.subscribe(i18n => {
     if (i18n) {
       result = i18n.t(key, options);
+      
+      if (options) {
+        Object.keys(options).forEach(key => {
+          const placeholder = `{${key}}`;
+          result = result.replace(placeholder, options[key]);
+        });
+      }
     } else {
       result = key;
     }
