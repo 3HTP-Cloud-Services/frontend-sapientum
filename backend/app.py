@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
 import json
-from catalog import get_all_catalogs, get_catalog_by_id
+from catalog import get_all_catalogs, get_catalog_by_id, get_catalog_users
 from auth import (
     authenticate_user, 
     get_user_role, 
@@ -212,6 +212,14 @@ def get_catalog(catalog_id):
 def get_document(doc_id):
     # Redirect to get_catalog for backward compatibility
     return get_catalog(doc_id)
+
+@app.route('/api/catalogs/<string:catalog_id>/users', methods=['GET'])
+def get_users_for_catalog(catalog_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+    
+    users = get_catalog_users(catalog_id)
+    return jsonify(users)
 
 @app.route('/api/chat', methods=['POST'])
 def chat():

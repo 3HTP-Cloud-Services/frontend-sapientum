@@ -55,7 +55,8 @@
         "loading_translations": "Cargando traducciones...",
         "key_column": "Clave",
         "value_column": "Valor",
-        "actions_column": "Acciones"
+        "actions_column": "Acciones",
+        "confirm_remove_user": "¿Está seguro que desea eliminar este usuario?"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -113,6 +114,7 @@
         "loading_translations": "Loading translations...",
         "key_column": "Key",
         "value_column": "Value",
-        "actions_column": "Actions"
+        "actions_column": "Actions",
+        "confirm_remove_user": "Are you sure you want to remove this user?"
     }
 }

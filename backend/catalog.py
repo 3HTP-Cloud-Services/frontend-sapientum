@@ -64,3 +64,22 @@ def get_catalog_by_id(catalog_id):
             print(f"Unexpected error getting catalog {catalog_id}: {e}")
             traceback.print_exc()
             return None
+
+
+def get_catalog_users(catalog_id):
+    catalog_users = [
+        {
+            "id": 1,
+            "email": "jprojas@3htp.com",
+            "fullName": "Juan Pedro Rojas",
+            "role": "lector"
+        },
+        {
+            "id": 2,
+            "email": "drisi@3htp.com",
+            "fullName": "Dante Risi",
+            "role": "editor"
+        },
+    ]
+    
+    return catalog_users
