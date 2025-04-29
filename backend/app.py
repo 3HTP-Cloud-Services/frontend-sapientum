@@ -221,6 +221,28 @@ def get_users_for_catalog(catalog_id):
     users = get_catalog_users(catalog_id)
     return jsonify(users)
 
+@app.route('/api/catalogs/<string:catalog_id>/files', methods=['GET'])
+def get_files_for_catalog(catalog_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+    
+    files = [
+        {
+            "id": 1,
+            "name": "Manual_IT.pdf",
+            "size": "2.4 MB",
+            "created_at": "2025-02-15T10:30:45Z"
+        },
+        {
+            "id": 2,
+            "name": "Manual_CRM.pdf",
+            "size": "3.7 MB",
+            "created_at": "2025-03-22T14:15:30Z"
+        }
+    ]
+    
+    return jsonify(files)
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     if not session.get('logged_in'):
