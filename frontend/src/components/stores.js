@@ -85,8 +85,16 @@ export async function fetchCatalogFiles(id) {
 
     if (response.ok) {
       const files = await response.json();
+      
       console.log('Files:', files);
-      catalogFilesStore.set(files);
+      
+      // Convert string dates to Date objects for proper formatting
+      const processedFiles = files.map(file => ({
+        ...file,
+        uploadDate: new Date(file.uploadDate)
+      }));
+      
+      catalogFilesStore.set(processedFiles);
     } else if (response.status === 401) {
       window.location.href = '/#/login';
     } else if (response.status === 404) {

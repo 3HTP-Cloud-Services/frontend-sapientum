@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../lib/i18n.js';
+  import UserModal from './UserModal.svelte';
 
   export let switchSection;
   export let activeSectionStore;
@@ -11,8 +12,7 @@
   let users = [];
   let loading = true;
   let error = null;
-  let showAddUserModal = false;
-  let showEditUserModal = false;
+  let showUserModal = false;
   let editingUser = null;
   
   onMount(async () => {
@@ -43,22 +43,22 @@
   
   function editUser(user) {
     editingUser = { ...user };
-    showEditUserModal = true;
+    showUserModal = true;
   }
   
-  function openAddUserModal() {
-    editingUser = { email: '', fullName: '', role: 'lector' };
-    showAddUserModal = true;
+  function addNewUser() {
+    editingUser = { id: null, email: '', fullName: '', role: 'lector' };
+    showUserModal = true;
   }
   
-  function closeModals() {
-    showAddUserModal = false;
-    showEditUserModal = false;
+  function closeUserModal() {
+    showUserModal = false;
+    editingUser = null;
   }
   
   async function saveUser() {
     // This would save to API in a real implementation
-    closeModals();
+    closeUserModal();
     await loadUsers();
   }
   
@@ -81,7 +81,7 @@
 
 <div class="catalog-permissions-section">
   <div class="add-user-container">
-    <button class="add-user-button" on:click={openAddUserModal}>
+    <button class="add-user-button" on:click={addNewUser}>
       {$i18nStore.t('add_user_button')}
     </button>
   </div>
@@ -122,6 +122,14 @@
     </table>
   {/if}
 </div>
+
+<UserModal 
+  show={showUserModal}
+  user={editingUser}
+  catalogMode={true}
+  on:close={closeUserModal}
+  on:save={saveUser}
+/>
 
 <style>
   .catalog-permissions-section {

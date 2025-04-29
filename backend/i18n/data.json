@@ -57,7 +57,16 @@
         "key_column": "Clave",
         "value_column": "Valor",
         "actions_column": "Acciones",
-        "confirm_remove_user": "¿Está seguro que desea eliminar este usuario?"
+        "confirm_remove_user": "¿Está seguro que desea eliminar este usuario?",
+        "documents_title": "Documentos",
+        "document_name": "Nombre",
+        "document_description": "Descripción",
+        "document_upload_date": "Fecha de carga",
+        "document_status": "Estado",
+        "document_version": "Versión",
+        "document_size": "Tamaño",
+        "edit_document": "Editar documento",
+        "upload_new_version": "Subir nueva versión"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -117,6 +126,15 @@
         "key_column": "Key",
         "value_column": "Value",
         "actions_column": "Actions",
-        "confirm_remove_user": "Are you sure you want to remove this user?"
+        "confirm_remove_user": "Are you sure you want to remove this user?",
+        "documents_title": "Documents",
+        "document_name": "Name",
+        "document_description": "Description",
+        "document_upload_date": "Upload Date",
+        "document_status": "Status",
+        "document_version": "Version",
+        "document_size": "Size",
+        "edit_document": "Edit document",
+        "upload_new_version": "Upload new version"
     }
 }

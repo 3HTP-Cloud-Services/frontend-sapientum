@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
 import json
-from catalog import get_all_catalogs, get_catalog_by_id, get_catalog_users
+from catalog import get_all_catalogs, get_catalog_by_id, get_catalog_users, get_catalog_files
 from auth import (
     authenticate_user, 
     get_user_role, 
@@ -226,21 +226,7 @@ def get_files_for_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    files = [
-        {
-            "id": 1,
-            "name": "Manual_IT.pdf",
-            "size": "2.4 MB",
-            "created_at": "2025-02-15T10:30:45Z"
-        },
-        {
-            "id": 2,
-            "name": "Manual_CRM.pdf",
-            "size": "3.7 MB",
-            "created_at": "2025-03-22T14:15:30Z"
-        }
-    ]
-    
+    files = get_catalog_files(catalog_id)
     return jsonify(files)
 
 @app.route('/api/chat', methods=['POST'])

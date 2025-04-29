@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../lib/i18n.js';
+  import UserModal from './UserModal.svelte';
 
   export let users = [];
   export let loadingUsers = false;
@@ -129,6 +130,11 @@
     editingUser = null;
   }
 
+  function handleSave(event) {
+    editingUser = event.detail;
+    saveUser();
+  }
+
   $: if ($activeSectionStore === 'permissions') {
     console.log("Permissions section is now active");
     users = [];
@@ -177,47 +183,13 @@
   <button class="add-user-button" on:click={addNewUser}>{$i18nStore.t('add_user_button')}</button>
 </div>
 
-{#if showUserModal}
-  <div class="modal-backdrop">
-    <div class="modal">
-      <h2>{editingUser.id ? $i18nStore.t('edit_user') : $i18nStore.t('add_new_user')}</h2>
-
-      <div class="form-group">
-        <label for="email">{$i18nStore.t('email_label')}</label>
-        <input type="email" id="email" bind:value={editingUser.email} required />
-      </div>
-
-      <div class="form-group">
-        <label for="documentAccess">{$i18nStore.t('doc_access_label')}</label>
-        <select id="documentAccess" bind:value={editingUser.documentAccess}>
-          <option value="Lectura">Lectura</option>
-          <option value="Lectura/Escritura">Lectura/Escritura</option>
-          <option value="Ninguno">Ninguno</option>
-        </select>
-      </div>
-
-      <div class="form-group checkbox">
-        <label>
-          <input type="checkbox" bind:checked={editingUser.chatAccess} />
-          {$i18nStore.t('enable_chat_access')}
-        </label>
-      </div>
-
-      <div class="form-group checkbox">
-        <label>
-          <input type="checkbox" bind:checked={editingUser.isAdmin} />
-          {$i18nStore.t('admin_rights')}
-        </label>
-      </div>
-
-      <div class="modal-actions">
-        <button class="cancel-button" on:click={closeUserModal}>{$i18nStore.t('cancel_button')}</button>
-        <button class="save-button" on:click={saveUser}>{$i18nStore.t('save_button')}</button>
-      </div>
-    </div>
-  </div>
-
-{/if}
+<UserModal 
+  show={showUserModal}
+  user={editingUser}
+  catalogMode={false}
+  on:close={closeUserModal}
+  on:save={handleSave}
+/>
 <style>
 
   /* Permissions section */
