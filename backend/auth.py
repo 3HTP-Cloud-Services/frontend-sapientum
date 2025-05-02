@@ -60,6 +60,8 @@ def get_user_role(email):
         traceback.print_exc()
         return None
 
+def get_all_domains():
+    return ['@3htp.com', '@3htp.cloud']
 
 def get_all_users():
     def operation():

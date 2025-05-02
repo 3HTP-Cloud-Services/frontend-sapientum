@@ -2,11 +2,12 @@ from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 import os
 import json
-from catalog import get_all_catalogs, get_catalog_by_id, get_catalog_users, get_catalog_files
+from catalog import get_all_catalogs, get_catalog_by_id, get_catalog_users, get_catalog_files, get_catalog_types
 from auth import (
     authenticate_user, 
     get_user_role, 
-    get_all_users, 
+    get_all_users,
+    get_all_domains,
     get_user_by_id, 
     update_user_in_dynamo, 
     create_user_in_dynamo, 
@@ -192,6 +193,14 @@ def get_catalogs():
     catalogs = get_all_catalogs()
     return jsonify(catalogs)
 
+@app.route('/api/catalog-types', methods=['GET'])
+def get_types():
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+    
+    catalog_types = get_catalog_types()
+    return jsonify(catalog_types)
+
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
     # Redirect to catalogs for backward compatibility
@@ -253,7 +262,8 @@ def get_users():
         return jsonify({"error": "No autorizado"}), 401
     
     users = get_all_users()
-    return jsonify(users)
+    domains = get_all_domains()
+    return jsonify({ 'users': users, 'domains': domains })
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):

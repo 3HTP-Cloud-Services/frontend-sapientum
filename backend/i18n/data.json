@@ -24,7 +24,7 @@
         "catalog_permissions": "Permisos de Catálogo",
         "catalog_permissions_coming_soon": "La administración de permisos de catálogo estará disponible próximamente.",
         "back_to_catalog_details": "Volver a Detalles del Catálogo",
-        "user_column": "Usuario",
+        "user_column": "Nombre Usuario",
         "doc_access_column": "Acceso a Documentos",
         "chat_access_column": "Acceso a Chat",
         "admin_rights_column": "Derechos de Admin",
@@ -66,7 +66,16 @@
         "document_version": "Versión",
         "document_size": "Tamaño",
         "edit_document": "Editar documento",
-        "upload_new_version": "Subir nueva versión"
+        "upload_new_version": "Subir nueva versión",
+        "allowed_domains": "Dominios Permitidos",
+        "add_domain_button": "Agregar Dominio",
+        "save_domains_button": "Guardar Dominios",
+        "reload_domains_button": "Deshacer cambios",
+        "domain_placeholder": "Ingrese dominio (ej., ejemplo.com)",
+        "add_catalog_button": "Agregar Nuevo Catálogo",
+        "catalog_name": "Nombre",
+        "catalog_description": "Descripción",
+        "catalog_type": "Tipo de Catálogo"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -93,7 +102,7 @@
         "catalog_permissions": "Catalog Permissions",
         "catalog_permissions_coming_soon": "Catalog permissions management will be available soon.",
         "back_to_catalog_details": "Back to Catalog Details",
-        "user_column": "User",
+        "user_column": "User Name",
         "doc_access_column": "Document Access",
         "chat_access_column": "Chat Access",
         "admin_rights_column": "Admin Rights",
@@ -135,6 +144,15 @@
         "document_version": "Version",
         "document_size": "Size",
         "edit_document": "Edit document",
-        "upload_new_version": "Upload new version"
+        "upload_new_version": "Upload new version",
+        "allowed_domains": "Allowed Domains",
+        "add_domain_button": "Add domains",
+        "save_domains_button": "Save Domains",
+        "reload_domains_button": "Undo changes",
+        "domain_placeholder": "Enter domain (e.g., example.com)",
+        "add_catalog_button": "Add New Catalog",
+        "catalog_name": "Name",
+        "catalog_description": "Description",
+        "catalog_type": "Catalog Type"
     }
 }

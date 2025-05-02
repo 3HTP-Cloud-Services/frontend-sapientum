@@ -6,11 +6,14 @@
   import UserModal from './UserModal.svelte';
 
   export let users = [];
+  export let domains = [];
   export let loadingUsers = false;
   export let usersError = '';
   export let editingUser = null;
   export let showUserModal = false;
   export let activeSectionStore;
+  export let allowedDomains = [''];
+  export let domainsError = '';
 
   export async function fetchUsers() {
     try {
@@ -21,7 +24,9 @@
       });
 
       if (response.ok) {
-        users = await response.json();
+        const data = await response.json();
+        users = data.users;
+        allowedDomains = data.domains;
       } else if (response.status === 401) {
         // User is not authenticated
         push('/login');
@@ -135,6 +140,42 @@
     saveUser();
   }
 
+  function addDomain() {
+    allowedDomains = [...allowedDomains, ''];
+  }
+
+  function editDomain(index, value) {
+    const updatedDomains = [...allowedDomains];
+    updatedDomains[index] = value;
+    allowedDomains = updatedDomains;
+  }
+
+  async function saveDomains() {
+    try {
+      domainsError = '';
+      // Filter out empty domains
+      const domainsToSave = allowedDomains.filter(domain => domain.trim() !== '');
+
+      // This would be replaced with an actual API call when backend is ready
+      const response = await fetch('/api/allowed-domains', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ domains: domainsToSave }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        console.error('Error saving domains:', response.status);
+        domainsError = 'Error saving domains';
+      }
+    } catch (err) {
+      console.error('Error saving domains:', err);
+      domainsError = 'Connection error while saving domains';
+    }
+  }
+
   $: if ($activeSectionStore === 'permissions') {
     console.log("Permissions section is now active");
     users = [];
@@ -180,18 +221,46 @@
       </div>
     {/if}
   </div>
-  <button class="add-user-button" on:click={addNewUser}>{$i18nStore.t('add_user_button')}</button>
+  <button class="sap_button add_user_button" on:click={addNewUser}>
+    {$i18nStore.t('add_user_button')}
+  </button>
 </div>
 
-<UserModal 
+<div class="domains-section">
+  <h3>{$i18nStore.t('allowed_domains')}</h3>
+  {#if domainsError}
+    <p class="error">{domainsError}</p>
+  {/if}
+  <div class="domains-container">
+    {#each allowedDomains as domain, i}
+      <div class="domain-item">
+        <input class="domain_input"
+          type="text"
+          value={domain}
+          placeholder={$i18nStore.t('domain_placeholder')}
+          on:input={(e) => editDomain(i, e.target.value)}
+        />
+      </div>
+    {/each}
+  </div>
+  <div class="domains-actions">
+    <button class="sap_button add_button" on:click={addDomain}>{$i18nStore.t('add_domain_button')}</button>
+    <button class="sap_button save_button" on:click={saveDomains}>{$i18nStore.t('save_domains_button')}</button>
+    <button class="sap_button reload_button" on:click={saveDomains}>
+        <span class="reload_icon">⟳</span>{$i18nStore.t('reload_domains_button')}
+    </button>
+  </div>
+</div>
+
+<UserModal
   show={showUserModal}
   user={editingUser}
   catalogMode={false}
   on:close={closeUserModal}
   on:save={handleSave}
 />
-<style>
 
+<style>
   /* Permissions section */
   .permissions-table {
     margin-bottom: 1.5rem;
@@ -241,16 +310,33 @@
     cursor: pointer;
   }
 
-  .add-user-button {
+  .add_button {
     background-color: #48bb78;
     color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    text-decoration: none;
+  }
+
+  .add_user_button {
+    background-color: #48bb78;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .reload_button {
+    background-color: #e53e3e;
+    color: white;
+    line-height: normal !important;
+  }
+
+  .reload_icon {
+    font-size: 200%;
+    line-height: 0;
     display: inline-block;
+    vertical-align: middle;
+    margin-right: 2px;
+    position: relative;
+    top: -5px;
   }
 
   /* Modal styles */
@@ -304,6 +390,7 @@
   }
 
   input[type="email"],
+  input[type="text"],
   select {
     width: 100%;
     padding: 0.5rem;
@@ -329,13 +416,73 @@
     font-weight: 500;
   }
 
-  .save-button {
-    background-color: #4299e1;
-    color: white;
+  .sap_button {
     border: none;
     padding: 0.5rem 1rem;
     border-radius: 4px;
     cursor: pointer;
     font-weight: 500;
+    text-shadow: 1.5px 1.5px 2px rgba(0, 0, 0, 0.4);
+    margin-bottom: 2px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0);
+    transition: all 0.2s ease;
+  }
+
+  .sap_button:hover {
+    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .sap_button:active {
+    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.15);
+    transform: translateY(0);
+  }
+
+  .save_button {
+    background-color: #4299e1;
+    color: white;
+  }
+
+  /* Domains section */
+  .domains-section {
+    margin-top: 2rem;
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .domains-section h3 {
+    margin-top: 0;
+    color: #2d3748;
+    margin-bottom: 1rem;
+  }
+
+  .domains-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .domain-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .domains-actions {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .error {
+    color: #e53e3e;
+    margin-bottom: 1rem;
+  }
+  .domain_input {
+    border: 1px solid green !important;
+    background-color: #faffec;
+    width: 370px !important;
   }
 </style>

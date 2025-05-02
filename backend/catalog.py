@@ -5,6 +5,12 @@ import traceback
 
 import random
 
+def get_catalog_types():
+    return [
+        {"id": "manual", "name": "manual"},
+        {"id": "contract", "name": "contract"}
+    ]
+
 def get_all_catalogs():
     def operation():
         table = get_dynamodb_table('sapientum_catalogs')
