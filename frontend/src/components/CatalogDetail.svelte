@@ -48,6 +48,10 @@
 
 <div class="section-header">
   <button class="back-button" on:click={backToCatalogs}>← {$i18nStore.t('back_to_catalogs')}</button>
+  <button class="upload-document-button" on:click={() => uploadDocument(catalog.id)}>
+    <img src="./images/upload-white.png" alt="Upload" class="upload-icon"/>
+    {$i18nStore.t('upload_document')}
+  </button>
 </div>
 <div class="catalog-detail-section">
   {#if $loadingCatalogStore}
@@ -322,5 +326,18 @@
     cursor: pointer;
     font-size: 0.875rem;
     font-weight: 500;
+  }
+
+  .upload-document-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #eeeeee;
+    background-color: #5970ff;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
   }
 </style>

@@ -75,7 +75,12 @@
         "add_catalog_button": "Agregar Nuevo Catálogo",
         "catalog_name": "Nombre",
         "catalog_description": "Descripción",
-        "catalog_type": "Tipo de Catálogo"
+        "catalog_type": "Tipo de Catálogo",
+        "upload_documents_title": "Subir Documentos al Catálogo",
+        "drop_files_here": "Arrastre archivos aquí o haga clic para seleccionar",
+        "selected_files": "Archivos Seleccionados",
+        "no_files_selected": "No hay archivos seleccionados",
+        "upload_button": "Subir"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -153,6 +158,11 @@
         "add_catalog_button": "Add New Catalog",
         "catalog_name": "Name",
         "catalog_description": "Description",
-        "catalog_type": "Catalog Type"
+        "catalog_type": "Catalog Type",
+        "upload_documents_title": "Upload Documents to Catalog",
+        "drop_files_here": "Drop files here or click to select",
+        "selected_files": "Selected Files",
+        "no_files_selected": "No files selected",
+        "upload_button": "Upload"
     }
 }

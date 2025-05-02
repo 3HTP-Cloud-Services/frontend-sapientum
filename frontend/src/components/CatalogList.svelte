@@ -9,7 +9,8 @@
     errorStore,
     fetchCatalogs
   } from './stores.js';
-  
+  import UploadModal from './UploadModal.svelte';
+
   // State for catalog modal
   let showCatalogModal = false;
   let catalogTypes = [];
@@ -18,6 +19,11 @@
     description: '',
     type: 'manual'
   };
+
+  // State for upload modal
+  let showUploadModal = false;
+  let currentCatalogId = null;
+  let currentCatalogName = '';
 
   const dispatch = createEventDispatcher();
 
@@ -29,22 +35,37 @@
     dispatch('viewCatalog', id);
   }
 
-  function uploadDocument(id) {
-    console.log("Upload document for catalog", id);
+  function uploadDocument(id, catalog_name) {
+    const catalog = $catalogsStore.find(c => c.id === id);
+    currentCatalogId = id;
+    currentCatalogName = catalog_name;
+    showUploadModal = true;
   }
-  
+
+  function closeUploadModal() {
+    showUploadModal = false;
+    currentCatalogId = null;
+    currentCatalogName = '';
+  }
+
+  function handleUpload(event) {
+    console.log("Uploading files to catalog:", event.detail.catalogId, event.detail.files);
+    // This would typically send the files to a backend endpoint
+    closeUploadModal();
+  }
+
   function addNewCatalog() {
     console.log("Opening add catalog modal");
     fetchCatalogTypes();
     showCatalogModal = true;
   }
-  
+
   async function fetchCatalogTypes() {
     try {
       const response = await fetch('/api/catalog-types', {
         credentials: 'include'
       });
-      
+
       if (response.ok) {
         catalogTypes = await response.json();
       } else {
@@ -62,7 +83,7 @@
       ];
     }
   }
-  
+
   function closeCatalogModal() {
     showCatalogModal = false;
     newCatalog = {
@@ -71,13 +92,13 @@
       type: 'manual'
     };
   }
-  
+
   async function submitNewCatalog() {
     console.log("Creating new catalog:", newCatalog);
     // Here we would send the new catalog to the backend
     // For now, we'll just close the modal
     closeCatalogModal();
-    
+
     // In a real implementation, you would post to an API endpoint
     // And then refresh the catalog list on success
     fetchCatalogs();
@@ -125,7 +146,7 @@
             <button class="view-catalog-button" on:click={() => viewCatalog(catalog.catalog_name)}>
               {$i18nStore.t('view_catalog_documents', {count: catalog.document_count})}
             </button>
-            <button class="upload-document-button" on:click={() => uploadDocument(catalog.id)}>
+            <button class="upload-document-button" on:click={() => uploadDocument(catalog.id, catalog.catalog_name)}>
               <img src="./images/upload-white.png" alt="Upload" class="upload-icon"/>
               {$i18nStore.t('upload_document')}
             </button>
@@ -143,27 +164,27 @@
         <h2>{$i18nStore.t('add_catalog_button')}</h2>
         <button class="close-button" on:click={closeCatalogModal}>×</button>
       </div>
-      
+
       <div class="modal-body">
         <div class="form-group">
           <label for="catalog-name">{$i18nStore.t('catalog_name')}</label>
-          <input 
-            type="text" 
-            id="catalog-name" 
-            bind:value={newCatalog.catalog_name} 
+          <input
+            type="text"
+            id="catalog-name"
+            bind:value={newCatalog.catalog_name}
             placeholder={$i18nStore.t('catalog_name')}
           />
         </div>
-        
+
         <div class="form-group">
           <label for="catalog-description">{$i18nStore.t('catalog_description')}</label>
-          <textarea 
-            id="catalog-description" 
-            bind:value={newCatalog.description} 
+          <textarea
+            id="catalog-description"
+            bind:value={newCatalog.description}
             placeholder={$i18nStore.t('catalog_description')}
           ></textarea>
         </div>
-        
+
         <div class="form-group">
           <label for="catalog-type">{$i18nStore.t('catalog_type')}</label>
           <select id="catalog-type" bind:value={newCatalog.type}>
@@ -173,7 +194,7 @@
           </select>
         </div>
       </div>
-      
+
       <div class="modal-footer">
         <button class="cancel-button" on:click={closeCatalogModal}>{$i18nStore.t('cancel_button')}</button>
         <button class="save-button" on:click={submitNewCatalog}>{$i18nStore.t('save_button')}</button>
@@ -182,6 +203,15 @@
   </div>
 {/if}
 
+<UploadModal
+  show={showUploadModal}
+  catalogId={currentCatalogId}
+  catalogName={currentCatalogName}
+  i18nStore={$i18nStore}
+  on:close={closeUploadModal}
+  on:upload={handleUpload}
+/>
+
 <style>
   .section-header {
     display: flex;
@@ -189,7 +219,7 @@
     align-items: center;
     margin-bottom: 1rem;
   }
-  
+
   .add-catalog-button {
     background-color: #5970ff;
     color: white;
@@ -199,11 +229,11 @@
     font-size: 0.875rem;
     transition: all 0.2s;
   }
-  
+
   .add-catalog-button:hover {
     background-color: #68D391;
   }
-  
+
   .catalog-cards {
     display: grid;
     grid-template-columns: 1fr;
@@ -298,7 +328,7 @@
     border-radius: 4px;
     margin-bottom: 0.5rem;
   }
-  
+
   /* Modal Styles */
   .modal-overlay {
     position: fixed;
@@ -312,7 +342,7 @@
     align-items: center;
     z-index: 1000;
   }
-  
+
   .modal-content {
     background-color: white;
     border-radius: 8px;
@@ -322,7 +352,7 @@
     max-height: 90vh;
     overflow-y: auto;
   }
-  
+
   .modal-header {
     display: flex;
     justify-content: space-between;
@@ -330,13 +360,13 @@
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #e2e8f0;
   }
-  
+
   .modal-header h2 {
     margin: 0;
     font-size: 1.25rem;
     color: #2d3748;
   }
-  
+
   .close-button {
     background: none;
     border: none;
@@ -344,22 +374,22 @@
     cursor: pointer;
     color: #718096;
   }
-  
+
   .modal-body {
     padding: 1.5rem;
   }
-  
+
   .form-group {
     margin-bottom: 1rem;
   }
-  
+
   .form-group label {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
     color: #4a5568;
   }
-  
+
   .form-group input,
   .form-group textarea,
   .form-group select {
@@ -369,12 +399,12 @@
     border-radius: 4px;
     font-size: 1rem;
   }
-  
+
   .form-group textarea {
     min-height: 100px;
     resize: vertical;
   }
-  
+
   .modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -382,7 +412,7 @@
     padding: 1rem 1.5rem;
     border-top: 1px solid #e2e8f0;
   }
-  
+
   .cancel-button {
     background-color: #e2e8f0;
     color: #4a5568;
@@ -392,7 +422,7 @@
     cursor: pointer;
     font-size: 0.875rem;
   }
-  
+
   .save-button {
     background-color: #5970ff;
     color: white;
@@ -402,8 +432,13 @@
     cursor: pointer;
     font-size: 0.875rem;
   }
-  
+
   .save-button:hover {
     background-color: #68D391;
+  }
+
+  .save-button:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
   }
 </style>
