@@ -1,29 +1,27 @@
 from botocore.exceptions import ClientError
 from aws_utils import get_dynamodb_table, execute_with_token_refresh
 import traceback
+from models import User
 
 def authenticate_user(email, password):
     def operation():
-        table = get_dynamodb_table('sapientum_people')
-        response = table.get_item(
-            Key={
-                'username': email,
-            }
-        )
-        
-        user = response.get('Item')
-        
+        # Query user from PostgreSQL instead of DynamoDB
+        user = User.query.filter_by(email=email).first()
+
         if not user:
             return None, "Unknown User"
-            
-        stored_password = 'user123' #user.get('password')
-        
+
+        # Hardcoded password for development
+        stored_password = 'user123'
+
         if stored_password == password:
-            return user, None
+            # Return user data in a dictionary format for consistency
+            return user.to_dict(), None
         else:
             return None, "Invalid credentials"
 
     try:
+        # If you still need token refresh logic for other AWS services
         return execute_with_token_refresh(operation)
     except ClientError as e:
         print(f"Error authenticating user {email}: {e}")
@@ -33,7 +31,6 @@ def authenticate_user(email, password):
         print(f"Unexpected error: {e}")
         traceback.print_exc()
         return None, "Authentication error"
-
 
 def get_user_role(email):
     def operation():

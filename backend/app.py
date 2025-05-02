@@ -1,18 +1,11 @@
 from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 import os
 import json
-from catalog import get_all_catalogs, get_catalog_by_id, get_catalog_users, get_catalog_files, get_catalog_types
-from auth import (
-    authenticate_user, 
-    get_user_role, 
-    get_all_users,
-    get_all_domains,
-    get_user_by_id, 
-    update_user_in_dynamo, 
-    create_user_in_dynamo, 
-    delete_user_from_dynamo
-)
+from models import db, User
+import db as db_utils
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -20,6 +13,16 @@ static_folder = os.path.join(current_dir, 'static')
 app = Flask(__name__, static_folder=static_folder)
 app.secret_key = os.urandom(24)
 CORS(app, supports_credentials=True)
+
+# Configure the Flask app with database settings
+db_config = db_utils.get_db_config()
+app.config.update(db_config)
+
+# Initialize SQLAlchemy with the Flask app
+db.init_app(app)
+
+# Initialize Flask-Migrate
+migrate = Migrate(app, db)
 
 USER = {
     "username": "jpnunez@3htp.com",
@@ -108,19 +111,22 @@ def login():
     email = data.get('username')
     password = data.get('password')
     
-    user, error_message = authenticate_user(email, password)
+    # NOTE: We're using a hardcoded password here for development
+    # In production, you would use proper password hashing and authentication
+    # We're keeping this simple for the example
+    user = User.query.filter_by(email=email).first()
     
-    if user:
+    if user and password == "user123":  # Hardcoded password check for simplicity
         session['logged_in'] = True
         session['user_email'] = email
-        session['user_role'] = user.get('role')
+        session['user_role'] = user.role
         
         return jsonify({
             "success": True,
-            "role": user.get('role')
+            "role": user.role
         })
     
-    if error_message == "Unknown User":
+    if not user:
         return jsonify({"success": False, "message": "Unknown User"}), 401
     
     return jsonify({"success": False, "message": "Credenciales inválidas"}), 401
@@ -190,15 +196,16 @@ def get_catalogs():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    catalogs = get_all_catalogs()
-    return jsonify(catalogs)
+    catalogs = Catalog.query.all()
+    return jsonify([catalog.to_dict() for catalog in catalogs])
 
 @app.route('/api/catalog-types', methods=['GET'])
 def get_types():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    catalog_types = get_catalog_types()
+    # This is now hardcoded but could be stored in the database
+    catalog_types = ['general', 'technical', 'business', 'other']
     return jsonify(catalog_types)
 
 @app.route('/api/documents', methods=['GET'])
@@ -211,9 +218,9 @@ def get_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    catalog = get_catalog_by_id(catalog_id)
+    catalog = Catalog.query.get(catalog_id)
     if catalog:
-        return jsonify(catalog)
+        return jsonify(catalog.to_dict())
     
     return jsonify({"error": "Catálogo no encontrado"}), 404
 
@@ -227,7 +234,16 @@ def get_users_for_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    users = get_catalog_users(catalog_id)
+    catalog_users = CatalogUser.query.filter_by(catalog_id=catalog_id).all()
+    users = []
+    
+    for cu in catalog_users:
+        user = User.query.get(cu.user_id)
+        if user:
+            user_data = user.to_dict()
+            user_data['permissions'] = cu.permissions
+            users.append(user_data)
+    
     return jsonify(users)
 
 @app.route('/api/catalogs/<string:catalog_id>/files', methods=['GET'])
@@ -235,8 +251,8 @@ def get_files_for_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    files = get_catalog_files(catalog_id)
-    return jsonify(files)
+    files = CatalogFile.query.filter_by(catalog_id=catalog_id).all()
+    return jsonify([file.to_dict() for file in files])
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -261,18 +277,22 @@ def get_users():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    users = get_all_users()
-    domains = get_all_domains()
-    return jsonify({ 'users': users, 'domains': domains })
+    users = User.query.all()
+    domains = Domain.query.all()
+    
+    return jsonify({
+        'users': [user.to_dict() for user in users],
+        'domains': [domain.to_dict() for domain in domains]
+    })
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    user = get_user_by_id(user_id)
+    user = User.query.get(user_id)
     if user:
-        return jsonify(user)
+        return jsonify(user.to_dict())
     
     return jsonify({"error": "Usuario no encontrado"}), 404
 
@@ -285,23 +305,29 @@ def create_user():
     if not data or not data.get('email'):
         return jsonify({"error": "El email es requerido"}), 400
     
-    users = get_all_users()
-    next_id = max([user['id'] for user in users]) + 1 if users else 1
+    # Check if user already exists
+    existing_user = User.query.filter_by(email=data.get('email')).first()
+    if existing_user:
+        return jsonify({"error": "El email ya está en uso"}), 400
     
-    new_user = {
-        "id": next_id,
-        "original_username": data.get('email'),
-        "email": data.get('email'),
-        "documentAccess": data.get('documentAccess', 'Lectura'),
-        "chatAccess": data.get('chatAccess', False),
-        "isAdmin": data.get('isAdmin', False),
-        "role": "admin" if data.get('isAdmin', False) else "user"
-    }
+    # Create new user
+    new_user = User(
+        email=data.get('email'),
+        original_username=data.get('email'),
+        document_access=data.get('documentAccess', 'Lectura'),
+        chat_access=data.get('chatAccess', False),
+        is_admin=data.get('isAdmin', False),
+        role="admin" if data.get('isAdmin', False) else "user"
+    )
     
-    if create_user_in_dynamo(new_user):
-        return jsonify(new_user), 201
-    else:
-        return jsonify({"error": "Error al crear usuario en DynamoDB"}), 500
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify(new_user.to_dict()), 201
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating user: {e}")
+        return jsonify({"error": "Error al crear usuario en la base de datos"}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
@@ -312,36 +338,50 @@ def update_user(user_id):
     if not data:
         return jsonify({"error": "No se proporcionaron datos"}), 400
     
-    user = get_user_by_id(user_id)
+    user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
     
-    for key in ['email', 'documentAccess', 'chatAccess', 'isAdmin']:
-        if key in data:
-            user[key] = data[key]
+    # Update user fields
+    if 'email' in data:
+        user.email = data['email']
     
-    user['role'] = 'admin' if user['isAdmin'] else 'user'
+    if 'documentAccess' in data:
+        user.document_access = data['documentAccess']
     
-    if update_user_in_dynamo(user):
-        return jsonify(user)
-    else:
-        return jsonify({"error": "Error al actualizar usuario en DynamoDB"}), 500
+    if 'chatAccess' in data:
+        user.chat_access = data['chatAccess']
+    
+    if 'isAdmin' in data:
+        user.is_admin = data['isAdmin']
+        user.role = 'admin' if data['isAdmin'] else 'user'
+    
+    try:
+        db.session.commit()
+        return jsonify(user.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating user: {e}")
+        return jsonify({"error": "Error al actualizar usuario en la base de datos"}), 500
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    user = get_user_by_id(user_id)
+    user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
     
-    username = user.get('original_username') or user.get('email')
-    
-    if delete_user_from_dynamo(username):
-        return jsonify({"success": True, "eliminado": user})
-    else:
-        return jsonify({"error": "Error al eliminar usuario de DynamoDB"}), 500
+    try:
+        deleted_user = user.to_dict()  # Save user data before deletion
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({"success": True, "eliminado": deleted_user})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting user: {e}")
+        return jsonify({"error": "Error al eliminar usuario de la base de datos"}), 500
 
 # Catch-all route for serving static files in static mode
 @app.route('/', defaults={'path': ''})
@@ -380,6 +420,73 @@ def serve_static_files(path):
     except Exception as e:
         print(f"Error serving file: {str(e)}")
         return f"Error: {str(e)}", 500
+
+# Test database connection
+with app.app_context():
+    try:
+        if db_utils.test_connection(app):
+            print("Database connection test successful")
+        else:
+            print("Database connection test failed")
+    except Exception as e:
+        print(f"Error testing database connection: {e}")
+        
+@app.cli.command("init-db")
+def init_db_command():
+    """Clear existing data and create new tables."""
+    try:
+        db.drop_all()
+        db.create_all()
+        print("Database initialized successfully")
+        
+        # Create a default admin user
+        admin = User(
+            email="admin@example.com",
+            original_username="admin@example.com",
+            document_access="Lectura/Escritura",
+            chat_access=True,
+            is_admin=True,
+            role="admin"
+        )
+        
+        # Create a default regular user
+        user = User(
+            email="user@example.com",
+            original_username="user@example.com",
+            document_access="Lectura",
+            chat_access=True,
+            is_admin=False,
+            role="user"
+        )
+        
+        # Create a test catalog
+        catalog = Catalog(
+            id="test-catalog",
+            name="Test Catalog",
+            description="This is a test catalog",
+            type="general"
+        )
+        
+        # Add admin to the catalog with read/write permissions
+        catalog_user = CatalogUser(
+            catalog_id=catalog.id,
+            user_id=1,  # This will be admin's ID
+            permissions="read/write"
+        )
+        
+        db.session.add(admin)
+        db.session.add(user)
+        db.session.add(catalog)
+        db.session.commit()  # Commit to get IDs for admin and user
+        
+        db.session.add(catalog_user)
+        db.session.commit()
+        
+        print("Default data seeded successfully")
+        return True
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        return False
 
 if __name__ == '__main__':
     # Check if we should run in static mode
