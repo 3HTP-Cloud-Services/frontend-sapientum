@@ -12,7 +12,7 @@
   export let editingUser = null;
   export let showUserModal = false;
   export let activeSectionStore;
-  export let allowedDomains = [''];
+  export let allowedDomains = [{ 'id': -1, 'name': '' }];
   export let domainsError = '';
 
   export async function fetchUsers() {
@@ -27,6 +27,7 @@
         const data = await response.json();
         users = data.users;
         allowedDomains = data.domains;
+        console.log('allowedDomains', allowedDomains);
       } else if (response.status === 401) {
         // User is not authenticated
         push('/login');
@@ -141,12 +142,18 @@
   }
 
   function addDomain() {
-    allowedDomains = [...allowedDomains, ''];
+    console.log('adding domain');
+    allowedDomains = [...allowedDomains, {name: '', id: -1}];
+  }
+
+  function removeDomain(i) {
+    console.log('remove domain', i);
+    allowedDomains = allowedDomains.filter((_, index) => index !== i);
   }
 
   function editDomain(index, value) {
     const updatedDomains = [...allowedDomains];
-    updatedDomains[index] = value;
+    updatedDomains[index].name = value;
     allowedDomains = updatedDomains;
   }
 
@@ -154,13 +161,13 @@
     try {
       domainsError = '';
       // Filter out empty domains
-      const domainsToSave = allowedDomains.filter(domain => domain.trim() !== '');
+      const domainsToSave = allowedDomains.filter(domain => domain.name.trim() !== '');
 
       // This would be replaced with an actual API call when backend is ready
       const response = await fetch('/api/allowed-domains', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ domains: domainsToSave }),
         credentials: 'include'
@@ -208,7 +215,7 @@
           <tbody>
           {#each users as user}
             <tr>
-              <td>{user.username}</td>
+              <td>{user.email}</td>
               <td>{user.isAdmin ? $i18nStore.t('yes') : $i18nStore.t('no')}</td>
               <td>
                 <button class="edit-button" on:click={() => editUser(user)}>{$i18nStore.t('edit_button')}</button>
@@ -232,16 +239,24 @@
     <p class="error">{domainsError}</p>
   {/if}
   <div class="domains-container">
+    <table style="width:300px">
     {#each allowedDomains as domain, i}
-      <div class="domain-item">
-        <input class="domain_input"
-          type="text"
-          value={domain}
-          placeholder={$i18nStore.t('domain_placeholder')}
-          on:input={(e) => editDomain(i, e.target.value)}
-        />
-      </div>
+      <tr>
+        <td class="domain_td">
+          <div class="domain-item">
+            <input class="domain_input"
+              type="text"
+              value={domain.name}
+              placeholder={$i18nStore.t('domain_placeholder')}
+              on:input={(e) => editDomain(i, e.target.value)}
+            />
+          </div>
+        </td><td class="domain_td">
+          <button class="sap_button remove_button" on:click={() => removeDomain(i)}>{$i18nStore.t('remove_domain_button')}</button>
+        </td>
+      </tr>
     {/each}
+    </table>
   </div>
   <div class="domains-actions">
     <button class="sap_button add_button" on:click={addDomain}>{$i18nStore.t('add_domain_button')}</button>
@@ -313,6 +328,12 @@
   .add_button {
     background-color: #48bb78;
     color: white;
+  }
+
+  .remove_button {
+    background-color: #ff2626;
+    color: white;
+    width: 90px;
   }
 
   .add_user_button {
@@ -483,6 +504,9 @@
   .domain_input {
     border: 1px solid green !important;
     background-color: #faffec;
-    width: 370px !important;
+    width: 250px !important;
+  }
+  .domain_td {
+    vertical-align: top;
   }
 </style>

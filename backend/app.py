@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
 import json
-from models import db, User
+from models import db, User, Domain
 import db as db_utils
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -148,6 +148,45 @@ def check_auth():
         })
     return jsonify({"authenticated": False}), 401
 
+@app.route('/api/allowed-domains', methods=['PUT'])
+def allowed_domains():
+    if not session.get('logged_in'):
+        print('nani?')
+        return jsonify({"error": "No autorizado"}), 401
+
+    data = request.json
+    print('allowed_domains', data)
+    if not data or not data.get('domains'):
+        return jsonify({"error": "El campo 'domains' es requerido"}), 400
+
+    try:
+        new_domains = data['domains']
+        existing_domains = Domain.query.all()
+        existing_domain_map = {d.id: d for d in existing_domains}
+
+        # Update existing domains or add new ones
+        for domain_data in new_domains:
+            print('new domain', domain_data)
+            if 'id' in domain_data and domain_data['id'] in existing_domain_map:
+                # Update existing domain
+                print('if')
+                domain = existing_domain_map[domain_data['id']]
+                domain.name = domain_data['name']
+            else:
+                print('else', domain_data['name'])
+                # Add new domain
+                new_domain = Domain(name=domain_data['name'])
+                print('new domain', new_domain)
+                db.session.add(new_domain)
+
+        db.session.commit()
+        return jsonify({"success": True, "message": "Dominios actualizados correctamente"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error saving domains: {e}")
+        return jsonify({"error": "Error al guardar dominios en la base de datos"}), 500
+
+
 @app.route('/api/i18n', methods=['GET'])
 def get_translations():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -195,8 +234,8 @@ def update_translations():
 def get_catalogs():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
-    
-    catalogs = Catalog.query.all()
+    catalogs = []
+    # catalogs = Catalog.query.all()
     return jsonify([catalog.to_dict() for catalog in catalogs])
 
 @app.route('/api/catalog-types', methods=['GET'])
