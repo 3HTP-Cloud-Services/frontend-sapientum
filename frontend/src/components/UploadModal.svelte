@@ -8,32 +8,39 @@
   
   let selectedFiles = [];
   let dragActive = false;
+  let isUploading = false;
+  let uploadProgress = 0;
   
   const dispatch = createEventDispatcher();
   
   function closeModal() {
+    if (isUploading) return;
     dispatch('close');
   }
   
   function handleDragEnter(e) {
+    if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = true;
   }
   
   function handleDragLeave(e) {
+    if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = false;
   }
   
   function handleDragOver(e) {
+    if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = true;
   }
   
   function handleDrop(e) {
+    if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = false;
@@ -45,6 +52,7 @@
   }
   
   function handleFileSelect(e) {
+    if (isUploading) return;
     if (e.target.files) {
       const fileArray = Array.from(e.target.files);
       selectedFiles = [...selectedFiles, ...fileArray];
@@ -52,12 +60,37 @@
   }
   
   function removeFile(index) {
+    if (isUploading) return;
     selectedFiles = selectedFiles.filter((_, i) => i !== index);
   }
   
   function uploadFiles() {
     console.log("Uploading files to catalog:", catalogId, selectedFiles);
-    dispatch('upload', { catalogId, files: selectedFiles });
+    isUploading = true;
+    uploadProgress = 0;
+    
+    const progressInterval = setInterval(() => {
+      if (uploadProgress < 90) {
+        uploadProgress += Math.random() * 10;
+      }
+    }, 300);
+    
+    dispatch('upload', { 
+      catalogId, 
+      files: selectedFiles,
+      onComplete: (success) => {
+        clearInterval(progressInterval);
+        uploadProgress = 100;
+        setTimeout(() => {
+          isUploading = false;
+          uploadProgress = 0;
+          
+          if (success) {
+            selectedFiles = [];
+          }
+        }, 500);
+      }
+    });
   }
 </script>
 
@@ -66,7 +99,7 @@
     <div class="modal-content upload-modal" on:click|stopPropagation>
       <div class="modal-header">
         <h2>{i18nStore.t('upload_documents_title')}</h2>
-        <button class="close-button" on:click={closeModal}>×</button>
+        <button class="close-button" on:click={closeModal} disabled={isUploading}>×</button>
       </div>
       
       <div class="modal-body">
@@ -75,7 +108,7 @@
         </p>
         
         <div 
-          class="dropzone {dragActive ? 'active' : ''}"
+          class="dropzone {dragActive ? 'active' : ''} {isUploading ? 'disabled' : ''}"
           on:dragenter={handleDragEnter}
           on:dragleave={handleDragLeave}
           on:dragover={handleDragOver}
@@ -87,8 +120,9 @@
             multiple 
             on:change={handleFileSelect}
             style="display: none;"
+            disabled={isUploading}
           />
-          <label for="file-upload" class="file-upload-label">
+          <label for="file-upload" class="file-upload-label" class:disabled={isUploading}>
             <img src="./images/upload.png" alt="Upload" class="upload-icon-large"/>
             <p>{i18nStore.t('drop_files_here')}</p>
           </label>
@@ -104,7 +138,7 @@
               {#each selectedFiles as file, index}
                 <li class="file-item">
                   <span class="file-name">{file.name}</span>
-                  <button class="remove-file" on:click={() => removeFile(index)}>×</button>
+                  <button class="remove-file" on:click={() => removeFile(index)} disabled={isUploading}>×</button>
                 </li>
               {/each}
             </ul>
@@ -113,15 +147,24 @@
       </div>
       
       <div class="modal-footer">
-        <button class="cancel-button" on:click={closeModal}>{i18nStore.t('cancel_button')}</button>
+        <button class="cancel-button" on:click={closeModal} disabled={isUploading}>{i18nStore.t('cancel_button')}</button>
         <button 
           class="save-button" 
           on:click={uploadFiles}
-          disabled={selectedFiles.length === 0}
+          disabled={selectedFiles.length === 0 || isUploading}
         >
-          {i18nStore.t('upload_button')}
+          {isUploading ? i18nStore.t('uploading') || 'Uploading...' : i18nStore.t('upload_button')}
         </button>
       </div>
+      
+      {#if isUploading}
+        <div class="upload-overlay">
+          <div class="upload-progress-container">
+            <div class="upload-progress-bar" style="width: {uploadProgress}%"></div>
+          </div>
+          <p class="upload-status">{Math.round(uploadProgress)}% Complete</p>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -313,5 +356,50 @@
   .save-button:disabled {
     background-color: #a0aec0;
     cursor: not-allowed;
+  }
+  
+  .upload-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 8px;
+  }
+  
+  .upload-progress-container {
+    width: 80%;
+    height: 20px;
+    background-color: #edf2f7;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  
+  .upload-progress-bar {
+    height: 100%;
+    background-color: #68D391;
+    transition: width 0.3s ease;
+  }
+  
+  .upload-status {
+    font-size: 1rem;
+    color: #2d3748;
+    font-weight: 500;
+  }
+  
+  .disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .dropzone.disabled {
+    pointer-events: none;
   }
 </style>

@@ -326,17 +326,20 @@
   }
 
   .add_button {
+    padding: 0.5rem 1rem;
     background-color: #48bb78;
     color: white;
   }
 
   .remove_button {
+    padding: 0.5rem 1rem;
     background-color: #ff2626;
     color: white;
     width: 90px;
   }
 
   .add_user_button {
+    padding: 0.5rem 1rem;
     background-color: #48bb78;
     color: white;
     display: flex;
@@ -437,29 +440,8 @@
     font-weight: 500;
   }
 
-  .sap_button {
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-    text-shadow: 1.5px 1.5px 2px rgba(0, 0, 0, 0.4);
-    margin-bottom: 2px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0);
-    transition: all 0.2s ease;
-  }
-
-  .sap_button:hover {
-    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.15);
-    transform: translateY(-2px);
-  }
-
-  .sap_button:active {
-    box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.15);
-    transform: translateY(0);
-  }
-
   .save_button {
+    padding: 0.5rem 1rem;
     background-color: #4299e1;
     color: white;
   }

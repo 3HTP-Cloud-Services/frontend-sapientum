@@ -11,9 +11,15 @@
     fetchCatalog,
     fetchCatalogFiles
   } from './stores.js';
+  import UploadModal from './UploadModal.svelte';
 
   export let switchSection;
   export let activeSectionStore;
+
+  // State for upload modal
+  let showUploadModal = false;
+  let currentCatalogId = null;
+  let currentCatalogName = '';
 
   // For tracking updates
   let updateCount = 0;
@@ -41,6 +47,58 @@
     switchSection('catalogs');
   }
 
+  function uploadDocument(id) {
+    if ($selectedCatalogStore) {
+      currentCatalogId = id || $selectedCatalogStore.id;
+      currentCatalogName = $selectedCatalogStore.catalog_name;
+      showUploadModal = true;
+    }
+  }
+
+  function closeUploadModal() {
+    showUploadModal = false;
+    currentCatalogId = null;
+    currentCatalogName = '';
+  }
+
+  async function handleUpload(event) {
+    console.log("Uploading files to catalog:", event.detail.catalogId, event.detail.files);
+    const onComplete = event.detail.onComplete;
+    let success = false;
+
+    try {
+      const formData = new FormData();
+
+      for (const file of event.detail.files) {
+        formData.append('file', file);
+      }
+
+      const response = await fetch(`/api/catalogs/${event.detail.catalogId}/upload`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Upload successful:", result);
+        success = true;
+      } else {
+        console.error("Upload failed:", response.status, response.statusText);
+        const errorData = await response.json();
+        console.error("Error details:", errorData);
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    } finally {
+      if (onComplete) onComplete(success);
+      closeUploadModal();
+      if ($selectedCatalogStore) {
+        fetchCatalogFiles($selectedCatalogStore.catalog_name);
+      }
+    }
+  }
+
   // Debug reactive statements
   $: console.log("REACTIVE: selectedCatalog changed to:", $selectedCatalogStore, "update count:", updateCount);
   $: console.log("REACTIVE: catalogFiles changed to:", $catalogFilesStore.length, "files");
@@ -48,7 +106,7 @@
 
 <div class="section-header">
   <button class="back-button" on:click={backToCatalogs}>← {$i18nStore.t('back_to_catalogs')}</button>
-  <button class="upload-document-button" on:click={() => uploadDocument(catalog.id)}>
+  <button class="sap_button upload-document-button" on:click={() => uploadDocument($selectedCatalogStore?.id)}>
     <img src="./images/upload-white.png" alt="Upload" class="upload-icon"/>
     {$i18nStore.t('upload_document')}
   </button>
@@ -67,6 +125,9 @@
         </div>
         <div class="catalog-type">
           Tipo: {$selectedCatalogStore.type}
+          {#if $selectedCatalogStore.type === 's3_folder'}
+            <span class="s3-badge">S3</span>
+          {/if}
         </div>
         <button class="lock-button" on:click={viewCatalogPermissions}>
           <span class="lock-lock">🔒</span> {$i18nStore.t('catalog_permissions')}</button>
@@ -131,6 +192,15 @@
   {/if}
 </div>
 
+<UploadModal
+  show={showUploadModal}
+  catalogId={currentCatalogId}
+  catalogName={currentCatalogName}
+  i18nStore={$i18nStore}
+  on:close={closeUploadModal}
+  on:upload={handleUpload}
+/>
+
 <style>
   .catalog-detail-section {
     margin-bottom: 2rem;
@@ -169,6 +239,17 @@
     border-radius: 4px;
     margin: 0;
     margin-top: 0.4rem;
+  }
+
+  .s3-badge {
+    display: inline-block;
+    background-color: #3182ce;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
   }
 
   .catalog-detail h1 {
@@ -328,16 +409,31 @@
     font-weight: 500;
   }
 
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
   .upload-document-button {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     color: #eeeeee;
     background-color: #5970ff;
-    padding: 0.5rem 1rem;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.875rem;
     transition: all 0.2s;
+    padding: 20px 30px;
+    margin: 1rem;
+    font-size: 1.2em;
   }
+
+  .upload-icon {
+    width: 24px;
+    height: 24px;
+  }
+
 </style>

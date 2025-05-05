@@ -14,14 +14,11 @@ app = Flask(__name__, static_folder=static_folder)
 app.secret_key = os.urandom(24)
 CORS(app, supports_credentials=True)
 
-# Configure the Flask app with database settings
 db_config = db_utils.get_db_config()
 app.config.update(db_config)
 
-# Initialize SQLAlchemy with the Flask app
 db.init_app(app)
 
-# Initialize Flask-Migrate
 migrate = Migrate(app, db)
 
 USER = {
@@ -164,17 +161,14 @@ def allowed_domains():
         existing_domains = Domain.query.all()
         existing_domain_map = {d.id: d for d in existing_domains}
 
-        # Update existing domains or add new ones
         for domain_data in new_domains:
             print('new domain', domain_data)
             if 'id' in domain_data and domain_data['id'] in existing_domain_map:
-                # Update existing domain
                 print('if')
                 domain = existing_domain_map[domain_data['id']]
                 domain.name = domain_data['name']
             else:
                 print('else', domain_data['name'])
-                # Add new domain
                 new_domain = Domain(name=domain_data['name'])
                 print('new domain', new_domain)
                 db.session.add(new_domain)
@@ -234,22 +228,22 @@ def update_translations():
 def get_catalogs():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
-    catalogs = []
-    # catalogs = Catalog.query.all()
-    return jsonify([catalog.to_dict() for catalog in catalogs])
+    
+    from catalog import get_all_catalogs
+    catalogs = get_all_catalogs()
+    return jsonify(catalogs)
 
 @app.route('/api/catalog-types', methods=['GET'])
 def get_types():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    # This is now hardcoded but could be stored in the database
-    catalog_types = ['general', 'technical', 'business', 'other']
+    from catalog import get_catalog_types
+    catalog_types = get_catalog_types()
     return jsonify(catalog_types)
 
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
-    # Redirect to catalogs for backward compatibility
     return get_catalogs()
 
 @app.route('/api/catalogs/<string:catalog_id>', methods=['GET'])
@@ -265,7 +259,6 @@ def get_catalog(catalog_id):
 
 @app.route('/api/documents/<path:doc_id>', methods=['GET'])
 def get_document(doc_id):
-    # Redirect to get_catalog for backward compatibility
     return get_catalog(doc_id)
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['GET'])
@@ -290,8 +283,61 @@ def get_files_for_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
     
-    files = CatalogFile.query.filter_by(catalog_id=catalog_id).all()
-    return jsonify([file.to_dict() for file in files])
+    from catalog import get_catalog_files
+    files = get_catalog_files(catalog_id)
+    return jsonify(files)
+
+
+@app.route('/api/catalogs/<string:catalog_id>/upload', methods=['POST'])
+def upload_file_to_catalog(catalog_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    print('upload:', request.files)
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+        
+    files = request.files.getlist('file')
+    if not files:
+        return jsonify({"error": "No files provided"}), 400
+        
+    uploaded_files = []
+    errors = []
+    
+    for file_obj in files:
+        if file_obj.filename == '':
+            continue
+            
+        try:
+            file_content = file_obj.read()
+            content_type = file_obj.content_type
+            
+            file_obj.seek(0)
+            
+            from catalog import upload_file_to_catalog as upload_catalog_file
+            result = upload_catalog_file(catalog_id, file_obj, file_content, content_type)
+            
+            if result:
+                uploaded_files.append(result)
+            else:
+                errors.append(f"Failed to upload {file_obj.filename}")
+                
+        except Exception as e:
+            print(f"Error uploading file {file_obj.filename}: {e}")
+            errors.append(f"Error uploading {file_obj.filename}: {str(e)}")
+    
+    if uploaded_files:
+        return jsonify({
+            "success": True,
+            "files": uploaded_files,
+            "errors": errors if errors else None
+        })
+    else:
+        return jsonify({
+            "success": False, 
+            "error": "No files were uploaded successfully", 
+            "errors": errors
+        }), 500
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -308,7 +354,7 @@ def chat():
     
     return jsonify({
         "response": ai_response,
-        "timestamp": None  # Frontend will set the timestamp
+        "timestamp": None
     })
 
 @app.route('/api/users', methods=['GET'])
@@ -344,12 +390,10 @@ def create_user():
     if not data or not data.get('email'):
         return jsonify({"error": "El email es requerido"}), 400
     
-    # Check if user already exists
     existing_user = User.query.filter_by(email=data.get('email')).first()
     if existing_user:
         return jsonify({"error": "El email ya está en uso"}), 400
     
-    # Create new user
     new_user = User(
         email=data.get('email'),
         original_username=data.get('email'),
@@ -381,7 +425,6 @@ def update_user(user_id):
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
     
-    # Update user fields
     if 'email' in data:
         user.email = data['email']
     
@@ -413,7 +456,7 @@ def delete_user(user_id):
         return jsonify({"error": "Usuario no encontrado"}), 404
     
     try:
-        deleted_user = user.to_dict()  # Save user data before deletion
+        deleted_user = user.to_dict()
         db.session.delete(user)
         db.session.commit()
         return jsonify({"success": True, "eliminado": deleted_user})
@@ -422,45 +465,36 @@ def delete_user(user_id):
         print(f"Error deleting user: {e}")
         return jsonify({"error": "Error al eliminar usuario de la base de datos"}), 500
 
-# Catch-all route for serving static files in static mode
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static_files(path):
-    # Only handle this route if STATIC_MODE is enabled
     static_mode = os.environ.get('STATIC_MODE', 'false').lower() == 'true'
     
     if not static_mode:
         return jsonify({"error": "No encontrado"}), 404
     
-    # Debug info
     print(f"Static mode request path: {path}")
     
     try:
-        # Special case for the root path - always serve index.html
         if not path:
             print("Serving index.html for root path")
             return send_from_directory(app.static_folder, 'index.html')
         
-        # Handle API requests normally - let them go to their API routes
         if path.startswith('api/'):
             print(f"API request: {path}, letting Flask routes handle it")
-            # Don't do anything, let the other routes handle this
             return jsonify({"error": "Endpoint de API no encontrado"}), 404
             
-        # For non-API paths, try to serve a static file
         file_path = os.path.join(app.static_folder, path)
         if os.path.isfile(file_path):
             print(f"Serving static file: {path}")
             return send_from_directory(app.static_folder, path)
         
-        # If no file found, serve index.html for SPA routing
         print(f"No static file found for {path}, serving index.html")
         return send_from_directory(app.static_folder, 'index.html')
     except Exception as e:
         print(f"Error serving file: {str(e)}")
         return f"Error: {str(e)}", 500
 
-# Test database connection
 with app.app_context():
     try:
         if db_utils.test_connection(app):
@@ -478,7 +512,6 @@ def init_db_command():
         db.create_all()
         print("Database initialized successfully")
         
-        # Create a default admin user
         admin = User(
             email="admin@example.com",
             original_username="admin@example.com",
@@ -488,7 +521,6 @@ def init_db_command():
             role="admin"
         )
         
-        # Create a default regular user
         user = User(
             email="user@example.com",
             original_username="user@example.com",
@@ -498,7 +530,6 @@ def init_db_command():
             role="user"
         )
         
-        # Create a test catalog
         catalog = Catalog(
             id="test-catalog",
             name="Test Catalog",
@@ -506,10 +537,9 @@ def init_db_command():
             type="general"
         )
         
-        # Add admin to the catalog with read/write permissions
         catalog_user = CatalogUser(
             catalog_id=catalog.id,
-            user_id=1,  # This will be admin's ID
+            user_id=1,
             permissions="read/write"
         )
         
@@ -528,7 +558,6 @@ def init_db_command():
         return False
 
 if __name__ == '__main__':
-    # Check if we should run in static mode
     static_mode = os.environ.get('STATIC_MODE', 'false').lower() == 'true'
     if static_mode:
         print(f"Ejecutando en MODO ESTÁTICO - sirviendo archivos estáticos desde {static_folder}")

@@ -1,11 +1,9 @@
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 
-// Create stores for shared state across components
 export const catalogsStore = writable([]);
 export const selectedCatalogStore = writable(null);
 export const catalogFilesStore = writable([]);
 
-// Loading and error states
 export const loadingStore = writable(false);
 export const loadingCatalogStore = writable(false);
 export const loadingFilesStore = writable(false);
@@ -13,7 +11,6 @@ export const errorStore = writable('');
 export const catalogErrorStore = writable('');
 export const filesErrorStore = writable('');
 
-// API functions that update the stores
 export async function fetchCatalogs() {
   try {
     loadingStore.set(true);
@@ -46,6 +43,18 @@ export async function fetchCatalog(id) {
     catalogErrorStore.set('');
     selectedCatalogStore.set(null);
 
+    const catalogs = get(catalogsStore);
+    const catalogFromStore = catalogs.find(c => c.catalog_name === id);
+
+    if (catalogFromStore) {
+      console.log('Using catalog from store:', catalogFromStore);
+      selectedCatalogStore.set(catalogFromStore);
+
+      fetchCatalogFiles(id);
+      loadingCatalogStore.set(false);
+      return;
+    }
+
     const response = await fetch(`/api/catalogs/${id}`, {
       credentials: 'include'
     });
@@ -55,7 +64,6 @@ export async function fetchCatalog(id) {
       console.log('Fetched catalog data:', data);
       selectedCatalogStore.set(data);
 
-      // Fetch files after catalog is loaded
       fetchCatalogFiles(id);
     } else if (response.status === 401) {
       window.location.href = '/#/login';
@@ -85,15 +93,14 @@ export async function fetchCatalogFiles(id) {
 
     if (response.ok) {
       const files = await response.json();
-      
+
       console.log('Files:', files);
-      
-      // Convert string dates to Date objects for proper formatting
+
       const processedFiles = files.map(file => ({
         ...file,
         uploadDate: new Date(file.uploadDate)
       }));
-      
+
       catalogFilesStore.set(processedFiles);
     } else if (response.status === 401) {
       window.location.href = '/#/login';

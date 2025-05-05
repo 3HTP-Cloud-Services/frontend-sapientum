@@ -5,8 +5,13 @@ import boto3
 import psycopg2
 from botocore.exceptions import ClientError
 
+# Global variable to store the S3 bucket name
+S3_BUCKET_NAME = None
+
 def get_db_config():
     """Get database configuration from secret manager"""
+    global S3_BUCKET_NAME
+    
     # Load configuration from config.json
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(current_dir, 'config.json')
@@ -20,6 +25,13 @@ def get_db_config():
         # Get credentials from AWS Secrets Manager
         secret_data = get_secret(secret_arn)
         
+        # Save the bucket name to the global variable
+        S3_BUCKET_NAME = secret_data.get('bucket')
+        if S3_BUCKET_NAME:
+            print(f"Found S3 bucket name: {S3_BUCKET_NAME}")
+        else:
+            print("Warning: No S3 bucket name found in secrets")
+        
         # Build database URI
         host = secret_data.get('host', secret_data.get('endpoint', None))
         port = secret_data.get('port', 5432)
@@ -29,7 +41,8 @@ def get_db_config():
         # Create SQLAlchemy database URI
         return {
             'SQLALCHEMY_DATABASE_URI': f'postgresql://{user}:{password}@{host}:{port}/{database_name}',
-            'SQLALCHEMY_TRACK_MODIFICATIONS': False
+            'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+            'S3_BUCKET_NAME': S3_BUCKET_NAME
         }
     except Exception as e:
         print(f"Warning: Failed to get PostgreSQL credentials: {e}")
@@ -39,7 +52,8 @@ def get_db_config():
         sqlite_path = os.path.join(current_dir, 'app.db')
         return {
             'SQLALCHEMY_DATABASE_URI': f'sqlite:///{sqlite_path}',
-            'SQLALCHEMY_TRACK_MODIFICATIONS': False
+            'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+            'S3_BUCKET_NAME': 'dev-bucket'  # Default bucket name for development
         }
 
 def get_secret(secret_arn):
@@ -111,6 +125,11 @@ def get_secret(secret_arn):
     except ClientError as e:
         print(f"Error retrieving secret: {e}")
         raise e
+
+def get_bucket_name():
+    """Return the S3 bucket name from global variable"""
+    global S3_BUCKET_NAME
+    return S3_BUCKET_NAME
 
 def test_connection(app):
     """Test the database connection using the app configuration"""

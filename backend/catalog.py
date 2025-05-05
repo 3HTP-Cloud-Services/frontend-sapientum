@@ -1,6 +1,14 @@
 from botocore.exceptions import ClientError
-from aws_utils import get_dynamodb_table, execute_with_token_refresh
+from aws_utils import (
+    get_dynamodb_table, 
+    execute_with_token_refresh, 
+    list_s3_folder_contents, 
+    list_s3_files,
+    upload_file_to_s3
+)
+from db import get_bucket_name
 import traceback
+from datetime import datetime
 
 
 import random
@@ -8,31 +16,44 @@ import random
 def get_catalog_types():
     return [
         {"id": "manual", "name": "manual"},
-        {"id": "contract", "name": "contract"}
+        {"id": "contract", "name": "contract"},
+        {"id": "s3_folder", "name": "S3 Folder"}
     ]
 
-def get_all_catalogs():
-    def operation():
-        table = get_dynamodb_table('sapientum_catalogs')
-        response = table.scan()
-        catalogs = response.get('Items', [])
-        
-        for catalog in catalogs:
-            catalog['document_count'] = random.randint(3, 50)
-        
-        return catalogs
-    
+def get_s3_folders():
+    """
+    Get the list of folders from the S3 bucket's catalog_dir directory
+    """
     try:
-        return execute_with_token_refresh(operation)
-    except ClientError as e:
-        print(f"Error getting catalogs: {e}")
-        traceback.print_exc()
-        return []
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            print("Error: No S3 bucket name available")
+            return []
+            
+        # List the folders inside the catalog_dir prefix
+        folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
+        print(f"Found {len(folders)} folders in S3 bucket '{bucket_name}/catalog_dir'")
+        
+        # Convert the folder names to catalog objects
+        s3_catalogs = []
+        for folder in folders:
+            s3_catalogs.append({
+                'id': folder,
+                'catalog_name': folder,
+                'description': f"S3 folder in catalog_dir ({folder})",
+                'type': 's3_folder',
+                'document_count': random.randint(3, 50)
+            })
+            
+        return s3_catalogs
     except Exception as e:
-        print(f"Unexpected error getting catalogs: {e}")
+        print(f"Error getting S3 folders: {e}")
         traceback.print_exc()
         return []
 
+def get_all_catalogs():
+    s3_catalogs = get_s3_folders()
+    return s3_catalogs
 
 def get_catalog_by_id(catalog_id):
     def operation():
@@ -75,6 +96,12 @@ def get_catalog_users(catalog_id):
     return catalog_users
     
 def get_catalog_files(catalog_id):
+    # Check if this is an S3 folder catalog
+    catalog = get_s3_catalog_by_name(catalog_id)
+    if catalog and catalog.get('type') == 's3_folder':
+        return get_s3_catalog_files(catalog_id)
+    
+    # If not an S3 catalog or if error retrieving S3 files, return mock data
     mock_documents = [
         {
             "id": 1,
@@ -124,3 +151,66 @@ def get_catalog_files(catalog_id):
     ]
     
     return mock_documents
+
+
+def get_s3_catalog_by_name(catalog_name):
+    """Get a catalog by name from S3 folders"""
+    s3_catalogs = get_s3_folders()
+    for catalog in s3_catalogs:
+        if catalog.get('catalog_name') == catalog_name:
+            return catalog
+    return None
+
+
+def get_s3_catalog_files(catalog_folder):
+    """Get files for an S3 folder catalog"""
+    try:
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            print("Error: No S3 bucket name available")
+            return []
+            
+        # List files in the catalog folder
+        folder_prefix = f"catalog_dir/{catalog_folder}"
+        files = list_s3_files(bucket_name, folder_prefix)
+        
+        return files
+    except Exception as e:
+        print(f"Error getting S3 catalog files: {e}")
+        traceback.print_exc()
+        return []
+
+
+def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None):
+    """Upload a file to a catalog"""
+    try:
+        # Check if this is an S3 folder catalog
+        catalog = get_s3_catalog_by_name(catalog_id)
+        if catalog and catalog.get('type') == 's3_folder':
+            bucket_name = get_bucket_name()
+            if not bucket_name:
+                print("Error: No S3 bucket name available")
+                return None
+                
+            # Upload to S3
+            s3_key = upload_file_to_s3(bucket_name, catalog_id, file_obj, file_content, content_type)
+            
+            if s3_key:
+                # Create a file record
+                upload_date = datetime.now().isoformat()
+                file_record = {
+                    "id": s3_key,
+                    "name": file_obj.filename,
+                    "description": f"Uploaded to {catalog_id}",
+                    "uploadDate": upload_date,
+                    "status": "Published",
+                    "version": "1.0",
+                    "size": f"{len(file_content)/1024:.1f} KB"
+                }
+                return file_record
+                
+        return None
+    except Exception as e:
+        print(f"Error uploading file to catalog: {e}")
+        traceback.print_exc()
+        return None

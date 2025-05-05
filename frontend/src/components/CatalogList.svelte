@@ -48,10 +48,40 @@
     currentCatalogName = '';
   }
 
-  function handleUpload(event) {
+  async function handleUpload(event) {
     console.log("Uploading files to catalog:", event.detail.catalogId, event.detail.files);
-    // This would typically send the files to a backend endpoint
-    closeUploadModal();
+    const onComplete = event.detail.onComplete;
+    let success = false;
+    
+    try {
+      const formData = new FormData();
+      
+      for (const file of event.detail.files) {
+        formData.append('file', file);
+      }
+      
+      const response = await fetch(`/api/catalogs/${event.detail.catalogId}/upload`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Upload successful:", result);
+        fetchCatalogs();
+        success = true;
+      } else {
+        console.error("Upload failed:", response.status, response.statusText);
+        const errorData = await response.json();
+        console.error("Error details:", errorData);
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+    } finally {
+      if (onComplete) onComplete(success);
+      closeUploadModal();
+    }
   }
 
   function addNewCatalog() {
@@ -139,6 +169,9 @@
             <div class="catalog-header">
               <h3>{catalog.catalog_name}</h3>
               <div class="catalog-type">{catalog.type}</div>
+              {#if catalog.type === 's3_folder'}
+                <div class="catalog-badge">S3</div>
+              {/if}
             </div>
             <p>{catalog.description && catalog.description}</p>
           </div>
@@ -146,7 +179,7 @@
             <button class="view-catalog-button" on:click={() => viewCatalog(catalog.catalog_name)}>
               {$i18nStore.t('view_catalog_documents', {count: catalog.document_count})}
             </button>
-            <button class="upload-document-button" on:click={() => uploadDocument(catalog.id, catalog.catalog_name)}>
+            <button class="sap_button upload-document-button" on:click={() => uploadDocument(catalog.id, catalog.catalog_name)}>
               <img src="./images/upload-white.png" alt="Upload" class="upload-icon"/>
               {$i18nStore.t('upload_document')}
             </button>
@@ -326,6 +359,18 @@
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .catalog-badge {
+    display: inline-block;
+    background-color: #3182ce;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
     margin-bottom: 0.5rem;
   }
 
