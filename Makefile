@@ -62,3 +62,11 @@ kill-ports:
 	-@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	-@lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 	@echo "Ports cleared."
+
+# Check Python files for syntax correctness (excluding .venv directory)
+lint-backend:
+	@echo "Checking Python files for syntax correctness..."
+	@cd backend && python -m pip install autopep8 && python -m autopep8 --in-place --recursive --max-line-length=100 --select=W291,W293,E501 --exclude ".venv" .
+	@find backend -name "*.py" -type f -not -path "*/\.venv/*" -exec echo "Checking {}" \; -exec python -m py_compile {} \;
+	@find backend -name "*.py" -type f -not -path "*/\.venv/*" -exec echo "Checking {}" \; -exec pylint {} \;
+	@echo "Syntax check completed."

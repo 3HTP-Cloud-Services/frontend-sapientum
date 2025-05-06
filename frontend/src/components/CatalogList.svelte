@@ -125,13 +125,30 @@
 
   async function submitNewCatalog() {
     console.log("Creating new catalog:", newCatalog);
-    // Here we would send the new catalog to the backend
-    // For now, we'll just close the modal
-    closeCatalogModal();
-
-    // In a real implementation, you would post to an API endpoint
-    // And then refresh the catalog list on success
-    fetchCatalogs();
+    
+    try {
+      const response = await fetch('/api/catalogs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(newCatalog)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Created catalog:", result);
+        closeCatalogModal();
+        fetchCatalogs();
+      } else {
+        console.error("Failed to create catalog:", response.status, response.statusText);
+        const errorData = await response.json();
+        console.error("Error details:", errorData);
+      }
+    } catch (error) {
+      console.error("Error creating catalog:", error);
+    }
   }
 
   onMount(() => {

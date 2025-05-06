@@ -37,12 +37,12 @@ def get_user_role(email):
                 'username': email
             }
         )
-        
+
         user = response.get('Item')
         if user:
             return user.get('role')
         return None
-    
+
     try:
         return execute_with_token_refresh(operation)
     except ClientError as e:
@@ -62,7 +62,7 @@ def get_all_users():
         table = get_dynamodb_table('sapientum_people')
         response = table.scan()
         users = response.get('Items', [])
-        
+
         formatted_users = []
         for idx, user in enumerate(users, start=1):
             formatted_users.append({
@@ -71,9 +71,9 @@ def get_all_users():
                 'isAdmin': user.get('role') == 'admin',
                 'role': user.get('role', 'user')
             })
-            
+
         return formatted_users
-    
+
     try:
         return execute_with_token_refresh(operation)
     except ClientError as e:
@@ -89,7 +89,7 @@ def get_all_users():
 def get_user_by_id(user_id, users_list=None):
     if users_list is None:
         users_list = get_all_users()
-        
+
     for user in users_list:
         if user['id'] == user_id:
             return user
@@ -101,16 +101,16 @@ def update_user_in_dynamo(user_data):
         original_username = user_data.get('original_username')
         new_username = user_data.get('email')
         new_role = 'admin' if user_data.get('isAdmin') else 'user'
-        
+
         table = get_dynamodb_table('sapientum_people')
-        
+
         if original_username != new_username:
             table.delete_item(
                 Key={
                     'username': original_username
                 }
             )
-            
+
             table.put_item(
                 Item={
                     'username': new_username,
@@ -130,9 +130,9 @@ def update_user_in_dynamo(user_data):
                     ':r': new_role
                 }
             )
-            
+
         return True
-    
+
     try:
         return execute_with_token_refresh(operation)
     except ClientError as e:
@@ -149,7 +149,7 @@ def create_user_in_dynamo(user_data):
     def operation():
         username = user_data.get('email')
         role = 'admin' if user_data.get('isAdmin') else 'user'
-        
+
         table = get_dynamodb_table('sapientum_people')
         table.put_item(
             Item={
@@ -158,7 +158,7 @@ def create_user_in_dynamo(user_data):
             }
         )
         return True
-    
+
     try:
         return execute_with_token_refresh(operation)
     except ClientError as e:
@@ -180,7 +180,7 @@ def delete_user_from_dynamo(username):
             }
         )
         return True
-    
+
     try:
         return execute_with_token_refresh(operation)
     except ClientError as e:

@@ -3,6 +3,7 @@ from aws_utils import (
     list_s3_folder_contents,
     list_s3_files,
     upload_file_to_s3,
+    create_s3_folder
 )
 from db import get_bucket_name
 import traceback
@@ -34,15 +35,17 @@ def get_s3_folders():
         #         print('created metadata result', result)
         # except Exception as e:
         #     print(f"Metadata check/creation error: {e}")
-            
+
+        print('pre list object v3')
         folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
+        print('pos list object v3')
         print(f"Found {len(folders)} folders in S3 bucket '{bucket_name}/catalog_dir'")
-        
+
         s3_catalogs = []
         for folder in folders:
             if folder == '.metadata':
                 continue
-                
+
             s3_catalogs.append({
                 'id': folder,
                 'catalog_name': folder,
@@ -50,7 +53,7 @@ def get_s3_folders():
                 'type': 's3_folder',
                 'document_count': random.randint(3, 50)
             })
-            
+
         return s3_catalogs
     except Exception as e:
         print(f"Error getting S3 folders: {e}")
@@ -76,15 +79,15 @@ def get_catalog_users(catalog_id):
             "role": "editor"
         },
     ]
-    
+
     return catalog_users
-    
+
 def get_catalog_files(catalog_id):
     # Check if this is an S3 folder catalog
     catalog = get_s3_catalog_by_name(catalog_id)
     if catalog and catalog.get('type') == 's3_folder':
         return get_s3_catalog_files(catalog_id)
-    
+
     # If not an S3 catalog or if error retrieving S3 files, return mock data
     mock_documents = [
         {
@@ -133,7 +136,7 @@ def get_catalog_files(catalog_id):
             "size": "3.8 MB"
         }
     ]
-    
+
     return mock_documents
 
 
@@ -153,16 +156,46 @@ def get_s3_catalog_files(catalog_folder):
         if not bucket_name:
             print("Error: No S3 bucket name available")
             return []
-            
+
         # List files in the catalog folder
         folder_prefix = f"catalog_dir/{catalog_folder}"
         files = list_s3_files(bucket_name, folder_prefix)
-        
+
         return files
     except Exception as e:
         print(f"Error getting S3 catalog files: {e}")
         traceback.print_exc()
         return []
+
+
+def create_catalog(catalog_name, description=None, catalog_type=None):
+    try:
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            print("Error: No S3 bucket name available")
+            return None
+
+        if not catalog_name:
+            print("Error: No catalog name provided")
+            return None
+
+        folder_path = create_s3_folder(bucket_name, catalog_name)
+
+        if folder_path:
+            catalog = {
+                'id': catalog_name,
+                'catalog_name': catalog_name,
+                'description': description or f"S3 folder in catalog_dir ({catalog_name})",
+                'type': catalog_type or 's3_folder',
+                'document_count': 0
+            }
+            return catalog
+
+        return None
+    except Exception as e:
+        print(f"Error creating catalog: {e}")
+        traceback.print_exc()
+        return None
 
 
 def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None):
@@ -175,10 +208,11 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
             if not bucket_name:
                 print("Error: No S3 bucket name available")
                 return None
-                
+
             # Upload to S3
-            s3_key = upload_file_to_s3(bucket_name, catalog_id, file_obj, file_content, content_type)
-            
+            s3_key = upload_file_to_s3(bucket_name, catalog_id, file_obj,
+                                       file_content, content_type)
+
             if s3_key:
                 # Create a file record
                 upload_date = datetime.now().isoformat()
@@ -192,7 +226,7 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                     "size": f"{len(file_content)/1024:.1f} KB"
                 }
                 return file_record
-                
+
         return None
     except Exception as e:
         print(f"Error uploading file to catalog: {e}")

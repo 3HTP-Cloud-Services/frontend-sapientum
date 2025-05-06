@@ -5,20 +5,18 @@ import time
 import traceback
 from datetime import datetime
 
-# Global variables to store credentials and S3 resource
+# Global variables
 _credentials = None
 _credentials_expiry = 0
-_s3_resource = None
 _last_refresh_attempt = 0
 
 
-# This is the only function that should assume the role
 def refresh_credentials():
     """
     Assumes the sapientum_role and refreshes temporary credentials.
     This is the ONLY function that should call assume_role.
     """
-    global _credentials, _credentials_expiry, _s3_resource, _last_refresh_attempt
+    global _credentials, _credentials_expiry, _last_refresh_attempt
 
     current_time = time.time()
 
@@ -29,8 +27,12 @@ def refresh_credentials():
 
     try:
         _last_refresh_attempt = current_time
+
+        print("Creating a fresh STS client...")
+        # Create a fresh STS client - do not reuse any existing client
         sts_client = boto3.client('sts', region_name='us-east-1')
 
+        print("Attempting to assume role: sapientum_role")
         # This is the only place where assume_role should be called
         assumed_role = sts_client.assume_role(
             RoleArn='arn:aws:iam::369595298303:role/sapientum_role',
@@ -45,16 +47,8 @@ def refresh_credentials():
         current_time_dt = datetime.now()
         duration = expiry_time - current_time_dt
 
-        # Create S3 resource with the temporary credentials
-        _s3_resource = boto3.resource(
-            's3',
-            region_name='us-east-1',
-            aws_access_key_id=_credentials['AccessKeyId'],
-            aws_secret_access_key=_credentials['SecretAccessKey'],
-            aws_session_token=_credentials['SessionToken']
-        )
-
-        print(f"Assumed new role, credentials valid for {duration.seconds // 60} minutes until {expiry_time}")
+        print(
+            f"Successfully assumed role, credentials valid for {duration.seconds // 60} minutes until {expiry_time}")
         return True
     except Exception as e:
         print(f"Error assuming role: {e}")
@@ -62,73 +56,51 @@ def refresh_credentials():
         return False
 
 
-# This function checks if credentials need refreshing and returns the S3 resource
-def get_s3_resource():
+def get_client_with_assumed_role(service_name, region_name='us-east-1'):
     """
-    Returns an S3 resource with valid credentials.
-    Handles credential refreshing if needed.
+    Create a boto3 client for the specified service using assumed role credentials.
+    Each call creates a fresh client with the current credentials.
     """
-    global _credentials, _credentials_expiry, _s3_resource
-
-    # Check if running in Lambda (uses Lambda's execution role instead)
-    is_lambda = os.environ.get('AWS_EXECUTION_ENV', '').startswith('AWS_Lambda_')
-    if is_lambda:
-        if _s3_resource is None:
-            _s3_resource = boto3.resource('s3', region_name='us-east-1')
-        return _s3_resource
+    global _credentials, _credentials_expiry
 
     # Check if credentials are still valid
     current_time = time.time()
     time_until_expiry = _credentials_expiry - current_time if _credentials_expiry else -1
 
-    # If we have valid credentials that aren't about to expire
-    if _s3_resource and time_until_expiry > 300:
-        return _s3_resource
+    # If we have no credentials or they're expired or about to expire, refresh
+    if _credentials is None or time_until_expiry <= 300:
+        # If credentials are about to expire, log it
+        if _credentials is not None and time_until_expiry <= 300 and time_until_expiry > 0:
+            print(f"Token expiring soon (in {time_until_expiry:.0f} seconds), refreshing...")
 
-    # If credentials are about to expire, log it
-    if time_until_expiry <= 300 and time_until_expiry > 0:
-        print(f"Token expiring soon (in {time_until_expiry:.0f} seconds), refreshing...")
+        # Force refresh credentials
+        if not refresh_credentials():
+            print("FAILED to refresh credentials!")
+            raise Exception("Failed to assume role, cannot proceed with AWS operations")
 
-    # Try to refresh credentials
-    if not refresh_credentials():
-        # If refresh failed but we have valid (though expiring) credentials, use them
-        if _s3_resource and time_until_expiry > 0:
-            print("Using existing credentials despite refresh error")
-            return _s3_resource
-        # As a last resort, return default credentials
-        return boto3.resource('s3', region_name='us-east-1')
-
-    return _s3_resource
-
-
-# Helper function to retry operations when tokens expire
-def execute_with_token_refresh(operation_func, max_retries=2):
-    """
-    Executes a function with automatic token refresh on ExpiredToken errors.
-    """
-    for attempt in range(max_retries):
-        try:
-            return operation_func()
-        except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
-            if (error_code == 'ExpiredTokenException' or error_code == 'ExpiredToken') and attempt < max_retries - 1:
-                print(f"Token expired, retrying... (attempt {attempt + 1}/{max_retries})")
-                # Just get a fresh S3 resource - don't call refresh_credentials directly
-                get_s3_resource()  # This will refresh if needed
-                continue
-            raise
+    # Create a fresh client with the current assumed role credentials
+    print(f"Creating {service_name} client with assumed role credentials")
+    return boto3.client(
+        service_name,
+        region_name=region_name,
+        aws_access_key_id=_credentials['AccessKeyId'],
+        aws_secret_access_key=_credentials['SecretAccessKey'],
+        aws_session_token=_credentials['SessionToken']
+    )
 
 
-# Example S3 operations that should NOT call refresh_credentials directly
 def list_s3_folder_contents(bucket_name, prefix=''):
-    """List folders in an S3 bucket path"""
+    """List folders in an S3 bucket path using direct S3 client from assumed role"""
     try:
         prefix = prefix.rstrip('/') + '/' if prefix else ''
-        # Use get_s3_resource instead of calling refresh_credentials directly
-        s3 = get_s3_resource()
-        bucket = s3.Bucket(bucket_name)
 
-        result = bucket.meta.client.list_objects_v2(
+        # Get a fresh S3 client with assumed role credentials
+        s3_client = get_client_with_assumed_role('s3')
+
+        print(f"Listing objects in bucket: {bucket_name}, prefix: {prefix}")
+
+        # Use the client directly instead of through a resource
+        result = s3_client.list_objects_v2(
             Bucket=bucket_name,
             Prefix=prefix,
             Delimiter='/'
@@ -152,14 +124,15 @@ def list_s3_folder_contents(bucket_name, prefix=''):
 
 
 def list_s3_files(bucket_name, prefix=''):
-    """List files in an S3 bucket prefix"""
+    """List files in an S3 bucket prefix using direct S3 client from assumed role"""
     try:
         prefix = prefix.rstrip('/') + '/' if prefix else ''
-        # Use get_s3_resource which will handle credential refreshing
-        s3 = get_s3_resource()
-        bucket = s3.Bucket(bucket_name)
 
-        result = bucket.meta.client.list_objects_v2(
+        # Get a fresh S3 client with assumed role credentials
+        s3_client = get_client_with_assumed_role('s3')
+
+        # Use the client directly
+        result = s3_client.list_objects_v2(
             Bucket=bucket_name,
             Prefix=prefix
         )
@@ -206,10 +179,10 @@ def list_s3_files(bucket_name, prefix=''):
 
 
 def create_s3_metadata(bucket_name):
-    """Create metadata in S3 bucket"""
+    """Create metadata in S3 bucket using direct S3 client from assumed role"""
     try:
-        # Use get_s3_resource which will handle credential refreshing
-        s3 = get_s3_resource()
+        # Get a fresh S3 client with assumed role credentials
+        s3_client = get_client_with_assumed_role('s3')
         import json
 
         metadata_content = {
@@ -220,7 +193,9 @@ def create_s3_metadata(bucket_name):
 
         metadata_key = 'catalog_dir/.metadata'
 
-        s3.Object(bucket_name, metadata_key).put(
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=metadata_key,
             Body=json.dumps(metadata_content),
             ContentType='application/json'
         )
@@ -228,33 +203,57 @@ def create_s3_metadata(bucket_name):
         print(f"Created metadata object in bucket '{bucket_name}'")
 
         try:
-            s3.Object(bucket_name, 'catalog_dir/').put(Body='')
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key='catalog_dir/',
+                Body=''
+            )
         except Exception as folder_error:
             print(f"Note: Error creating catalog_dir folder marker: {folder_error}")
 
         return True
-
     except Exception as e:
         print(f"Error creating S3 metadata: {e}")
         traceback.print_exc()
         return False
 
 
-def upload_file_to_s3(bucket_name, catalog_folder, file_obj, file_content, content_type=None):
-    """Upload a file to S3 bucket"""
+def create_s3_folder(bucket_name, folder_name):
+    """Create a folder in S3 bucket using direct S3 client from assumed role"""
     try:
+        # Get a fresh S3 client with assumed role credentials
+        s3_client = get_client_with_assumed_role('s3')
+
+        folder_path = f"catalog_dir/{folder_name}/"
+
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=folder_path,
+            Body=''
+        )
+
+        print(f"Successfully created folder {folder_path} in bucket {bucket_name}")
+        return folder_path
+    except Exception as e:
+        print(f"Error creating S3 folder: {e}")
+        traceback.print_exc()
+        return None
+
+
+def upload_file_to_s3(bucket_name, catalog_folder, file_obj, file_content, content_type=None):
+    """Upload a file to S3 bucket using direct S3 client from assumed role"""
+    try:
+        # Get a fresh S3 client with assumed role credentials
+        s3_client = get_client_with_assumed_role('s3')
+
         folder_path = f"catalog_dir/{catalog_folder}/"
-
         file_key = f"{folder_path}{file_obj.filename}"
-
-        # Use get_s3_resource which will handle credential refreshing
-        s3 = get_s3_resource()
-        bucket = s3.Bucket(bucket_name)
 
         if not content_type:
             content_type = 'application/octet-stream'
 
-        bucket.put_object(
+        s3_client.put_object(
+            Bucket=bucket_name,
             Key=file_key,
             Body=file_content,
             ContentType=content_type
@@ -262,7 +261,6 @@ def upload_file_to_s3(bucket_name, catalog_folder, file_obj, file_content, conte
 
         print(f"Successfully uploaded {file_obj.filename} to {bucket_name}/{file_key}")
         return file_key
-
     except Exception as e:
         print(f"Error uploading file to S3: {e}")
         traceback.print_exc()

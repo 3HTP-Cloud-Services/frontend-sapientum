@@ -33,19 +33,26 @@ def downgrade():
     sa.Column('catalog_id', sa.VARCHAR(length=50), autoincrement=False, nullable=False),
     sa.Column('user_id', sa.INTEGER(), autoincrement=False, nullable=False),
     sa.Column('permissions', sa.VARCHAR(length=50), autoincrement=False, nullable=True),
-    sa.ForeignKeyConstraint(['catalog_id'], ['catalogs.id'], name='catalog_users_catalog_id_fkey', ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name='catalog_users_user_id_fkey', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['catalog_id'], ['catalogs.id'],
+                            name='catalog_users_catalog_id_fkey', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'],
+                            name='catalog_users_user_id_fkey', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('catalog_id', 'user_id', name='catalog_users_pkey')
     )
     op.create_table('people',
     sa.Column('id', sa.INTEGER(), autoincrement=True, nullable=False),
     sa.Column('email', sa.VARCHAR(length=255), autoincrement=False, nullable=False),
     sa.Column('original_username', sa.VARCHAR(length=255), autoincrement=False, nullable=True),
-    sa.Column('document_access', sa.VARCHAR(length=50), server_default=sa.text("'Lectura'::character varying"), autoincrement=False, nullable=True),
-    sa.Column('chat_access', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=True),
-    sa.Column('is_admin', sa.BOOLEAN(), server_default=sa.text('false'), autoincrement=False, nullable=True),
-    sa.Column('role', sa.VARCHAR(length=50), server_default=sa.text("'user'::character varying"), autoincrement=False, nullable=True),
-    sa.Column('created_at', postgresql.TIMESTAMP(), server_default=sa.text('CURRENT_TIMESTAMP'), autoincrement=False, nullable=True),
+    sa.Column('document_access', sa.VARCHAR(length=50), server_default=sa.text(
+        "'Lectura'::character varying"), autoincrement=False, nullable=True),
+    sa.Column('chat_access', sa.BOOLEAN(), server_default=sa.text(
+        'false'), autoincrement=False, nullable=True),
+    sa.Column('is_admin', sa.BOOLEAN(), server_default=sa.text(
+        'false'), autoincrement=False, nullable=True),
+    sa.Column('role', sa.VARCHAR(length=50), server_default=sa.text(
+        "'user'::character varying"), autoincrement=False, nullable=True),
+    sa.Column('created_at', postgresql.TIMESTAMP(), server_default=sa.text(
+        'CURRENT_TIMESTAMP'), autoincrement=False, nullable=True),
     sa.PrimaryKeyConstraint('id', name='people_pkey'),
     sa.UniqueConstraint('email', name='people_email_key')
     )
@@ -56,7 +63,8 @@ def downgrade():
     sa.Column('file_path', sa.VARCHAR(length=512), autoincrement=False, nullable=False),
     sa.Column('uploaded_by', sa.INTEGER(), autoincrement=False, nullable=True),
     sa.Column('uploaded_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
-    sa.ForeignKeyConstraint(['catalog_id'], ['catalogs.id'], name='catalog_files_catalog_id_fkey', ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['catalog_id'], ['catalogs.id'],
+                            name='catalog_files_catalog_id_fkey', ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['uploaded_by'], ['users.id'], name='catalog_files_uploaded_by_fkey'),
     sa.PrimaryKeyConstraint('id', name='catalog_files_pkey')
     )
