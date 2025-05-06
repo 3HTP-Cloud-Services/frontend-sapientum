@@ -546,7 +546,7 @@ def init_db_command():
         db.session.add(admin)
         db.session.add(user)
         db.session.add(catalog)
-        db.session.commit()  # Commit to get IDs for admin and user
+        db.session.commit()
         
         db.session.add(catalog_user)
         db.session.commit()

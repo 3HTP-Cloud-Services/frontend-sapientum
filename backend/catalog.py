@@ -20,21 +20,75 @@ def get_catalog_types():
         {"id": "s3_folder", "name": "S3 Folder"}
     ]
 
+
+def check_s3_metadata(bucket_name):
+    try:
+        import boto3
+        s3_client = boto3.client('s3')
+
+        # Check if the bucket has metadata by looking at the bucket's tags
+        response = s3_client.get_bucket_tagging(Bucket=bucket_name)
+
+        # Look for our metadata tag
+        for tag in response.get('TagSet', []):
+            if tag['Key'] == 'has_metadata':
+                return tag['Value'] == 'true'
+
+        return False
+    except Exception as e:
+        # If get_bucket_tagging fails (no tags exist), metadata doesn't exist
+        print(f"No metadata tags found: {e}")
+        return False
+
+
+def create_s3_metadata(bucket_name):
+    try:
+        import boto3
+        s3_client = boto3.client('s3')
+
+        # Set a tag on the bucket to indicate it has metadata
+        s3_client.put_bucket_tagging(
+            Bucket=bucket_name,
+            Tagging={
+                'TagSet': [
+                    {
+                        'Key': 'has_metadata',
+                        'Value': 'true'
+                    },
+                    {
+                        'Key': 'type',
+                        'Value': 's3_folder'
+                    },
+                    {
+                        'Key': 'created_at',
+                        'Value': str(datetime.datetime.now())
+                    }
+                ]
+            }
+        )
+
+        print(f"Created metadata for bucket '{bucket_name}'")
+        return True
+    except Exception as e:
+        print(f"Error creating metadata: {e}")
+        return False
+
 def get_s3_folders():
-    """
-    Get the list of folders from the S3 bucket's catalog_dir directory
-    """
     try:
         bucket_name = get_bucket_name()
         if not bucket_name:
             print("Error: No S3 bucket name available")
             return []
-            
-        # List the folders inside the catalog_dir prefix
+
+        has_metadata = check_s3_metadata(bucket_name)
+
+        if not has_metadata:
+            print(f"No metadata found for bucket '{bucket_name}'. Creating metadata...")
+            create_s3_metadata(bucket_name)
+
         folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
         print(f"Found {len(folders)} folders in S3 bucket '{bucket_name}/catalog_dir'")
         
-        # Convert the folder names to catalog objects
         s3_catalogs = []
         for folder in folders:
             s3_catalogs.append({

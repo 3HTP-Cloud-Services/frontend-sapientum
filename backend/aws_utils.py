@@ -142,33 +142,24 @@ def execute_with_token_refresh(operation_func, max_retries=2):
 
 
 def list_s3_folder_contents(bucket_name, prefix=''):
-    """
-    List all objects within a specific S3 bucket prefix (folder)
-    Returns a list of folder names (common prefixes) under the given prefix
-    """
     try:
         prefix = prefix.rstrip('/') + '/' if prefix else ''
         s3 = get_s3_resource()
         bucket = s3.Bucket(bucket_name)
         
-        # Use the list_objects_v2 method with delimiter to get folder-like structure
         result = bucket.meta.client.list_objects_v2(
             Bucket=bucket_name,
             Prefix=prefix,
             Delimiter='/'
         )
         
-        # Extract folder names from CommonPrefixes
         folders = []
         if 'CommonPrefixes' in result:
             for common_prefix in result['CommonPrefixes']:
-                # Extract just the folder name without the full path
                 folder_path = common_prefix['Prefix']
                 folder_name = folder_path.rstrip('/')
                 if prefix:
-                    # Remove the prefix to get just the folder name
                     folder_name = folder_name.replace(prefix.rstrip('/'), '', 1)
-                # Remove any leading slash if present after replacing the prefix
                 folder_name = folder_name.lstrip('/')
                 folders.append(folder_name)
         
@@ -177,7 +168,6 @@ def list_s3_folder_contents(bucket_name, prefix=''):
         print(f"Error listing S3 folder contents: {e}")
         traceback.print_exc()
         return []
-
 
 def list_s3_files(bucket_name, prefix=''):
     """
