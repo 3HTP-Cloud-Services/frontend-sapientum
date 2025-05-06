@@ -5,7 +5,6 @@ from models import User
 
 def authenticate_user(email, password):
     def operation():
-        # Query user from PostgreSQL instead of DynamoDB
         user = User.query.filter_by(email=email).first()
 
         if not user:
@@ -15,13 +14,11 @@ def authenticate_user(email, password):
         stored_password = 'user123'
 
         if stored_password == password:
-            # Return user data in a dictionary format for consistency
             return user.to_dict(), None
         else:
             return None, "Invalid credentials"
 
     try:
-        # If you still need token refresh logic for other AWS services
         return execute_with_token_refresh(operation)
     except ClientError as e:
         print(f"Error authenticating user {email}: {e}")

@@ -1,10 +1,8 @@
 from botocore.exceptions import ClientError
 from aws_utils import (
-    get_dynamodb_table, 
-    execute_with_token_refresh, 
-    list_s3_folder_contents, 
+    list_s3_folder_contents,
     list_s3_files,
-    upload_file_to_s3
+    upload_file_to_s3,
 )
 from db import get_bucket_name
 import traceback
@@ -20,59 +18,6 @@ def get_catalog_types():
         {"id": "s3_folder", "name": "S3 Folder"}
     ]
 
-
-def check_s3_metadata(bucket_name):
-    try:
-        import boto3
-        s3_client = boto3.client('s3')
-
-        # Check if the bucket has metadata by looking at the bucket's tags
-        response = s3_client.get_bucket_tagging(Bucket=bucket_name)
-
-        # Look for our metadata tag
-        for tag in response.get('TagSet', []):
-            if tag['Key'] == 'has_metadata':
-                return tag['Value'] == 'true'
-
-        return False
-    except Exception as e:
-        # If get_bucket_tagging fails (no tags exist), metadata doesn't exist
-        print(f"No metadata tags found: {e}")
-        return False
-
-
-def create_s3_metadata(bucket_name):
-    try:
-        import boto3
-        s3_client = boto3.client('s3')
-
-        # Set a tag on the bucket to indicate it has metadata
-        s3_client.put_bucket_tagging(
-            Bucket=bucket_name,
-            Tagging={
-                'TagSet': [
-                    {
-                        'Key': 'has_metadata',
-                        'Value': 'true'
-                    },
-                    {
-                        'Key': 'type',
-                        'Value': 's3_folder'
-                    },
-                    {
-                        'Key': 'created_at',
-                        'Value': str(datetime.datetime.now())
-                    }
-                ]
-            }
-        )
-
-        print(f"Created metadata for bucket '{bucket_name}'")
-        return True
-    except Exception as e:
-        print(f"Error creating metadata: {e}")
-        return False
-
 def get_s3_folders():
     try:
         bucket_name = get_bucket_name()
@@ -80,17 +25,24 @@ def get_s3_folders():
             print("Error: No S3 bucket name available")
             return []
 
-        has_metadata = check_s3_metadata(bucket_name)
-
-        if not has_metadata:
-            print(f"No metadata found for bucket '{bucket_name}'. Creating metadata...")
-            create_s3_metadata(bucket_name)
-
+        # try:
+        #     has_metadata = check_s3_metadata(bucket_name)
+        #     print('has_metadata', has_metadata)
+        #     if not has_metadata:
+        #         print('no has_metadata, creating it')
+        #         result = create_s3_metadata(bucket_name)
+        #         print('created metadata result', result)
+        # except Exception as e:
+        #     print(f"Metadata check/creation error: {e}")
+            
         folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
         print(f"Found {len(folders)} folders in S3 bucket '{bucket_name}/catalog_dir'")
         
         s3_catalogs = []
         for folder in folders:
+            if folder == '.metadata':
+                continue
+                
             s3_catalogs.append({
                 'id': folder,
                 'catalog_name': folder,
@@ -108,28 +60,6 @@ def get_s3_folders():
 def get_all_catalogs():
     s3_catalogs = get_s3_folders()
     return s3_catalogs
-
-def get_catalog_by_id(catalog_id):
-    def operation():
-        table = get_dynamodb_table('sapientum_catalogs')
-        response = table.get_item(
-            Key={
-                'catalog_name': catalog_id
-            }
-        )
-        return response.get('Item')
-    
-    try:
-        return execute_with_token_refresh(operation)
-    except ClientError as e:
-        print(f"Error getting catalog {catalog_id}: {e}")
-        traceback.print_exc()
-        return None
-    except Exception as e:
-        print(f"Unexpected error getting catalog {catalog_id}: {e}")
-        traceback.print_exc()
-        return None
-
 
 def get_catalog_users(catalog_id):
     catalog_users = [
