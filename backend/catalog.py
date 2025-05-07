@@ -3,14 +3,13 @@ from aws_utils import (
     list_s3_folder_contents,
     list_s3_files,
     upload_file_to_s3,
-    create_s3_folder,
-    get_s3_folder_metadata
+    create_s3_folder
 )
 from db import get_bucket_name
+from models import db, Catalog, User
+from flask import session
 import traceback
 from datetime import datetime
-
-
 import random
 
 def get_catalog_types():
@@ -27,55 +26,35 @@ def get_s3_folders():
             print("Error: No S3 bucket name available")
             return []
 
-        # try:
-        #     has_metadata = check_s3_metadata(bucket_name)
-        #     print('has_metadata', has_metadata)
-        #     if not has_metadata:
-        #         print('no has_metadata, creating it')
-        #         result = create_s3_metadata(bucket_name)
-        #         print('created metadata result', result)
-        # except Exception as e:
-        #     print(f"Metadata check/creation error: {e}")
-
-        print('pre list object v3')
         folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
-        print('pos list object v3')
         print(f"Found {len(folders)} folders in S3 bucket '{bucket_name}/catalog_dir'")
-
-        s3_catalogs = []
-        for folder in folders:
-            if folder == '.metadata':
-                continue
-
-            # Try to get metadata for this folder
-            metadata = get_s3_folder_metadata(bucket_name, folder)
-            
-            if metadata and isinstance(metadata, dict):
-                s3_catalogs.append({
-                    'id': folder,
-                    'catalog_name': folder,
-                    'description': metadata.get('description', f"S3 folder in catalog_dir ({folder})"),
-                    'type': metadata.get('type', 's3_folder'),
-                    'document_count': random.randint(3, 50)
-                })
-            else:
-                s3_catalogs.append({
-                    'id': folder,
-                    'catalog_name': folder,
-                    'description': f"S3 folder in catalog_dir ({folder})",
-                    'type': 's3_folder',
-                    'document_count': random.randint(3, 50)
-                })
-
-        return s3_catalogs
+        
+        return folders
     except Exception as e:
         print(f"Error getting S3 folders: {e}")
         traceback.print_exc()
         return []
 
 def get_all_catalogs():
-    s3_catalogs = get_s3_folders()
-    return s3_catalogs
+    try:
+        # Get all active catalogs from the database
+        db_catalogs = Catalog.query.filter_by(is_active=True).all()
+        
+        # Format the catalog data with additional fields
+        catalog_list = []
+        
+        for catalog in db_catalogs:
+            catalog_dict = catalog.to_dict()
+            # Add frontend-expected fields
+            catalog_dict['catalog_name'] = catalog.name
+            catalog_dict['document_count'] = random.randint(3, 50)  # Could be replaced with actual count
+            catalog_list.append(catalog_dict)
+        
+        return catalog_list
+    except Exception as e:
+        print(f"Error getting all catalogs: {e}")
+        traceback.print_exc()
+        return []
 
 def get_catalog_users(catalog_id):
     catalog_users = [
@@ -96,10 +75,24 @@ def get_catalog_users(catalog_id):
     return catalog_users
 
 def get_catalog_files(catalog_id):
-    # Check if this is an S3 folder catalog
-    catalog = get_s3_catalog_by_name(catalog_id)
-    if catalog and catalog.get('type') == 's3_folder':
-        return get_s3_catalog_files(catalog_id)
+    # Try to get the catalog from the database (using both id and s3Id fields)
+    try:
+        # First try by id (integer)
+        try:
+            catalog_id_int = int(catalog_id)
+            catalog = Catalog.query.filter_by(id=catalog_id_int, is_active=True).first()
+        except (ValueError, TypeError):
+            catalog = None
+            
+        # If not found, try by s3Id (string)
+        if not catalog:
+            catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
+            
+        if catalog and catalog.type == 's3_folder':
+            return get_s3_catalog_files(catalog.id)
+    except Exception as e:
+        print(f"Error looking up catalog for files: {e}")
+        traceback.print_exc()
 
     # If not an S3 catalog or if error retrieving S3 files, return mock data
     mock_documents = [
@@ -154,24 +147,50 @@ def get_catalog_files(catalog_id):
 
 
 def get_s3_catalog_by_name(catalog_name):
-    """Get a catalog by name from S3 folders"""
-    s3_catalogs = get_s3_folders()
-    for catalog in s3_catalogs:
-        if catalog.get('catalog_name') == catalog_name:
-            return catalog
-    return None
+    """Get a catalog by name or s3Id from the database"""
+    try:
+        # First try to find by s3Id which maps to the folder name
+        catalog = Catalog.query.filter_by(s3Id=catalog_name, is_active=True).first()
+        
+        # If not found, try by name
+        if not catalog:
+            catalog = Catalog.query.filter_by(name=catalog_name, is_active=True).first()
+            
+        if catalog:
+            catalog_dict = catalog.to_dict()
+            catalog_dict['catalog_name'] = catalog.name
+            catalog_dict['document_count'] = random.randint(3, 50)
+            return catalog_dict
+            
+        return None
+    except Exception as e:
+        print(f"Error getting catalog by name: {e}")
+        traceback.print_exc()
+        return None
 
 
-def get_s3_catalog_files(catalog_folder):
+def get_s3_catalog_files(catalog_id):
     """Get files for an S3 folder catalog"""
     try:
         bucket_name = get_bucket_name()
         if not bucket_name:
             print("Error: No S3 bucket name available")
             return []
-
-        # List files in the catalog folder
-        folder_prefix = f"catalog_dir/{catalog_folder}"
+            
+        # Get catalog from the database
+        catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
+        
+        # If not found by ID, try by s3Id
+        if not catalog:
+            catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
+            
+        if not catalog:
+            print(f"Catalog not found with id/s3Id {catalog_id}")
+            return []
+            
+        # Use the s3Id as the folder name in S3
+        folder_name = catalog.s3Id
+        folder_prefix = f"catalog_dir/{folder_name}"
         files = list_s3_files(bucket_name, folder_prefix)
 
         return files
@@ -192,19 +211,37 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             print("Error: No catalog name provided")
             return None
 
-        folder_path = create_s3_folder(bucket_name, catalog_name, description, catalog_type)
+        # Create the S3 folder
+        folder_path = create_s3_folder(bucket_name, catalog_name)
+        if not folder_path:
+            return None
 
-        if folder_path:
-            catalog = {
-                'id': catalog_name,
-                'catalog_name': catalog_name,
-                'description': description or f"S3 folder in catalog_dir ({catalog_name})",
-                'type': catalog_type or 's3_folder',
-                'document_count': 0
-            }
-            return catalog
+        # Create a database entry for the catalog
+        try:
+            # Get user ID from session
+            user_email = session.get('user_email')
+            user = User.query.filter_by(email=user_email).first()
+            user_id = user.id if user else None
+            
+            new_catalog = Catalog(
+                name=catalog_name,
+                s3Id=catalog_name,
+                description=description or f"S3 folder in catalog_dir ({catalog_name})",
+                type=catalog_type or 's3_folder',
+                created_by_id=user_id,
+                is_active=True
+            )
+            
+            db.session.add(new_catalog)
+            db.session.commit()
+            
+            return new_catalog.to_dict()
+        except Exception as db_error:
+            print(f"Database error creating catalog: {db_error}")
+            traceback.print_exc()
+            db.session.rollback()
+            return None
 
-        return None
     except Exception as e:
         print(f"Error creating catalog: {e}")
         traceback.print_exc()
@@ -214,16 +251,22 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None):
     """Upload a file to a catalog"""
     try:
-        # Check if this is an S3 folder catalog
-        catalog = get_s3_catalog_by_name(catalog_id)
-        if catalog and catalog.get('type') == 's3_folder':
+        # Get the catalog from the database
+        catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
+        
+        # If not found by ID, try using the catalog_id as s3Id
+        if not catalog:
+            catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
+            
+        if catalog and catalog.type == 's3_folder':
             bucket_name = get_bucket_name()
             if not bucket_name:
                 print("Error: No S3 bucket name available")
                 return None
 
-            # Upload to S3
-            s3_key = upload_file_to_s3(bucket_name, catalog_id, file_obj,
+            # Upload to S3 using the s3Id from the catalog
+            s3_folder_name = catalog.s3Id
+            s3_key = upload_file_to_s3(bucket_name, s3_folder_name, file_obj,
                                        file_content, content_type)
 
             if s3_key:
@@ -232,7 +275,7 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                 file_record = {
                     "id": s3_key,
                     "name": file_obj.filename,
-                    "description": f"Uploaded to {catalog_id}",
+                    "description": f"Uploaded to {catalog.name}",
                     "uploadDate": upload_date,
                     "status": "Published",
                     "version": "1.0",
