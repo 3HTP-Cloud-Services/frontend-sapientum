@@ -148,6 +148,10 @@ def list_s3_files(bucket_name, prefix=''):
 
                 if not file_name:
                     continue
+                
+                # Skip .metadata files when listing regular files
+                if file_name == '.metadata':
+                    continue
 
                 size_bytes = item['Size']
                 if size_bytes < 1024:
@@ -177,6 +181,32 @@ def list_s3_files(bucket_name, prefix=''):
         traceback.print_exc()
         return []
 
+
+def get_s3_folder_metadata(bucket_name, folder_name):
+    """Get metadata for a specific S3 folder"""
+    try:
+        # Get a fresh S3 client with assumed role credentials
+        s3_client = get_client_with_assumed_role('s3')
+        import json
+        
+        folder_path = f"catalog_dir/{folder_name}/"
+        metadata_key = f"{folder_path}.metadata"
+        
+        try:
+            response = s3_client.get_object(
+                Bucket=bucket_name,
+                Key=metadata_key
+            )
+            
+            metadata_content = json.loads(response['Body'].read().decode('utf-8'))
+            return metadata_content
+        except Exception as e:
+            print(f"Error reading metadata for folder {folder_name}: {e}")
+            return None
+    except Exception as e:
+        print(f"Error getting S3 folder metadata: {e}")
+        traceback.print_exc()
+        return None
 
 def create_s3_metadata(bucket_name):
     """Create metadata in S3 bucket using direct S3 client from assumed role"""
@@ -218,7 +248,7 @@ def create_s3_metadata(bucket_name):
         return False
 
 
-def create_s3_folder(bucket_name, folder_name):
+def create_s3_folder(bucket_name, folder_name, description=None, catalog_type=None):
     """Create a folder in S3 bucket using direct S3 client from assumed role"""
     try:
         # Get a fresh S3 client with assumed role credentials
@@ -232,7 +262,27 @@ def create_s3_folder(bucket_name, folder_name):
             Body=''
         )
 
+        # Create a .metadata file inside the folder with catalog details
+        import json
+        
+        metadata_content = {
+            'type': catalog_type or 's3_folder',
+            'description': description or f"S3 folder in catalog_dir ({folder_name})",
+            'created_at': str(datetime.now()),
+            'name': folder_name
+        }
+        
+        metadata_key = f"{folder_path}.metadata"
+        
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=metadata_key,
+            Body=json.dumps(metadata_content),
+            ContentType='application/json'
+        )
+
         print(f"Successfully created folder {folder_path} in bucket {bucket_name}")
+        print(f"Added metadata file {metadata_key} in bucket {bucket_name}")
         return folder_path
     except Exception as e:
         print(f"Error creating S3 folder: {e}")

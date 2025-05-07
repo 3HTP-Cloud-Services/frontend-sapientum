@@ -3,7 +3,8 @@ from aws_utils import (
     list_s3_folder_contents,
     list_s3_files,
     upload_file_to_s3,
-    create_s3_folder
+    create_s3_folder,
+    get_s3_folder_metadata
 )
 from db import get_bucket_name
 import traceback
@@ -46,13 +47,25 @@ def get_s3_folders():
             if folder == '.metadata':
                 continue
 
-            s3_catalogs.append({
-                'id': folder,
-                'catalog_name': folder,
-                'description': f"S3 folder in catalog_dir ({folder})",
-                'type': 's3_folder',
-                'document_count': random.randint(3, 50)
-            })
+            # Try to get metadata for this folder
+            metadata = get_s3_folder_metadata(bucket_name, folder)
+            
+            if metadata and isinstance(metadata, dict):
+                s3_catalogs.append({
+                    'id': folder,
+                    'catalog_name': folder,
+                    'description': metadata.get('description', f"S3 folder in catalog_dir ({folder})"),
+                    'type': metadata.get('type', 's3_folder'),
+                    'document_count': random.randint(3, 50)
+                })
+            else:
+                s3_catalogs.append({
+                    'id': folder,
+                    'catalog_name': folder,
+                    'description': f"S3 folder in catalog_dir ({folder})",
+                    'type': 's3_folder',
+                    'document_count': random.randint(3, 50)
+                })
 
         return s3_catalogs
     except Exception as e:
@@ -179,7 +192,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             print("Error: No catalog name provided")
             return None
 
-        folder_path = create_s3_folder(bucket_name, catalog_name)
+        folder_path = create_s3_folder(bucket_name, catalog_name, description, catalog_type)
 
         if folder_path:
             catalog = {
