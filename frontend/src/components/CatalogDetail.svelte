@@ -18,7 +18,6 @@
 
   // State for upload modal
   let showUploadModal = false;
-  let currentCatalogId = null;
   let currentCatalogName = '';
 
   // For tracking updates
@@ -38,7 +37,13 @@
     console.log(`After update #${updateCount}, selectedCatalog:`, $selectedCatalogStore);
   });
 
-  function viewCatalogPermissions() {
+  function viewCatalogPermissions(id) {
+    // Use a custom event to pass the catalog ID to parent components
+    const event = new CustomEvent('viewPermissions', {
+      detail: { catalogId: id }
+    });
+    window.dispatchEvent(event);
+
     switchSection('catalog-permissions');
   }
 
@@ -47,9 +52,12 @@
     switchSection('catalogs');
   }
 
+  // Store catalog ID for upload modal
+  let uploadCatalogId = null;
+
   function uploadDocument(id) {
     if ($selectedCatalogStore) {
-      currentCatalogId = id || $selectedCatalogStore.id;
+      uploadCatalogId = id || $selectedCatalogStore.id;
       currentCatalogName = $selectedCatalogStore.catalog_name;
       showUploadModal = true;
     }
@@ -57,7 +65,7 @@
 
   function closeUploadModal() {
     showUploadModal = false;
-    currentCatalogId = null;
+    uploadCatalogId = null;
     currentCatalogName = '';
   }
 
@@ -94,7 +102,8 @@
       if (onComplete) onComplete(success);
       closeUploadModal();
       if ($selectedCatalogStore) {
-        fetchCatalogFiles($selectedCatalogStore.catalog_name);
+        // Use the catalog ID instead of name
+        fetchCatalogFiles($selectedCatalogStore.id);
       }
     }
   }
@@ -119,7 +128,7 @@
   {:else if $selectedCatalogStore}
     <div class="catalog-detail">
       <div class="catalog-detail-header">
-        <h1>{$selectedCatalogStore.catalog_name}</h1>
+        <h1>{$selectedCatalogStore.name}</h1>
         <div class="catalog-content">
           {$selectedCatalogStore.description}
         </div>
@@ -129,7 +138,7 @@
             <span class="s3-badge">S3</span>
           {/if}
         </div>
-        <button class="lock-button" on:click={viewCatalogPermissions}>
+        <button class="lock-button" on:click={() => {console.log('Catalog ID:', $selectedCatalogStore.id);viewCatalogPermissions($selectedCatalogStore.id)}}>
           <span class="lock-lock">🔒</span> {$i18nStore.t('catalog_permissions')}</button>
       </div>
 
@@ -209,7 +218,7 @@
 
 <UploadModal
   show={showUploadModal}
-  catalogId={currentCatalogId}
+  catalogId={uploadCatalogId}
   catalogName={currentCatalogName}
   i18nStore={$i18nStore}
   on:close={closeUploadModal}

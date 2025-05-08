@@ -52,20 +52,20 @@
     console.log("Uploading files to catalog:", event.detail.catalogId, event.detail.files);
     const onComplete = event.detail.onComplete;
     let success = false;
-    
+
     try {
       const formData = new FormData();
-      
+
       for (const file of event.detail.files) {
         formData.append('file', file);
       }
-      
+
       const response = await fetch(`/api/catalogs/${event.detail.catalogId}/upload`, {
         method: 'POST',
         credentials: 'include',
         body: formData
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log("Upload successful:", result);
@@ -125,7 +125,7 @@
 
   async function submitNewCatalog() {
     console.log("Creating new catalog:", newCatalog);
-    
+
     try {
       const response = await fetch('/api/catalogs', {
         method: 'POST',
@@ -135,7 +135,7 @@
         credentials: 'include',
         body: JSON.stringify(newCatalog)
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log("Created catalog:", result);
@@ -193,7 +193,7 @@
             <p>{catalog.description && catalog.description}</p>
           </div>
           <div class="catalog-actions">
-            <button class="view-catalog-button" on:click={() => viewCatalog(catalog.catalog_name)}>
+            <button class="view-catalog-button" on:click={() => viewCatalog(catalog.id)}>
               {$i18nStore.t('view_catalog_documents', {count: catalog.document_count})}
             </button>
             <button class="sap_button upload-document-button" on:click={() => uploadDocument(catalog.id, catalog.catalog_name)}>

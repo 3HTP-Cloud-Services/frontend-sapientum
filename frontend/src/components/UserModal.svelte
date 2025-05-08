@@ -34,21 +34,14 @@
         </div>
 
         <div class="form-group">
-          <label for="role">Role</label>
-          <select id="role" bind:value={user.role}>
-            <option value="lector">Lector</option>
-            <option value="editor">Editor</option>
+          <label for="documentAccess">{$i18nStore.t('doc_access_label')}</label>
+          <select id="documentAccess" bind:value={user.documentAccess}>
+            <option value="permission-not-allowed">{$i18nStore.t('permission-not-allowed')}</option>
+            <option value="permission-read-only">{$i18nStore.t('permission-read-only')}</option>
+            <option value="permission-full">{$i18nStore.t('permission-full')}</option>
           </select>
         </div>
       {:else}
-        <div class="form-group">
-          <label for="documentAccess">{$i18nStore.t('doc_access_label')}</label>
-          <select id="documentAccess" bind:value={user.documentAccess}>
-            <option value="Lectura">Lectura</option>
-            <option value="Lectura/Escritura">Lectura/Escritura</option>
-            <option value="Ninguno">Ninguno</option>
-          </select>
-        </div>
 
         <div class="form-group checkbox">
           <label>

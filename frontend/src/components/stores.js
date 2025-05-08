@@ -44,13 +44,14 @@ export async function fetchCatalog(id) {
     selectedCatalogStore.set(null);
 
     const catalogs = get(catalogsStore);
-    const catalogFromStore = catalogs.find(c => c.catalog_name === id);
+    // First try to find by id, then by name for backward compatibility
+    const catalogFromStore = catalogs.find(c => c.id === parseInt(id) || c.catalog_name === id);
 
     if (catalogFromStore) {
       console.log('Using catalog from store:', catalogFromStore);
       selectedCatalogStore.set(catalogFromStore);
 
-      fetchCatalogFiles(id);
+      fetchCatalogFiles(catalogFromStore.id);
       loadingCatalogStore.set(false);
       return;
     }
@@ -64,7 +65,7 @@ export async function fetchCatalog(id) {
       console.log('Fetched catalog data:', data);
       selectedCatalogStore.set(data);
 
-      fetchCatalogFiles(id);
+      fetchCatalogFiles(data.id);
     } else if (response.status === 401) {
       window.location.href = '/#/login';
     } else if (response.status === 404) {

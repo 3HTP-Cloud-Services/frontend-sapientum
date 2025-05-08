@@ -1,6 +1,7 @@
 # models.py
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.sql import func
+import enum
 from datetime import datetime
 
 db = SQLAlchemy()
@@ -12,7 +13,6 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     role = db.Column(db.String(50), default='user')
     is_admin = db.Column(db.Boolean, default=False)
-    document_access = db.Column(db.String(50), default='Lectura')
     chat_access = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     is_active = db.Column(db.Boolean, default=True)
@@ -21,7 +21,6 @@ class User(db.Model):
         return {
             'id': self.id,
             'email': self.email,
-            'documentAccess': self.document_access,
             'chatAccess': self.chat_access,
             'isAdmin': self.is_admin,
             'isActive': self.is_active,
@@ -118,3 +117,28 @@ class File(db.Model):
             i += 1
 
         return f"{size_bytes:.2f} {size_names[i]}"
+
+class PermissionType(enum.Enum):
+    NOT_ALLOWED = "permission-not-allowed"
+    READ_ONLY = "permission-read-only"
+    FULL = "permission-full"
+
+class CatalogPermission(db.Model):
+    __tablename__ = 'catalog_users'
+    catalog_id = db.Column(db.Integer, db.ForeignKey('catalogs.id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    catalog = db.relationship('Catalog', backref='users', lazy=True)
+    user = db.relationship('User', backref=db.backref('permissions', lazy=True))
+    permission = db.Column(db.Enum(PermissionType), default=PermissionType.NOT_ALLOWED)
+
+    def __repr__(self):
+        return f'<CatalogPermission {self.user.username} - {self.catalog.name} - {self.permission.value}>'
+
+    def to_dict(self):
+        return {
+            'catalog_id': self.catalog_id,
+            'user_id': self.user_id,
+            'permission': self.permission.value,
+            'catalog': self.catalog.to_dict() if self.catalog else None,
+            'user': self.user.to_dict() if self.user else None
+        }

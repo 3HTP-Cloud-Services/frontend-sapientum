@@ -82,7 +82,10 @@
         "selected_files": "Archivos Seleccionados",
         "no_files_selected": "No hay archivos seleccionados",
         "upload_button": "Subir",
-        "logging_in": "Iniciando sesión..."
+        "logging_in": "Iniciando sesión...",
+        "permission-not-allowed": "Sin Acceso",
+        "permission-read-only": "Solo Lectura",
+        "permission-full": "Admin"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -167,6 +170,9 @@
         "selected_files": "Selected Files",
         "no_files_selected": "No files selected",
         "upload_button": "Upload",
-        "logging_in": "Logging in..."
+        "logging_in": "Logging in...",
+        "permission-not-allowed": "Not Allowed",
+        "permission-read-only": "Read Only",
+        "permission-full": "Admin"
     }
 }

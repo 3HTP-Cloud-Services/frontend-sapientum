@@ -6,11 +6,17 @@
 
   export let switchSection;
   export let activeSectionStore;
+  
+  // Will be used in stores to keep track of the selected catalog ID
+  let selectedCatalogId = null;
 
   // Event handler for when a catalog is selected
   function handleViewCatalog(event) {
     const id = event.detail;
     console.log('Parent received viewCatalog event with id:', id);
+    
+    // Set the selected catalog ID
+    selectedCatalogId = id;
 
     // First change the section
     switchSection('catalog-detail');

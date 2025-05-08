@@ -6,6 +6,9 @@
   import { i18nStore } from '../lib/i18n.js';
   import { writable } from 'svelte/store';
   import { fade, fly } from 'svelte/transition';
+  
+  // Store for passing catalog ID between components
+  const currentCatalogIdStore = writable(null);
 
   import Catalog from '../components/Catalog.svelte';
   import Catalog_Permissions from '../components/Catalog_Permissions.svelte';
@@ -112,10 +115,18 @@
 
     checkMobile();
 
+    // Add event listener for catalog permissions
+    window.addEventListener('viewPermissions', (event) => {
+      const catalogId = event.detail.catalogId;
+      console.log('Console received viewPermissions event with catalogId:', catalogId);
+      $currentCatalogIdStore = catalogId;
+    });
+
     window.addEventListener('resize', checkMobile);
 
     return () => {
       window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('viewPermissions', () => {});
     };
   });
 </script>
@@ -186,6 +197,7 @@
             <Catalog_Permissions
               switchSection={switchSection}
               activeSectionStore={activeSectionStore}
+              currentCatalogId={$currentCatalogIdStore}
               bind:this={catalogPermissionsComponent}
             />
           {:else if activeSection === 'permissions'}

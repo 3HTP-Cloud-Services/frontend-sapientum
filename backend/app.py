@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
 import json
-from models import db, User, Domain
+from models import db, User, Domain, CatalogPermission, Catalog
 import db as db_utils
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -270,8 +270,9 @@ def get_types():
 def get_documents():
     return get_catalogs()
 
-@app.route('/api/catalogs/<string:catalog_id>', methods=['GET'])
+@app.route('/api/catalogs/<int:catalog_id>', methods=['GET'])
 def get_catalog(catalog_id):
+    print('catalog_id:', catalog_id)
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
@@ -287,17 +288,18 @@ def get_document(doc_id):
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['GET'])
 def get_users_for_catalog(catalog_id):
+    print('get_users_for_catalog:', catalog_id)
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
-    catalog_users = CatalogUser.query.filter_by(catalog_id=catalog_id).all()
+    catalog_users = CatalogPermission.query.filter_by(catalog_id=catalog_id).all()
     users = []
 
     for cu in catalog_users:
         user = User.query.get(cu.user_id)
         if user:
             user_data = user.to_dict()
-            user_data['permissions'] = cu.permissions
+            user_data['permission'] = cu.permission
             users.append(user_data)
 
     return jsonify(users)
@@ -449,8 +451,6 @@ def create_user():
 
     new_user = User(
         email=data.get('email'),
-        original_username=data.get('email'),
-        document_access=data.get('documentAccess', 'Lectura'),
         chat_access=data.get('chatAccess', False),
         is_admin=data.get('isAdmin', False),
         role="admin" if data.get('isAdmin', False) else "user"
