@@ -6,6 +6,7 @@
   let username = '';
   let password = '';
   let error = '';
+  let isLoading = false;
 
   function setLocale(locale) {
     if ($i18nStore) {
@@ -15,8 +16,12 @@
 
   async function handleSubmit() {
     error = '';
+    isLoading = true;
+    
     const result = await login(username, password);
-
+    
+    isLoading = false;
+    
     if (result.success) {
       push('/');
     } else {
@@ -53,6 +58,7 @@
         id="username"
         bind:value={username}
         required
+        disabled={isLoading}
       />
     </div>
 
@@ -63,10 +69,13 @@
         id="password"
         bind:value={password}
         required
+        disabled={isLoading}
       />
     </div>
 
-    <button class="login_button" type="submit">{$i18nStore.t('login_button')}</button>
+    <button class="login_button" type="submit" disabled={isLoading}>
+      {isLoading ? $i18nStore.t('logging_in') || 'Logging in...' : $i18nStore.t('login_button')}
+    </button>
   </form>
 </div>
 
@@ -108,5 +117,10 @@
     padding: 0.5rem;
     background-color: rgba(255, 107, 107, 0.1);
     border-radius: 4px;
+  }
+  
+  input:disabled, button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
   }
 </style>

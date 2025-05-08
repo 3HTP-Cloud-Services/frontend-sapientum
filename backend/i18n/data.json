@@ -81,7 +81,8 @@
         "drop_files_here": "Arrastre archivos aquí o haga clic para seleccionar",
         "selected_files": "Archivos Seleccionados",
         "no_files_selected": "No hay archivos seleccionados",
-        "upload_button": "Subir"
+        "upload_button": "Subir",
+        "logging_in": "Iniciando sesión..."
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -165,6 +166,7 @@
         "drop_files_here": "Drop files here or click to select",
         "selected_files": "Selected Files",
         "no_files_selected": "No files selected",
-        "upload_button": "Upload"
+        "upload_button": "Upload",
+        "logging_in": "Logging in..."
     }
 }
