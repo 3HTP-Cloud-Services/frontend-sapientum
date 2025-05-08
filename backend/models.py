@@ -68,3 +68,53 @@ class Catalog(db.Model):
             'created_by_id': self.created_by_id,
             'is_active': self.is_active
         }
+
+class File(db.Model):
+    __tablename__ = 'files'
+    def __repr__(self):
+        return f"File(id={self.id}, name='{self.name}')"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(1024), default='')
+    s3Id = db.Column(db.String(1024), default='')
+    summary = db.Column(db.String(1024), default='')
+    catalog_id = db.Column(db.Integer, db.ForeignKey('catalogs.id'))
+    catalog = db.relationship('Catalog', backref='files', lazy=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    uploaded_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_by = db.relationship('User', backref='files', lazy=True)
+    version = db.Column(db.String(16), default='')
+    status = db.Column(db.String(16), default='')
+    confidentiality = db.Column(db.Boolean, default=False)
+    size = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            's3Id': self.s3Id,
+            'summary': self.summary,
+            'catalog_id': self.catalog_id,
+            'catalog_name': self.catalog.name if self.catalog else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None,
+            'created_by_id': self.created_by_id,
+            'created_by': self.created_by.email if self.created_by else None,
+            'version': self.version,
+            'status': self.status,
+            'confidentiality': self.confidentiality,
+            'size': self.size,
+            'size_formatted': self._format_size(self.size) if self.size else '0 B'
+        }
+
+    def _format_size(self, size_bytes):
+        if size_bytes == 0:
+            return "0 B"
+
+        size_names = ("B", "KB", "MB", "GB", "TB")
+        i = 0
+        while size_bytes >= 1024 and i < len(size_names) - 1:
+            size_bytes /= 1024
+            i += 1
+
+        return f"{size_bytes:.2f} {size_names[i]}"

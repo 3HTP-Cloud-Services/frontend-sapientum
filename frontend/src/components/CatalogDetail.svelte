@@ -157,14 +157,29 @@
             <tbody>
             {#each $catalogFilesStore as file}
               <tr>
-                <td>{file.name}</td>
-                <td class="description-cell">{file.description}</td>
-                <td>{file.uploadDate.toLocaleDateString()}</td>
+                <td>{file.name || ''}</td>
+                <td class="description-cell">{file.description || ''}</td>
                 <td>
-                  <span class="status-badge status-{file.status.toLowerCase().replace(' ', '-')}">{file.status}</span>
+                  {#if file.uploadDate}
+                    {(() => {
+                      try {
+                        return typeof file.uploadDate.toLocaleDateString === 'function'
+                          ? file.uploadDate.toLocaleDateString()
+                          : new Date(file.uploadDate).toLocaleDateString();
+                      } catch (e) {
+                        console.error('Date parse error:', e);
+                        return 'Invalid date';
+                      }
+                    })()}
+                  {:else}
+                    N/A
+                  {/if}
                 </td>
-                <td>{file.version}</td>
-                <td>{file.size}</td>
+                <td>
+                  <span class="status-badge status-{(file.status || '').toLowerCase().replace(' ', '-')}">{file.status || 'Published'}</span>
+                </td>
+                <td>{file.version || '1.0'}</td>
+                <td>{file.size || '0 B'}</td>
                 <td>
                   <button class="icon-button edit-button" title={$i18nStore.t('edit_document')}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">

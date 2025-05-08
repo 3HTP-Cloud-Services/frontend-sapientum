@@ -6,7 +6,7 @@ from aws_utils import (
     create_s3_folder
 )
 from db import get_bucket_name
-from models import db, Catalog, User
+from models import db, Catalog, User, File
 from flask import session
 import traceback
 from datetime import datetime
@@ -75,75 +75,58 @@ def get_catalog_users(catalog_id):
     return catalog_users
 
 def get_catalog_files(catalog_id):
-    # Try to get the catalog from the database (using both id and s3Id fields)
+    """Get all files for a catalog directly from the database"""
     try:
-        # First try by id (integer)
+        # Try to parse as integer for ID lookup
         try:
             catalog_id_int = int(catalog_id)
             catalog = Catalog.query.filter_by(id=catalog_id_int, is_active=True).first()
         except (ValueError, TypeError):
             catalog = None
             
-        # If not found, try by s3Id (string)
+        # If not found by ID, try by s3Id
         if not catalog:
             catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
+            catalog_id_int = catalog.id if catalog else None
             
-        if catalog and catalog.type == 's3_folder':
-            return get_s3_catalog_files(catalog.id)
+        if not catalog:
+            print(f"Catalog not found: {catalog_id}")
+            return []
+            
+        # Query files directly from the database
+        files = File.query.filter_by(catalog_id=catalog_id_int).all()
+        print(f"Found {len(files)} files in database for catalog ID {catalog_id_int}")
+        
+        # If we have files in the database, return them
+        if files:
+            file_dicts = []
+            for file in files:
+                file_dict = file.to_dict()
+                
+                # Make sure field names match what frontend expects
+                file_dict['id'] = file_dict.get('id', file.id)
+                file_dict['name'] = file_dict.get('name', file.name)
+                file_dict['uploadDate'] = file_dict.get('uploaded_at')
+                file_dict['description'] = file_dict.get('summary', '')
+                file_dict['status'] = file_dict.get('status', 'Published')
+                file_dict['version'] = file_dict.get('version', '1.0')
+                file_dict['size'] = file_dict.get('size_formatted', '0 B')
+                
+                file_dicts.append(file_dict)
+                
+            return file_dicts
+            
+        # If no files in database, try S3 as fallback (older files might not be in DB)
+        if catalog.type == 's3_folder':
+            s3_files = get_s3_catalog_files(catalog.id)
+            if s3_files:
+                return s3_files
     except Exception as e:
-        print(f"Error looking up catalog for files: {e}")
+        print(f"Error getting catalog files: {e}")
         traceback.print_exc()
 
-    # If not an S3 catalog or if error retrieving S3 files, return mock data
-    mock_documents = [
-        {
-            "id": 1,
-            "name": "Business Requirements Document",
-            "description": "Initial requirements for the project scope",
-            "uploadDate": "2025-04-15T10:30:00",
-            "status": "Published",
-            "version": "1.0",
-            "size": "4.2 MB"
-        },
-        {
-            "id": 2,
-            "name": "Technical Architecture",
-            "description": "System architecture diagram and specifications",
-            "uploadDate": "2025-04-18T14:15:00",
-            "status": "For Review",
-            "version": "1.0",
-            "size": "2.1 MB"
-        },
-        {
-            "id": 3,
-            "name": "User Interface Mockups",
-            "description": "Preliminary UI designs for web application",
-            "uploadDate": "2025-04-20T09:45:00",
-            "status": "Draft",
-            "version": "1.0",
-            "size": "8.7 MB"
-        },
-        {
-            "id": 4,
-            "name": "API Documentation",
-            "description": "Endpoints, parameters, and response formats",
-            "uploadDate": "2025-04-22T16:20:00",
-            "status": "Published",
-            "version": "1.0",
-            "size": "1.3 MB"
-        },
-        {
-            "id": 5,
-            "name": "Data Migration Plan",
-            "description": "Strategy for migrating legacy data",
-            "uploadDate": "2025-04-25T11:10:00",
-            "status": "Deprecated",
-            "version": "1.0",
-            "size": "3.8 MB"
-        }
-    ]
-
-    return mock_documents
+    # Return empty list if no files found
+    return []
 
 
 def get_s3_catalog_by_name(catalog_name):
@@ -170,13 +153,8 @@ def get_s3_catalog_by_name(catalog_name):
 
 
 def get_s3_catalog_files(catalog_id):
-    """Get files for an S3 folder catalog"""
+    """Get files directly from S3 for a catalog - this is used as a fallback only"""
     try:
-        bucket_name = get_bucket_name()
-        if not bucket_name:
-            print("Error: No S3 bucket name available")
-            return []
-            
         # Get catalog from the database
         catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
         
@@ -187,13 +165,25 @@ def get_s3_catalog_files(catalog_id):
         if not catalog:
             print(f"Catalog not found with id/s3Id {catalog_id}")
             return []
+                
+        # Get files directly from S3
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            print("Error: No S3 bucket name available")
+            return []
             
         # Use the s3Id as the folder name in S3
         folder_name = catalog.s3Id
         folder_prefix = f"catalog_dir/{folder_name}"
-        files = list_s3_files(bucket_name, folder_prefix)
-
-        return files
+        s3_files = list_s3_files(bucket_name, folder_prefix)
+        
+        # Do some minimal processing to ensure frontend compatibility
+        for file in s3_files:
+            # Make sure uploadDate is a string the frontend can parse
+            if isinstance(file.get('uploadDate'), datetime):
+                file['uploadDate'] = file['uploadDate'].isoformat()
+                
+        return s3_files
     except Exception as e:
         print(f"Error getting S3 catalog files: {e}")
         traceback.print_exc()
@@ -250,41 +240,126 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 
 def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None):
     """Upload a file to a catalog"""
+    print(
+        f"[DEBUG] Starting upload_file_to_catalog for catalog_id={catalog_id}, file={file_obj.filename}, content_type={content_type}")
     try:
         # Get the catalog from the database
+        print(f"[DEBUG] Looking up catalog with id={catalog_id}")
         catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
-        
+        print(f"[DEBUG] Found catalog by ID: {catalog}")
+
         # If not found by ID, try using the catalog_id as s3Id
         if not catalog:
+            print(f"[DEBUG] Catalog not found by ID, trying s3Id={catalog_id}")
             catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
-            
-        if catalog and catalog.type == 's3_folder':
+            print(f"[DEBUG] Found catalog by s3Id: {catalog}")
+
+        if catalog:
+            print(f"[DEBUG] Processing valid s3_folder catalog: {catalog.name} (ID: {catalog.id})")
             bucket_name = get_bucket_name()
+            print(f"[DEBUG] Got bucket name: {bucket_name}")
+
             if not bucket_name:
-                print("Error: No S3 bucket name available")
+                print("[DEBUG] Error: No S3 bucket name available")
                 return None
 
             # Upload to S3 using the s3Id from the catalog
             s3_folder_name = catalog.s3Id
+            print(f"[DEBUG] Uploading to S3 folder: {s3_folder_name}")
+            print(f"[DEBUG] File content length: {len(file_content)} bytes")
+
             s3_key = upload_file_to_s3(bucket_name, s3_folder_name, file_obj,
                                        file_content, content_type)
+            print(f"[DEBUG] S3 upload result - key: {s3_key}")
 
             if s3_key:
-                # Create a file record
-                upload_date = datetime.now().isoformat()
-                file_record = {
-                    "id": s3_key,
-                    "name": file_obj.filename,
-                    "description": f"Uploaded to {catalog.name}",
-                    "uploadDate": upload_date,
-                    "status": "Published",
-                    "version": "1.0",
-                    "size": f"{len(file_content)/1024:.1f} KB"
-                }
-                return file_record
+                print("[DEBUG] S3 upload successful, creating database record")
+                # Get user ID from session
+                user_email = session.get('user_email')
+                print(f"[DEBUG] User email from session: {user_email}")
 
+                user = User.query.filter_by(email=user_email).first()
+                print(f"[DEBUG] Found user: {user}")
+
+                user_id = user.id if user else None
+                print(f"[DEBUG] User ID: {user_id}")
+
+                # Create a database record for the file
+                current_time = datetime.now()
+                file_size = len(file_content)
+                print(f"[DEBUG] Current time: {current_time}, File size: {file_size} bytes")
+
+                # Create new file record
+                print("[DEBUG] Creating new File record")
+                new_file = File(
+                    name=file_obj.filename,
+                    s3Id=s3_key,
+                    summary=f"Uploaded to {catalog.name}",
+                    catalog_id=catalog.id,
+                    created_at=current_time,
+                    uploaded_at=current_time,
+                    created_by_id=user_id,
+                    version="1.0",
+                    status="published",
+                    confidentiality=False,
+                    size=file_size
+                )
+                print(f"[DEBUG] New file record created in memory: {new_file}")
+
+                try:
+                    print("[DEBUG] Adding file to database session")
+                    db.session.add(new_file)
+                    print("[DEBUG] Committing to database")
+                    db.session.commit()
+                    print("[DEBUG] Database commit successful")
+
+                    # Get the dictionary from the model
+                    print("[DEBUG] Converting file model to dictionary")
+                    file_dict = new_file.to_dict()
+                    print(f"[DEBUG] File dictionary: {file_dict}")
+
+                    # Add frontend-expected fields or adjust field names if needed
+                    print("[DEBUG] Adding frontend-specific fields")
+                    file_dict['uploadDate'] = file_dict.get('uploaded_at')
+                    file_dict['description'] = file_dict.get('summary')
+                    if 'size_formatted' not in file_dict:
+                        file_dict['size'] = file_dict.get('size_formatted', f"{file_size / 1024:.1f} KB")
+                    print(f"[DEBUG] Final file dictionary: {file_dict}")
+
+                    print("[DEBUG] Returning successful file upload result")
+                    return file_dict
+                except Exception as db_error:
+                    print(f"[DEBUG] Database error saving file record: {db_error}")
+                    import traceback
+                    print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+                    print("[DEBUG] Rolling back database session")
+                    db.session.rollback()
+
+                    # If DB save fails, return basic file info so the upload still "works" for the user
+                    print("[DEBUG] Creating fallback response without DB record")
+                    upload_date = current_time.isoformat()
+                    fallback_response = {
+                        "id": s3_key,
+                        "name": file_obj.filename,
+                        "description": f"Uploaded to {catalog.name}",
+                        "uploadDate": upload_date,
+                        "status": "published",
+                        "version": "1.0",
+                        "size": f"{file_size / 1024:.1f} KB",
+                        "warning": "File uploaded to S3 but database record creation failed"
+                    }
+                    print(f"[DEBUG] Returning fallback response: {fallback_response}")
+                    return fallback_response
+            else:
+                print("[DEBUG] S3 upload failed - no s3_key returned")
+        else:
+            print(f"[DEBUG] Invalid catalog: found={bool(catalog)}, "
+                  f"type={catalog.type if catalog else 'N/A'}")
+
+        print("[DEBUG] Returning None - upload failed")
         return None
     except Exception as e:
-        print(f"Error uploading file to catalog: {e}")
-        traceback.print_exc()
+        print(f"[DEBUG] Unhandled exception in upload_file_to_catalog: {e}")
+        import traceback
+        print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         return None

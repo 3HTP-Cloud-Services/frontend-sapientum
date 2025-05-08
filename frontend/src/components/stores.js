@@ -96,10 +96,33 @@ export async function fetchCatalogFiles(id) {
 
       console.log('Files:', files);
 
-      const processedFiles = files.map(file => ({
-        ...file,
-        uploadDate: new Date(file.uploadDate)
-      }));
+      const processedFiles = files.map(file => {
+        try {
+          // Try to convert uploadDate to a Date object
+          const dateStr = file.uploadDate || file.uploaded_at;
+          const uploadDate = dateStr ? new Date(dateStr) : new Date();
+          
+          return {
+            ...file,
+            // Make sure we have all required fields with correct names
+            id: file.id || file.s3Id || '',
+            name: file.name || '',
+            description: file.description || file.summary || '',
+            uploadDate: uploadDate,
+            status: file.status || 'Published',
+            version: file.version || '1.0',
+            size: file.size || file.size_formatted || '0 B'
+          };
+        } catch (error) {
+          console.error('Error processing file data:', error, file);
+          return {
+            ...file,
+            uploadDate: new Date(), // Default to current date if parsing fails
+            status: file.status || 'Published',
+            version: file.version || '1.0'
+          };
+        }
+      });
 
       catalogFilesStore.set(processedFiles);
     } else if (response.status === 401) {

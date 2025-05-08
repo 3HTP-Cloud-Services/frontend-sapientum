@@ -314,49 +314,78 @@ def get_files_for_catalog(catalog_id):
 
 @app.route('/api/catalogs/<string:catalog_id>/upload', methods=['POST'])
 def upload_file_to_catalog(catalog_id):
+    print(f"[DEBUG] Starting upload to catalog {catalog_id}")
+
     if not session.get('logged_in'):
+        print(f"[DEBUG] Auth failed - not logged in")
         return jsonify({"error": "No autorizado"}), 401
 
-    print('upload:', request.files)
+    print(f"[DEBUG] User authenticated: {session.get('user_id')}")
+    print(f"[DEBUG] Request files: {request.files}")
+    print(f"[DEBUG] Request form data: {request.form}")
+
     if 'file' not in request.files:
+        print(f"[DEBUG] Error: No 'file' in request.files")
         return jsonify({"error": "No file provided"}), 400
 
     files = request.files.getlist('file')
+    print(f"[DEBUG] Files list length: {len(files)}")
+
     if not files:
+        print(f"[DEBUG] Error: Empty files list")
         return jsonify({"error": "No files provided"}), 400
 
     uploaded_files = []
     errors = []
 
-    for file_obj in files:
+    for index, file_obj in enumerate(files):
+        print(f"[DEBUG] Processing file {index + 1}/{len(files)}: {file_obj.filename}")
+
         if file_obj.filename == '':
+            print(f"[DEBUG] Skipping empty filename")
             continue
 
         try:
+            print(f"[DEBUG] Reading file content for {file_obj.filename}")
             file_content = file_obj.read()
             content_type = file_obj.content_type
+            print(f"[DEBUG] Content type: {content_type}, Content length: {len(file_content)} bytes")
 
             file_obj.seek(0)
+            print(f"[DEBUG] Reset file pointer to beginning")
 
+            print(f"[DEBUG] Calling catalog.upload_file_to_catalog for {file_obj.filename}")
             from catalog import upload_file_to_catalog as upload_catalog_file
             result = upload_catalog_file(catalog_id, file_obj, file_content, content_type)
+            print(f"[DEBUG] Upload result: {result}")
 
             if result:
                 uploaded_files.append(result)
+                print(f"[DEBUG] Successfully uploaded {file_obj.filename}")
             else:
                 errors.append(f"Failed to upload {file_obj.filename}")
+                print(f"[DEBUG] Failed to upload {file_obj.filename} - no result returned")
 
         except Exception as e:
-            print(f"Error uploading file {file_obj.filename}: {e}")
+            print(f"[DEBUG] Exception during upload of {file_obj.filename}: {str(e)}")
+            print(f"[DEBUG] Exception type: {type(e).__name__}")
+            import traceback
+            print(f"[DEBUG] Traceback: {traceback.format_exc()}")
             errors.append(f"Error uploading {file_obj.filename}: {str(e)}")
 
+    print(f"[DEBUG] Upload process complete")
+    print(f"[DEBUG] Successful uploads: {len(uploaded_files)}")
+    print(f"[DEBUG] Failed uploads: {len(errors)}")
+
     if uploaded_files:
+        print(f"[DEBUG] Returning success response")
         return jsonify({
             "success": True,
             "files": uploaded_files,
             "errors": errors if errors else None
         })
     else:
+        print(f"[DEBUG] Returning failure response")
         return jsonify({
             "success": False,
             "error": "No files were uploaded successfully",
