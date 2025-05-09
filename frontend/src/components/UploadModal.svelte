@@ -5,6 +5,8 @@
   export let catalogId = null;
   export let catalogName = '';
   export let i18nStore;
+  export let isNewVersion = false;
+  export let existingFile = null;
   
   let selectedFiles = [];
   let dragActive = false;
@@ -44,10 +46,15 @@
     e.preventDefault();
     e.stopPropagation();
     dragActive = false;
-    
+
     if (e.dataTransfer.files) {
       const fileArray = Array.from(e.dataTransfer.files);
-      selectedFiles = [...selectedFiles, ...fileArray];
+
+      if (isNewVersion) {
+        selectedFiles = fileArray.slice(0, 1);
+      } else {
+        selectedFiles = [...selectedFiles, ...fileArray];
+      }
     }
   }
   
@@ -55,7 +62,12 @@
     if (isUploading) return;
     if (e.target.files) {
       const fileArray = Array.from(e.target.files);
-      selectedFiles = [...selectedFiles, ...fileArray];
+
+      if (isNewVersion) {
+        selectedFiles = fileArray.slice(0, 1);
+      } else {
+        selectedFiles = [...selectedFiles, ...fileArray];
+      }
     }
   }
   
@@ -65,26 +77,27 @@
   }
   
   function uploadFiles() {
-    console.log("Uploading files to catalog:", catalogId, selectedFiles);
     isUploading = true;
     uploadProgress = 0;
-    
+
     const progressInterval = setInterval(() => {
       if (uploadProgress < 90) {
         uploadProgress += Math.random() * 10;
       }
     }, 300);
-    
-    dispatch('upload', { 
-      catalogId, 
+
+    dispatch('upload', {
+      catalogId,
       files: selectedFiles,
+      isNewVersion,
+      existingFileId: existingFile?.id,
       onComplete: (success) => {
         clearInterval(progressInterval);
         uploadProgress = 100;
         setTimeout(() => {
           isUploading = false;
           uploadProgress = 0;
-          
+
           if (success) {
             selectedFiles = [];
           }
@@ -98,13 +111,13 @@
   <div class="modal-overlay" on:click={closeModal}>
     <div class="modal-content upload-modal" on:click|stopPropagation>
       <div class="modal-header">
-        <h2>{i18nStore.t('upload_documents_title')}</h2>
+        <h2>{isNewVersion ? (i18nStore.t('upload_new_version_title') || 'Upload New Version') : i18nStore.t('upload_documents_title')}</h2>
         <button class="close-button" on:click={closeModal} disabled={isUploading}>×</button>
       </div>
       
       <div class="modal-body">
         <p class="catalog-name-display">
-          {catalogName}
+          {catalogName} {isNewVersion && existingFile ? ` - ${existingFile.name}` : ''}
         </p>
         
         <div 
@@ -114,17 +127,17 @@
           on:dragover={handleDragOver}
           on:drop={handleDrop}
         >
-          <input 
-            type="file" 
-            id="file-upload" 
-            multiple 
+          <input
+            type="file"
+            id="file-upload"
+            multiple={!isNewVersion}
             on:change={handleFileSelect}
             style="display: none;"
             disabled={isUploading}
           />
           <label for="file-upload" class="file-upload-label" class:disabled={isUploading}>
             <img src="./images/upload.png" alt="Upload" class="upload-icon-large"/>
-            <p>{i18nStore.t('drop_files_here')}</p>
+            <p>{isNewVersion ? (i18nStore.t('drop_file_for_new_version') || 'Drop file for new version') : i18nStore.t('drop_files_here')}</p>
           </label>
         </div>
         

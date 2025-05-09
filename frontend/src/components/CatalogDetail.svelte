@@ -19,6 +19,8 @@
   // State for upload modal
   let showUploadModal = false;
   let currentCatalogName = '';
+  let currentFile = null;
+  let isNewVersion = false;
 
   // For tracking updates
   let updateCount = 0;
@@ -62,6 +64,18 @@
     if ($selectedCatalogStore) {
       uploadCatalogId = id || $selectedCatalogStore.id;
       currentCatalogName = $selectedCatalogStore.catalog_name;
+      currentFile = null;
+      isNewVersion = false;
+      showUploadModal = true;
+    }
+  }
+
+  function uploadNewVersion(file) {
+    if ($selectedCatalogStore) {
+      uploadCatalogId = $selectedCatalogStore.id;
+      currentCatalogName = $selectedCatalogStore.catalog_name;
+      currentFile = file;
+      isNewVersion = true;
       showUploadModal = true;
     }
   }
@@ -70,10 +84,12 @@
     showUploadModal = false;
     uploadCatalogId = null;
     currentCatalogName = '';
+    currentFile = null;
+    isNewVersion = false;
   }
 
   async function handleUpload(event) {
-    console.log("Uploading files to catalog:", event.detail.catalogId, event.detail.files);
+    console.log("Uploading files:", event.detail);
     const onComplete = event.detail.onComplete;
     let success = false;
 
@@ -84,7 +100,16 @@
         formData.append('file', file);
       }
 
-      const response = await fetch(`/api/catalogs/${event.detail.catalogId}/upload`, {
+      let url;
+      if (event.detail.isNewVersion && event.detail.existingFileId) {
+        // Upload a new version of an existing file
+        url = `/api/files/${event.detail.existingFileId}/version`;
+      } else {
+        // Upload a new file to the catalog
+        url = `/api/catalogs/${event.detail.catalogId}/upload`;
+      }
+
+      const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -105,9 +130,23 @@
       if (onComplete) onComplete(success);
       closeUploadModal();
       if ($selectedCatalogStore) {
-        // Use the catalog ID instead of name
         fetchCatalogFiles($selectedCatalogStore.id);
       }
+    }
+  }
+
+  async function downloadFile(fileId) {
+    try {
+      const downloadUrl = `/api/files/${fileId}/download`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', '');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Download error:", error);
+      alert("Error downloading file. Please try again.");
     }
   }
 
@@ -164,7 +203,7 @@
               <th>{$i18nStore.t('document_version')}</th>
               <th>{$i18nStore.t('document_size')}</th>
               <th>{$i18nStore.t('document_confidentiality')}</th>
-              <th colspan="2">{$i18nStore.t('actions_column')}</th>
+              <th colspan="3">{$i18nStore.t('actions_column')}</th>
             </tr>
             </thead>
             <tbody>
@@ -206,10 +245,18 @@
                   </button>
                 </td>
                 <td>
-                <button class="icon-button upload-button" title={$i18nStore.t('upload_new_version')}>
+                <button class="icon-button upload-button" on:click={() => uploadNewVersion(file)} title={$i18nStore.t('upload_new_version') || 'Upload new version'}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                       <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                    </svg>
+                  </button>
+                </td>
+                <td>
+                  <button class="icon-button download-button" on:click={() => downloadFile(file.id)} title={$i18nStore.t('download_file') || 'Download file'}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                      <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
                     </svg>
                   </button>
                 </td>
@@ -230,6 +277,8 @@
   catalogId={uploadCatalogId}
   catalogName={currentCatalogName}
   i18nStore={$i18nStore}
+  isNewVersion={isNewVersion}
+  existingFile={currentFile}
   on:close={closeUploadModal}
   on:upload={handleUpload}
 />
@@ -388,6 +437,10 @@
 
   .upload-button {
     color: #38a169;
+  }
+
+  .download-button {
+    color: #3182ce;
   }
 
   .status-badge {

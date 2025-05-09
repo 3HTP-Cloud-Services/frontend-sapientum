@@ -1,11 +1,13 @@
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, jsonify, session, send_from_directory, send_file, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
 import json
-from models import db, User, Domain, CatalogPermission, Catalog, PermissionType
+from models import db, User, Domain, CatalogPermission, Catalog, PermissionType, File, Version
 import db as db_utils
+import traceback
+from datetime import datetime
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -465,6 +467,222 @@ def upload_file_to_catalog(catalog_id):
             "error": "No files were uploaded successfully",
             "errors": errors
         }), 500
+
+@app.route('/api/files/<int:file_id>/version', methods=['POST'])
+def upload_new_version(file_id):
+    print("Starting upload_new_version function")
+
+    if not session.get('logged_in'):
+        print("User is not logged in")
+        return jsonify({"error": "No autorizado"}), 401
+
+    try:
+        print(f"Fetching file with id {file_id}")
+        file = File.query.get(file_id)
+        if not file:
+            print("File not found")
+            return jsonify({"error": "File not found"}), 404
+
+        print(f"Fetching active version for file id {file_id}")
+        active_version = Version.query.filter_by(file_id=file_id, active=True).first()
+        if not active_version:
+            print("No active version found for the file")
+            return jsonify({"error": "No active version found for this file"}), 404
+
+        if 'file' not in request.files:
+            print("No file provided in the request")
+            return jsonify({"error": "No file provided"}), 400
+
+        file_obj = request.files['file']
+        if file_obj.filename == '':
+            print("No file selected")
+            return jsonify({"error": "No selected file"}), 400
+
+        file_content = file_obj.read()
+        content_type = file_obj.content_type
+        file_obj.seek(0)
+        print(f"Uploaded file: {file_obj.filename}, size: {len(file_content)} bytes, content type: {content_type}")
+
+        from aws_utils import get_client_with_assumed_role, upload_file_to_s3
+        from db import get_bucket_name
+
+        print("Fetching bucket name")
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            print("S3 bucket configuration not found")
+            return jsonify({"error": "S3 bucket configuration not found"}), 500
+
+        print(f"Fetching catalog for file catalog_id {file.catalog_id}")
+        catalog = Catalog.query.get(file.catalog_id)
+        if not catalog:
+            print("Catalog not found")
+            return jsonify({"error": "Catalog not found"}), 404
+
+        print("Establishing connection with S3 client")
+        s3_client = get_client_with_assumed_role('s3')
+        s3_folder_name = catalog.s3Id
+        print(f"s3_folder_name: {s3_folder_name}")
+        versions_folder = f"catalog_dir/{s3_folder_name}/versions/"
+
+        # Create versions folder if it doesn't exist
+        try:
+            print(f"Ensuring versions folder exists in S3: {versions_folder}")
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=versions_folder,
+                Body=''
+            )
+        except Exception as e:
+            traceback.print_exc()
+            print(f"Could not create versions folder: {e}")
+
+        # Move the active version to the versions folder
+        old_s3_key = active_version.s3Id
+        old_file_name = old_s3_key.split('/')[-1]
+        new_versions_key = f"{versions_folder}{old_file_name}"
+
+        try:
+            print(f"Copying active version from {old_s3_key} to {new_versions_key}")
+            s3_client.copy_object(
+                Bucket=bucket_name,
+                CopySource={'Bucket': bucket_name, 'Key': old_s3_key},
+                Key=new_versions_key
+            )
+
+            print(f"Deleting old active version {old_s3_key} in S3")
+            s3_client.delete_object(
+                Bucket=bucket_name,
+                Key=old_s3_key
+            )
+
+            active_version.s3Id = new_versions_key
+            active_version.active = False
+            print("Saving old active version in database")
+            db.session.flush()
+        except Exception as e:
+            print(f"Error moving old version to versions folder: {e}")
+            return jsonify({"error": f"Error moving old version to versions folder: {str(e)}"}), 500
+
+        user_email = session.get('user_email')
+        print(f"Fetching user by email: {user_email}")
+        user = User.query.filter_by(email=user_email).first()
+        user_id = user.id if user else None
+
+        file_extension = ""
+        if '.' in file_obj.filename:
+            file_extension = file_obj.filename.rsplit('.', 1)[1].lower()
+
+        new_version_number = active_version.version + 1
+        print(f"Creating new version with version number: {new_version_number}")
+
+        from io import BytesIO
+        class FileWithCustomName:
+            def __init__(self, content, filename):
+                self.content = content
+                self.filename = filename
+
+            def read(self):
+                return self.content
+
+        new_version = Version(
+            active=True,
+            version=new_version_number,
+            s3Id='',
+            size=len(file_content),
+            filename=file_obj.filename,
+            uploader_id=user_id,
+            file_id=file.id
+        )
+
+        print("Adding new version to database session")
+        db.session.add(new_version)
+        db.session.flush()
+
+        new_filename = f"{catalog.id}-{file.id}-{new_version.id}"
+        if file_extension:
+            new_filename = f"{new_filename}.{file_extension}"
+        print(f"New filename for S3: {new_filename}")
+
+        custom_file_obj = FileWithCustomName(file_content, new_filename)
+
+        print("Uploading new version to S3")
+        s3_key = upload_file_to_s3(bucket_name, s3_folder_name, custom_file_obj, file_content, content_type)
+
+        if not s3_key:
+            print("Failed to upload new version to S3")
+            db.session.rollback()
+            return jsonify({"error": "Failed to upload new version to S3"}), 500
+
+        new_version.s3Id = s3_key
+        print(f"Uploaded new version with S3 key: {s3_key}")
+
+        file.uploaded_at = datetime.now()
+        file.size = len(file_content)
+
+        print("Committing new version to database")
+        db.session.commit()
+
+        print("Successfully uploaded new version")
+        return jsonify({
+            "success": True,
+            "file": file.to_dict(),
+            "version": new_version.to_dict()
+        })
+
+    except Exception as e:
+        print(f"Error during upload_new_version: {e}")
+        traceback.print_exc()
+        db.session.rollback()
+        return jsonify({"error": f"Error uploading new version: {str(e)}"}), 500
+
+
+@app.route('/api/files/<int:file_id>/download', methods=['GET'])
+def download_file(file_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    try:
+        file = File.query.get(file_id)
+        if not file:
+            return jsonify({"error": "File not found"}), 404
+
+        active_version = Version.query.filter_by(file_id=file_id, active=True).first()
+        if not active_version:
+            return jsonify({"error": "No active version found for this file"}), 404
+
+        from aws_utils import get_client_with_assumed_role
+        from db import get_bucket_name
+        import io
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return jsonify({"error": "S3 bucket configuration not found"}), 500
+
+        s3_key = active_version.s3Id
+        filename = active_version.filename
+
+        s3_client = get_client_with_assumed_role('s3')
+
+        try:
+            s3_response = s3_client.get_object(
+                Bucket=bucket_name,
+                Key=s3_key
+            )
+
+            file_content = s3_response['Body'].read()
+
+            return Response(
+                file_content,
+                mimetype=s3_response.get('ContentType', 'application/octet-stream'),
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}"
+                }
+            )
+        except Exception as e:
+            return jsonify({"error": f"Error retrieving file from S3: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
 @app.route('/api/chat', methods=['POST'])
 def chat():

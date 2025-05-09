@@ -49,7 +49,7 @@ class Catalog(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), default='')
-    s3Id = db.Column(db.String(356), default='')
+    s3Id = db.Column(db.String(1024), default='')
     description = db.Column(db.String(255), default='')
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_by = db.relationship('User', backref=db.backref('catalogs', lazy=True))
@@ -74,7 +74,6 @@ class File(db.Model):
         return f"File(id={self.id}, name='{self.name}')"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(1024), default='')
-    s3Id = db.Column(db.String(1024), default='')
     summary = db.Column(db.String(1024), default='')
     catalog_id = db.Column(db.Integer, db.ForeignKey('catalogs.id'))
     catalog = db.relationship('Catalog', backref='files', lazy=True)
@@ -90,7 +89,6 @@ class File(db.Model):
         return {
             'id': self.id,
             'name': self.name,
-            's3Id': self.s3Id,
             'summary': self.summary,
             'catalog_id': self.catalog_id,
             'catalog_name': self.catalog.name if self.catalog else None,
@@ -166,6 +164,6 @@ class Version(db.Model):
             'size': self.size,
             'filename': self.filename,
             'uploader': self.uploader.email,
-            'original_file': self.file.filename,
+            'original_file': self.file.name,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

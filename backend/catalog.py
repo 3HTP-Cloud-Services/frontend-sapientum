@@ -240,129 +240,128 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 
 def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None):
     """Upload a file to a catalog"""
-    print(
-        f"[DEBUG] Starting upload_file_to_catalog for catalog_id={catalog_id}, file={file_obj.filename}, content_type={content_type}")
     try:
         # Get the catalog from the database
-        print(f"[DEBUG] Looking up catalog with id={catalog_id}")
         catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
-        print(f"[DEBUG] Found catalog by ID: {catalog}")
 
         # If not found by ID, try using the catalog_id as s3Id
         if not catalog:
-            print(f"[DEBUG] Catalog not found by ID, trying s3Id={catalog_id}")
             catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
-            print(f"[DEBUG] Found catalog by s3Id: {catalog}")
 
         if catalog:
-            print(f"[DEBUG] Processing valid s3_folder catalog: {catalog.name} (ID: {catalog.id})")
             bucket_name = get_bucket_name()
-            print(f"[DEBUG] Got bucket name: {bucket_name}")
-
             if not bucket_name:
-                print("[DEBUG] Error: No S3 bucket name available")
                 return None
 
-            # Upload to S3 using the s3Id from the catalog
-            s3_folder_name = catalog.s3Id
-            print(f"[DEBUG] Uploading to S3 folder: {s3_folder_name}")
-            print(f"[DEBUG] File content length: {len(file_content)} bytes")
+            # Get user ID from session
+            user_email = session.get('user_email')
+            user = User.query.filter_by(email=user_email).first()
+            user_id = user.id if user else None
 
-            s3_key = upload_file_to_s3(bucket_name, s3_folder_name, file_obj,
-                                       file_content, content_type)
-            print(f"[DEBUG] S3 upload result - key: {s3_key}")
+            # Create a database record for the file
+            current_time = datetime.now()
+            file_size = len(file_content)
 
-            if s3_key:
-                print("[DEBUG] S3 upload successful, creating database record")
-                # Get user ID from session
-                user_email = session.get('user_email')
-                print(f"[DEBUG] User email from session: {user_email}")
+            # First create file record and version record without s3Id
+            new_file = File(
+                name=file_obj.filename,
+                summary=f"Uploaded to {catalog.name}",
+                catalog_id=catalog.id,
+                created_at=current_time,
+                uploaded_at=current_time,
+                created_by_id=user_id,
+                status="published",
+                confidentiality=False,
+                size=file_size
+            )
 
-                user = User.query.filter_by(email=user_email).first()
-                print(f"[DEBUG] Found user: {user}")
+            try:
+                # Add file to session and flush to get ID
+                db.session.add(new_file)
+                db.session.flush()
 
-                user_id = user.id if user else None
-                print(f"[DEBUG] User ID: {user_id}")
-
-                # Create a database record for the file
-                current_time = datetime.now()
-                file_size = len(file_content)
-                print(f"[DEBUG] Current time: {current_time}, File size: {file_size} bytes")
-
-                # Create new file record
-                print("[DEBUG] Creating new File record")
-                new_file = File(
-                    name=file_obj.filename,
-                    s3Id=s3_key,
-                    summary=f"Uploaded to {catalog.name}",
-                    catalog_id=catalog.id,
-                    created_at=current_time,
-                    uploaded_at=current_time,
-                    created_by_id=user_id,
-                    status="published",
-                    confidentiality=False,
-                    size=file_size
+                # Create version record
+                version_record = Version(
+                    active=True,
+                    version=1,
+                    s3Id='',  # Placeholder, will update after S3 upload
+                    size=file_size,
+                    filename=file_obj.filename,
+                    uploader_id=user_id,
+                    file_id=new_file.id
                 )
-                print(f"[DEBUG] New file record created in memory: {new_file}")
 
-                try:
-                    db.session.add(new_file)
-                    db.session.flush()
+                # Add version to session and flush to get ID
+                db.session.add(version_record)
+                db.session.flush()
 
-                    version_record = Version(
-                        active=True,
-                        version=1,
-                        s3Id=s3_key,
-                        size=file_size,
-                        filename=file_obj.filename,
-                        uploader_id=user_id,
-                        file_id=new_file.id
-                    )
-                    db.session.add(version_record)
+                # Get file extension from original filename
+                file_extension = ""
+                if '.' in file_obj.filename:
+                    file_extension = file_obj.filename.rsplit('.', 1)[1].lower()
+
+                # Create new filename with catalog_id-file_id-version_id.extension format
+                new_filename = f"{catalog.id}-{new_file.id}-{version_record.id}"
+                if file_extension:
+                    new_filename = f"{new_filename}.{file_extension}"
+
+                # Create a file-like object with the new filename for S3 upload
+                from io import BytesIO
+                class FileWithCustomName:
+                    def __init__(self, content, filename):
+                        self.content = content
+                        self.filename = filename
+
+                    def read(self):
+                        return self.content
+
+                # Create file-like object with new filename
+                custom_file_obj = FileWithCustomName(file_content, new_filename)
+
+                # Upload to S3 using the s3Id from the catalog
+                s3_folder_name = catalog.s3Id
+                s3_key = upload_file_to_s3(bucket_name, s3_folder_name, custom_file_obj,
+                                        file_content, content_type)
+
+                if s3_key:
+                    # Update the file and version records with the S3 key
+                    new_file.s3Id = s3_key
+                    version_record.s3Id = s3_key
+
+                    # Commit the transaction
                     db.session.commit()
 
-                    # Get the dictionary from the model
-                    print("[DEBUG] Converting file model to dictionary")
+                    # Return the file dictionary
                     file_dict = new_file.to_dict()
-                    print(f"[DEBUG] File dictionary: {file_dict}")
 
-                    # Add frontend-expected fields or adjust field names if needed
-                    print("[DEBUG] Adding frontend-specific fields")
+                    # Add frontend-expected fields
                     file_dict['uploadDate'] = file_dict.get('uploaded_at')
                     file_dict['description'] = file_dict.get('summary')
                     if 'size_formatted' not in file_dict:
                         file_dict['size'] = file_dict.get('size_formatted', f"{file_size / 1024:.1f} KB")
-                    print(f"[DEBUG] Final file dictionary: {file_dict}")
 
-                    print("[DEBUG] Returning successful file upload result")
                     return file_dict
-                except Exception as db_error:
-                    print(f"[DEBUG] Database error saving file or version record: {db_error}")
-                    import traceback
-                    print(f"[DEBUG] Traceback: {traceback.format_exc()}")
+                else:
+                    # S3 upload failed, rollback the transaction
                     db.session.rollback()
+                    return None
 
-                    upload_date = current_time.isoformat()
-                    fallback_response = {
-                        "id": s3_key,
-                        "name": file_obj.filename,
-                        "description": f"Uploaded to {catalog.name}",
-                        "uploadDate": upload_date,
-                        "status": "published",
-                        "size": f"{file_size / 1024:.1f} KB",
-                        "warning": "File uploaded to S3 but database record creation failed"
-                    }
-                    return fallback_response
-            else:
-                print("[DEBUG] S3 upload failed - no s3_key returned")
-        else:
-            print(f"[DEBUG] Invalid catalog: found={bool(catalog)}, "
-                  f"type={catalog.type if catalog else 'N/A'}")
+            except Exception as db_error:
+                db.session.rollback()
+                import traceback
 
-        print("[DEBUG] Returning None - upload failed")
+                upload_date = current_time.isoformat()
+                fallback_response = {
+                    "id": "",
+                    "name": file_obj.filename,
+                    "description": f"Uploaded to {catalog.name}",
+                    "uploadDate": upload_date,
+                    "status": "published",
+                    "size": f"{file_size / 1024:.1f} KB",
+                    "warning": "File upload failed"
+                }
+                return fallback_response
         return None
     except Exception as e:
-        print(f"[DEBUG] Unhandled exception in upload_file_to_catalog: {e}")
         import traceback
-        print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         return None
