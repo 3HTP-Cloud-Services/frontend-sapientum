@@ -38,12 +38,15 @@
   });
 
   function viewCatalogPermissions(id) {
+    console.log('viewCatalogPermissions called with ID:', id);
+    
     // Use a custom event to pass the catalog ID to parent components
     const event = new CustomEvent('viewPermissions', {
       detail: { catalogId: id }
     });
     window.dispatchEvent(event);
-
+    console.log('Dispatched viewPermissions event with catalogId:', id);
+    
     switchSection('catalog-permissions');
   }
 
@@ -160,6 +163,7 @@
               <th>{$i18nStore.t('document_status')}</th>
               <th>{$i18nStore.t('document_version')}</th>
               <th>{$i18nStore.t('document_size')}</th>
+              <th>{$i18nStore.t('document_confidentiality')}</th>
               <th colspan="2">{$i18nStore.t('actions_column')}</th>
             </tr>
             </thead>
@@ -189,6 +193,11 @@
                 </td>
                 <td>{file.version || '1.0'}</td>
                 <td>{file.size || '0 B'}</td>
+                <td>
+                  <span class="confidentiality-badge {file.confidentiality ? 'confidential' : 'public'}">
+                    {file.confidentiality ? $i18nStore.t('confidential') || 'Confidential' : $i18nStore.t('public') || 'Public'}
+                  </span>
+                </td>
                 <td>
                   <button class="icon-button edit-button" title={$i18nStore.t('edit_document')}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -408,6 +417,25 @@
   .status-deprecated {
     background-color: #fed7d7;
     color: #c53030;
+  }
+  
+  .confidentiality-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+  }
+  
+  .confidentiality-badge.confidential {
+    background-color: #fed7d7;
+    color: #c53030;
+  }
+  
+  .confidentiality-badge.public {
+    background-color: #c6f6d5;
+    color: #276749;
   }
 
   .catalog-header {

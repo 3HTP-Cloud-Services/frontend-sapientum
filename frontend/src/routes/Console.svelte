@@ -200,6 +200,9 @@
               currentCatalogId={$currentCatalogIdStore}
               bind:this={catalogPermissionsComponent}
             />
+            {#if $currentCatalogIdStore}
+              <div style="display: none;">Current ID: {$currentCatalogIdStore}</div>
+            {/if}
           {:else if activeSection === 'permissions'}
             <Permissions
               {users}

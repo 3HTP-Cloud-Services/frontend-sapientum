@@ -16,7 +16,10 @@
   let editingUser = null;
   
   onMount(async () => {
-    await loadUsers();
+    console.log('Catalog_Permissions mounted with catalogId:', currentCatalogId);
+    if (currentCatalogId) {
+      await loadUsers();
+    }
   });
   
   async function loadUsers() {
@@ -42,12 +45,21 @@
   }
   
   function editUser(user) {
-    editingUser = { ...user };
+    editingUser = { 
+      id: user.id,
+      email: user.email,
+      permission: user.permission
+    };
     showUserModal = true;
   }
   
   function addNewUser() {
-    editingUser = { id: null, email: '', fullName: '', role: 'lector' };
+    editingUser = { 
+      id: null,
+      userId: null,
+      email: '',
+      permission: 'permission-read-only' 
+    };
     showUserModal = true;
   }
   
@@ -56,21 +68,67 @@
     editingUser = null;
   }
   
-  async function saveUser() {
-    // This would save to API in a real implementation
-    closeUserModal();
-    await loadUsers();
+  async function saveUser(event) {
+    const userData = event.detail;
+    console.log('Saving user data:', userData);
+    
+    try {
+      const userId = userData.id || userData.user_id;
+      console.log('Using user_id:', userId);
+      
+      const url = `/api/catalogs/${currentCatalogId}/users`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          user_id: userId,
+          permission: userData.permission
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error saving user permission');
+      }
+      
+      closeUserModal();
+      await loadUsers();
+    } catch (err) {
+      error = err.message;
+      console.error('Error saving user permission:', err);
+    }
   }
   
   async function removeUser(userId) {
     if (confirm($i18nStore.t('confirm_remove_user'))) {
-      // This would delete via API in a real implementation
-      users = users.filter(user => user.id !== userId);
+      try {
+        const response = await fetch(`/api/catalogs/${currentCatalogId}/users/${userId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Error removing user');
+        }
+        
+        await loadUsers();
+      } catch (err) {
+        error = err.message;
+        console.error('Error removing user:', err);
+      }
     }
   }
 
   function backToCatalogDetail() {
     switchSection('catalog-detail');
+  }
+
+  function getPermissionText(permission) {
+    return $i18nStore.t(permission);
   }
 </script>
 
@@ -96,18 +154,16 @@
     <table class="users-table">
       <thead>
         <tr>
-          <th>{$i18nStore.t('user_column')}</th>
           <th>{$i18nStore.t('email_label')}</th>
-          <th>Role</th>
+          <th>{$i18nStore.t('doc_access_label')}</th>
           <th>{$i18nStore.t('actions_column')}</th>
         </tr>
       </thead>
       <tbody>
         {#each users as user (user.id)}
           <tr in:fade={{ duration: 200 }}>
-            <td>{user.fullName}</td>
             <td>{user.email}</td>
-            <td>{user.role}</td>
+            <td><span class="permission-badge {user.permission}">{getPermissionText(user.permission)}</span></td>
             <td class="action-buttons">
               <button class="edit-button" on:click={() => editUser(user)}>
                 {$i18nStore.t('edit_button')}
@@ -127,6 +183,7 @@
   show={showUserModal}
   user={editingUser}
   catalogMode={true}
+  catalogId={currentCatalogId}
   on:close={closeUserModal}
   on:save={saveUser}
 />
@@ -216,5 +273,28 @@
   
   .error {
     color: #e53e3e;
+  }
+
+  .permission-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .permission-not-allowed {
+    background-color: #fed7d7;
+    color: #c53030;
+  }
+
+  .permission-read-only {
+    background-color: #feebc8;
+    color: #c05621;
+  }
+
+  .permission-full {
+    background-color: #c6f6d5;
+    color: #276749;
   }
 </style>

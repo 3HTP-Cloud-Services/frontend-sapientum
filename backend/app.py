@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
 import json
-from models import db, User, Domain, CatalogPermission, Catalog
+from models import db, User, Domain, CatalogPermission, Catalog, PermissionType
 import db as db_utils
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -299,10 +299,82 @@ def get_users_for_catalog(catalog_id):
         user = User.query.get(cu.user_id)
         if user:
             user_data = user.to_dict()
-            user_data['permission'] = cu.permission
+            user_data['permission'] = cu.permission.value
             users.append(user_data)
 
     return jsonify(users)
+
+@app.route('/api/catalogs/<string:catalog_id>/available-users', methods=['GET'])
+def get_available_users_for_catalog(catalog_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    existing_users_query = db.session.query(CatalogPermission.user_id).filter(CatalogPermission.catalog_id == catalog_id)
+    existing_user_ids = [user_id for (user_id,) in existing_users_query]
+    
+    available_users = User.query.filter(User.is_active == True, ~User.id.in_(existing_user_ids)).all()
+    
+    return jsonify([user.to_dict() for user in available_users])
+
+@app.route('/api/catalogs/<string:catalog_id>/users', methods=['POST'])
+def add_user_to_catalog(catalog_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+        
+    data = request.json
+    if not data or 'user_id' not in data or 'permission' not in data:
+        return jsonify({"error": "Se requiere user_id y permission"}), 400
+    
+    user_id = data['user_id']
+    permission_value = data['permission']
+    
+    try:
+        permission_type = PermissionType(permission_value)
+    except ValueError:
+        return jsonify({"error": f"Valor de permiso inválido: {permission_value}"}), 400
+    
+    try:
+        existing_permission = CatalogPermission.query.filter_by(
+            catalog_id=catalog_id, 
+            user_id=user_id
+        ).first()
+        
+        if existing_permission:
+            existing_permission.permission = permission_type
+        else:
+            new_permission = CatalogPermission(
+                catalog_id=catalog_id,
+                user_id=user_id,
+                permission=permission_type
+            )
+            db.session.add(new_permission)
+            
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error al guardar permisos: {str(e)}"}), 500
+
+@app.route('/api/catalogs/<string:catalog_id>/users/<int:user_id>', methods=['DELETE'])
+def remove_user_from_catalog(catalog_id, user_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+    
+    try:
+        permission = CatalogPermission.query.filter_by(
+            catalog_id=catalog_id,
+            user_id=user_id
+        ).first()
+        
+        if not permission:
+            return jsonify({"error": "Permiso no encontrado"}), 404
+            
+        db.session.delete(permission)
+        db.session.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error al eliminar permiso: {str(e)}"}), 500
 
 @app.route('/api/catalogs/<string:catalog_id>/files', methods=['GET'])
 def get_files_for_catalog(catalog_id):
