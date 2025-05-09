@@ -82,7 +82,6 @@ class File(db.Model):
     uploaded_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_by = db.relationship('User', backref='files', lazy=True)
-    version = db.Column(db.String(16), default='')
     status = db.Column(db.String(16), default='')
     confidentiality = db.Column(db.Boolean, default=False)
     size = db.Column(db.Integer, default=0)
@@ -99,7 +98,6 @@ class File(db.Model):
             'uploaded_at': self.uploaded_at.isoformat() if self.uploaded_at else None,
             'created_by_id': self.created_by_id,
             'created_by': self.created_by.email if self.created_by else None,
-            'version': self.version,
             'status': self.status,
             'confidentiality': self.confidentiality,
             'size': self.size,
@@ -141,4 +139,33 @@ class CatalogPermission(db.Model):
             'permission': self.permission.value,
             'catalog': self.catalog.to_dict() if self.catalog else None,
             'user': self.user.to_dict() if self.user else None
+        }
+
+class Version(db.Model):
+    __tablename__ = 'versions'
+    def __repr__(self):
+        return f"Version(id={self.id}, name='{self.name}')"
+    id = db.Column(db.Integer, primary_key=True)
+    active = db.Column(db.Boolean, default=False, nullable=False)
+    version = db.Column(db.Integer, default=1, nullable=False)
+    s3Id = db.Column(db.String(1024), default='', nullable=False)
+    size = db.Column(db.Integer, default=0, nullable=False)
+    filename = db.Column(db.String(1024), default='', nullable=False)
+    uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    uploader = db.relationship('User', backref='versions', lazy=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=False)
+    file = db.relationship('File', backref='versions', lazy=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'version': self.version,
+            'active': self.active,
+            's3Id': self.s3Id,
+            'size': self.size,
+            'filename': self.filename,
+            'uploader': self.uploader.email,
+            'original_file': self.file.filename,
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }

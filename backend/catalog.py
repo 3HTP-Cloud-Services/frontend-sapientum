@@ -6,7 +6,7 @@ from aws_utils import (
     create_s3_folder
 )
 from db import get_bucket_name
-from models import db, Catalog, User, File
+from models import db, Catalog, User, File, Version
 from flask import session
 import traceback
 from datetime import datetime
@@ -299,7 +299,6 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                     created_at=current_time,
                     uploaded_at=current_time,
                     created_by_id=user_id,
-                    version="1.0",
                     status="published",
                     confidentiality=False,
                     size=file_size
@@ -307,11 +306,20 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                 print(f"[DEBUG] New file record created in memory: {new_file}")
 
                 try:
-                    print("[DEBUG] Adding file to database session")
                     db.session.add(new_file)
-                    print("[DEBUG] Committing to database")
+                    db.session.flush()
+
+                    version_record = Version(
+                        active=True,
+                        version=1,
+                        s3Id=s3_key,
+                        size=file_size,
+                        filename=file_obj.filename,
+                        uploader_id=user_id,
+                        file_id=new_file.id
+                    )
+                    db.session.add(version_record)
                     db.session.commit()
-                    print("[DEBUG] Database commit successful")
 
                     # Get the dictionary from the model
                     print("[DEBUG] Converting file model to dictionary")
@@ -329,14 +337,11 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                     print("[DEBUG] Returning successful file upload result")
                     return file_dict
                 except Exception as db_error:
-                    print(f"[DEBUG] Database error saving file record: {db_error}")
+                    print(f"[DEBUG] Database error saving file or version record: {db_error}")
                     import traceback
                     print(f"[DEBUG] Traceback: {traceback.format_exc()}")
-                    print("[DEBUG] Rolling back database session")
                     db.session.rollback()
 
-                    # If DB save fails, return basic file info so the upload still "works" for the user
-                    print("[DEBUG] Creating fallback response without DB record")
                     upload_date = current_time.isoformat()
                     fallback_response = {
                         "id": s3_key,
@@ -344,11 +349,9 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                         "description": f"Uploaded to {catalog.name}",
                         "uploadDate": upload_date,
                         "status": "published",
-                        "version": "1.0",
                         "size": f"{file_size / 1024:.1f} KB",
                         "warning": "File uploaded to S3 but database record creation failed"
                     }
-                    print(f"[DEBUG] Returning fallback response: {fallback_response}")
                     return fallback_response
             else:
                 print("[DEBUG] S3 upload failed - no s3_key returned")
