@@ -512,16 +512,13 @@ def upload_new_version(file_id):
             print("S3 bucket configuration not found")
             return jsonify({"error": "S3 bucket configuration not found"}), 500
 
-        print(f"Fetching catalog for file catalog_id {file.catalog_id}")
         catalog = Catalog.query.get(file.catalog_id)
         if not catalog:
-            print("Catalog not found")
             return jsonify({"error": "Catalog not found"}), 404
 
-        print("Establishing connection with S3 client")
         s3_client = get_client_with_assumed_role('s3')
-        s3_folder_name = catalog.s3Id
-        print(f"s3_folder_name: {s3_folder_name}")
+        # Use the sanitized s3Id from the catalog
+        s3_folder_name = catalog.s3Id  # This is already sanitized
         versions_folder = f"catalog_dir/{s3_folder_name}/versions/"
 
         # Create versions folder if it doesn't exist

@@ -88,7 +88,12 @@
         "logging_in": "Iniciando sesión...",
         "permission-not-allowed": "Sin Acceso",
         "permission-read-only": "Solo Lectura",
-        "permission-full": "Admin"
+        "permission-full": "Admin",
+        "upload_new_version_title": "Subir una nueva versión",
+        "current-version": "Versión actual",
+        "current-filename": "Nombre actual",
+        "original-filename": "Nombre original",
+        "drop_file_for_new_version": "Arrastrar archivo para subir una nueva versión"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -179,6 +184,11 @@
         "logging_in": "Logging in...",
         "permission-not-allowed": "Not Allowed",
         "permission-read-only": "Read Only",
-        "permission-full": "Admin"
+        "permission-full": "Admin",
+        "upload_new_version_title": "Upload a new version",
+        "current-version": "Current version",
+        "current-filename": "Current name",
+        "original-filename": "Original name",
+        "drop_file_for_new_version": "Drop file for new version"
     }
 }

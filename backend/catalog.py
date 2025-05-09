@@ -11,6 +11,35 @@ from flask import session
 import traceback
 from datetime import datetime
 import random
+import re
+import string
+
+def format_size(size_bytes):
+    if size_bytes == 0:
+        return "0 B"
+
+    size_names = ("B", "KB", "MB", "GB", "TB")
+    i = 0
+    while size_bytes >= 1024 and i < len(size_names) - 1:
+        size_bytes /= 1024
+        i += 1
+
+    return f"{size_bytes:.2f} {size_names[i]}"
+
+def sanitize_s3_folder_name(name):
+    # Replace spaces and problematic characters with underscores
+    # Keep alphanumeric characters, dashes, and underscores
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', name)
+
+    # Ensure the name is not empty
+    if not sanitized:
+        sanitized = 'catalog_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+
+    # Ensure name doesn't start with special characters that might cause issues
+    if sanitized[0] in '-_':
+        sanitized = 'c' + sanitized
+
+    return sanitized
 
 def get_catalog_types():
     return [
@@ -37,19 +66,24 @@ def get_s3_folders():
 
 def get_all_catalogs():
     try:
-        # Get all active catalogs from the database
         db_catalogs = Catalog.query.filter_by(is_active=True).all()
-        
-        # Format the catalog data with additional fields
         catalog_list = []
-        
+
         for catalog in db_catalogs:
             catalog_dict = catalog.to_dict()
-            # Add frontend-expected fields
             catalog_dict['catalog_name'] = catalog.name
-            catalog_dict['document_count'] = random.randint(3, 50)  # Could be replaced with actual count
+
+            # Count actual files with active versions in this catalog
+            from sqlalchemy import and_
+            file_count = db.session.query(File.id)\
+                .join(Version, and_(Version.file_id == File.id, Version.active == True))\
+                .filter(File.catalog_id == catalog.id)\
+                .distinct()\
+                .count()
+
+            catalog_dict['document_count'] = file_count
             catalog_list.append(catalog_dict)
-        
+
         return catalog_list
     except Exception as e:
         print(f"Error getting all catalogs: {e}")
@@ -83,39 +117,59 @@ def get_catalog_files(catalog_id):
             catalog = Catalog.query.filter_by(id=catalog_id_int, is_active=True).first()
         except (ValueError, TypeError):
             catalog = None
-            
+
         # If not found by ID, try by s3Id
         if not catalog:
             catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
             catalog_id_int = catalog.id if catalog else None
-            
+
         if not catalog:
             print(f"Catalog not found: {catalog_id}")
             return []
-            
+
         # Query files directly from the database
         files = File.query.filter_by(catalog_id=catalog_id_int).all()
         print(f"Found {len(files)} files in database for catalog ID {catalog_id_int}")
-        
+
         # If we have files in the database, return them
         if files:
             file_dicts = []
             for file in files:
                 file_dict = file.to_dict()
-                
+
+                # Get the active version for this file
+                active_version = Version.query.filter_by(file_id=file.id, active=True).first()
+
                 # Make sure field names match what frontend expects
                 file_dict['id'] = file_dict.get('id', file.id)
-                file_dict['name'] = file_dict.get('name', file.name)
+
+                # Get original version (lowest version number)
+                original_version = Version.query.filter_by(file_id=file.id).order_by(Version.version).first()
+
+                # Use active version's filename as the current filename
+                if active_version:
+                    # Store the original file name
+                    file_dict['original_filename'] = original_version.filename if original_version else file.name
+
+                    # Use active version info for display
+                    file_dict['name'] = active_version.filename
+                    file_dict['version'] = str(active_version.version)
+                    file_dict['size'] = format_size(active_version.size)
+                    file_dict['active_version_id'] = active_version.id
+                else:
+                    file_dict['name'] = file_dict.get('name', file.name)
+                    file_dict['original_filename'] = file_dict['name']
+                    file_dict['version'] = '1.0'
+                    file_dict['size'] = file_dict.get('size_formatted', '0 B')
+
                 file_dict['uploadDate'] = file_dict.get('uploaded_at')
                 file_dict['description'] = file_dict.get('summary', '')
                 file_dict['status'] = file_dict.get('status', 'Published')
-                file_dict['version'] = file_dict.get('version', '1.0')
-                file_dict['size'] = file_dict.get('size_formatted', '0 B')
-                
+
                 file_dicts.append(file_dict)
-                
+
             return file_dicts
-            
+
         # If no files in database, try S3 as fallback (older files might not be in DB)
         if catalog.type == 's3_folder':
             s3_files = get_s3_catalog_files(catalog.id)
@@ -172,8 +226,8 @@ def get_s3_catalog_files(catalog_id):
             print("Error: No S3 bucket name available")
             return []
             
-        # Use the s3Id as the folder name in S3
-        folder_name = catalog.s3Id
+        # Use the sanitized s3Id as the folder name in S3
+        folder_name = catalog.s3Id  # This is already sanitized
         folder_prefix = f"catalog_dir/{folder_name}"
         s3_files = list_s3_files(bucket_name, folder_prefix)
         
@@ -201,8 +255,11 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             print("Error: No catalog name provided")
             return None
 
-        # Create the S3 folder
-        folder_path = create_s3_folder(bucket_name, catalog_name)
+        # Sanitize catalog name for S3 compatibility
+        sanitized_s3_name = sanitize_s3_folder_name(catalog_name)
+
+        # Create the S3 folder with sanitized name
+        folder_path = create_s3_folder(bucket_name, sanitized_s3_name)
         if not folder_path:
             return None
 
@@ -212,19 +269,19 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             user_email = session.get('user_email')
             user = User.query.filter_by(email=user_email).first()
             user_id = user.id if user else None
-            
+
             new_catalog = Catalog(
-                name=catalog_name,
-                s3Id=catalog_name,
+                name=catalog_name,  # Use original name for display
+                s3Id=sanitized_s3_name,  # Use sanitized name for S3
                 description=description or f"S3 folder in catalog_dir ({catalog_name})",
                 type=catalog_type or 's3_folder',
                 created_by_id=user_id,
                 is_active=True
             )
-            
+
             db.session.add(new_catalog)
             db.session.commit()
-            
+
             return new_catalog.to_dict()
         except Exception as db_error:
             print(f"Database error creating catalog: {db_error}")
@@ -318,8 +375,8 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                 # Create file-like object with new filename
                 custom_file_obj = FileWithCustomName(file_content, new_filename)
 
-                # Upload to S3 using the s3Id from the catalog
-                s3_folder_name = catalog.s3Id
+                # Upload to S3 using the s3Id (sanitized name) from the catalog
+                s3_folder_name = catalog.s3Id  # This is already sanitized
                 s3_key = upload_file_to_s3(bucket_name, s3_folder_name, custom_file_obj,
                                         file_content, content_type)
 

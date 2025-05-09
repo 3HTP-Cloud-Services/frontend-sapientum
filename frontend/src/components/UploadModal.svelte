@@ -1,46 +1,46 @@
 <script>
   import { createEventDispatcher } from 'svelte';
-  
+
   export let show = false;
   export let catalogId = null;
   export let catalogName = '';
   export let i18nStore;
   export let isNewVersion = false;
   export let existingFile = null;
-  
+
   let selectedFiles = [];
   let dragActive = false;
   let isUploading = false;
   let uploadProgress = 0;
-  
+
   const dispatch = createEventDispatcher();
-  
+
   function closeModal() {
     if (isUploading) return;
     dispatch('close');
   }
-  
+
   function handleDragEnter(e) {
     if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = true;
   }
-  
+
   function handleDragLeave(e) {
     if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = false;
   }
-  
+
   function handleDragOver(e) {
     if (isUploading) return;
     e.preventDefault();
     e.stopPropagation();
     dragActive = true;
   }
-  
+
   function handleDrop(e) {
     if (isUploading) return;
     e.preventDefault();
@@ -57,7 +57,7 @@
       }
     }
   }
-  
+
   function handleFileSelect(e) {
     if (isUploading) return;
     if (e.target.files) {
@@ -70,12 +70,12 @@
       }
     }
   }
-  
+
   function removeFile(index) {
     if (isUploading) return;
     selectedFiles = selectedFiles.filter((_, i) => i !== index);
   }
-  
+
   function uploadFiles() {
     isUploading = true;
     uploadProgress = 0;
@@ -114,13 +114,26 @@
         <h2>{isNewVersion ? (i18nStore.t('upload_new_version_title') || 'Upload New Version') : i18nStore.t('upload_documents_title')}</h2>
         <button class="close-button" on:click={closeModal} disabled={isUploading}>×</button>
       </div>
-      
+
       <div class="modal-body">
         <p class="catalog-name-display">
-          {catalogName} {isNewVersion && existingFile ? ` - ${existingFile.name}` : ''}
+          {catalogName}
         </p>
-        
-        <div 
+
+        {#if isNewVersion && existingFile}
+          <div class="file-version-info">
+            <p class="version-info-label">{i18nStore.t('original-filename')}</p>
+            <p class="version-info-value">{existingFile.original_filename || existingFile.name}</p>
+
+            <p class="version-info-label">{i18nStore.t('current-filename')}:</p>
+            <p class="version-info-value">{existingFile.name}</p>
+
+            <p class="version-info-label">{i18nStore.t('current-version')}:</p>
+            <p class="version-info-value">{existingFile.version || '1.0'}</p>
+          </div>
+        {/if}
+
+        <div
           class="dropzone {dragActive ? 'active' : ''} {isUploading ? 'disabled' : ''}"
           on:dragenter={handleDragEnter}
           on:dragleave={handleDragLeave}
@@ -140,10 +153,10 @@
             <p>{isNewVersion ? (i18nStore.t('drop_file_for_new_version') || 'Drop file for new version') : i18nStore.t('drop_files_here')}</p>
           </label>
         </div>
-        
+
         <div class="selected-files-section">
           <h3>{i18nStore.t('selected_files')}</h3>
-          
+
           {#if selectedFiles.length === 0}
             <p class="no-files">{i18nStore.t('no_files_selected')}</p>
           {:else}
@@ -158,18 +171,18 @@
           {/if}
         </div>
       </div>
-      
+
       <div class="modal-footer">
         <button class="cancel-button" on:click={closeModal} disabled={isUploading}>{i18nStore.t('cancel_button')}</button>
-        <button 
-          class="save-button" 
+        <button
+          class="save-button"
           on:click={uploadFiles}
           disabled={selectedFiles.length === 0 || isUploading}
         >
           {isUploading ? i18nStore.t('uploading') || 'Uploading...' : i18nStore.t('upload_button')}
         </button>
       </div>
-      
+
       {#if isUploading}
         <div class="upload-overlay">
           <div class="upload-progress-container">
@@ -196,7 +209,7 @@
     align-items: center;
     z-index: 1000;
   }
-  
+
   .modal-content {
     background-color: white;
     border-radius: 8px;
@@ -206,11 +219,11 @@
     max-height: 90vh;
     overflow-y: auto;
   }
-  
+
   .upload-modal {
     max-width: 600px;
   }
-  
+
   .modal-header {
     display: flex;
     justify-content: space-between;
@@ -218,13 +231,13 @@
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #e2e8f0;
   }
-  
+
   .modal-header h2 {
     margin: 0;
     font-size: 1.25rem;
     color: #2d3748;
   }
-  
+
   .close-button {
     background: none;
     border: none;
@@ -232,18 +245,41 @@
     cursor: pointer;
     color: #718096;
   }
-  
+
   .modal-body {
     padding: 1.5rem;
   }
-  
+
   .catalog-name-display {
     font-weight: 500;
     color: #2d3748;
     margin-bottom: 1rem;
     font-size: 1.1rem;
   }
-  
+
+  .file-version-info {
+    background-color: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 0.5rem;
+  }
+
+  .version-info-label {
+    color: #4a5568;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .version-info-value {
+    color: #2d3748;
+    margin: 0;
+    word-break: break-word;
+  }
+
   .dropzone {
     border: 2px dashed #cbd5e0;
     border-radius: 8px;
@@ -253,12 +289,12 @@
     transition: all 0.2s;
     margin-bottom: 1.5rem;
   }
-  
+
   .dropzone.active {
     border-color: #5970ff;
     background-color: rgba(89, 112, 255, 0.05);
   }
-  
+
   .file-upload-label {
     display: flex;
     flex-direction: column;
@@ -268,29 +304,29 @@
     width: 100%;
     height: 100%;
   }
-  
+
   .upload-icon-large {
     width: 48px;
     height: 48px;
     margin-bottom: 1rem;
   }
-  
+
   .selected-files-section {
     margin-top: 1.5rem;
   }
-  
+
   .selected-files-section h3 {
     margin-top: 0;
     margin-bottom: 0.75rem;
     color: #2d3748;
     font-size: 1rem;
   }
-  
+
   .no-files {
     color: #718096;
     font-style: italic;
   }
-  
+
   .file-list {
     list-style: none;
     padding: 0;
@@ -298,7 +334,7 @@
     max-height: 200px;
     overflow-y: auto;
   }
-  
+
   .file-item {
     display: flex;
     justify-content: space-between;
@@ -306,14 +342,14 @@
     padding: 0.5rem;
     border-bottom: 1px solid #e2e8f0;
   }
-  
+
   .file-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     margin-right: 0.5rem;
   }
-  
+
   .remove-file {
     background: none;
     border: none;
@@ -328,12 +364,12 @@
     justify-content: center;
     border-radius: 50%;
   }
-  
+
   .remove-file:hover {
     background-color: #e2e8f0;
     color: #e53e3e;
   }
-  
+
   .modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -341,7 +377,7 @@
     padding: 1rem 1.5rem;
     border-top: 1px solid #e2e8f0;
   }
-  
+
   .cancel-button {
     background-color: #e2e8f0;
     color: #4a5568;
@@ -351,7 +387,7 @@
     cursor: pointer;
     font-size: 0.875rem;
   }
-  
+
   .save-button {
     background-color: #5970ff;
     color: white;
@@ -361,16 +397,16 @@
     cursor: pointer;
     font-size: 0.875rem;
   }
-  
+
   .save-button:hover {
     background-color: #68D391;
   }
-  
+
   .save-button:disabled {
     background-color: #a0aec0;
     cursor: not-allowed;
   }
-  
+
   .upload-overlay {
     position: absolute;
     top: 0;
@@ -385,7 +421,7 @@
     z-index: 10;
     border-radius: 8px;
   }
-  
+
   .upload-progress-container {
     width: 80%;
     height: 20px;
@@ -394,24 +430,24 @@
     overflow: hidden;
     margin-bottom: 1rem;
   }
-  
+
   .upload-progress-bar {
     height: 100%;
     background-color: #68D391;
     transition: width 0.3s ease;
   }
-  
+
   .upload-status {
     font-size: 1rem;
     color: #2d3748;
     font-weight: 500;
   }
-  
+
   .disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-  
+
   .dropzone.disabled {
     pointer-events: none;
   }
