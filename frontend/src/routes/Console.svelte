@@ -1,6 +1,6 @@
 <script>
   import { link } from 'svelte-spa-router';
-  import { logout, isAuthenticated } from '../lib/auth.js';
+  import { logout, isAuthenticated, userRole } from '../lib/auth.js';
   import { push } from 'svelte-spa-router';
   import { onMount, onDestroy } from 'svelte';
   import { i18nStore } from '../lib/i18n.js';
@@ -159,12 +159,14 @@
             <span class="text">{$i18nStore.t('sidebar_catalogs')}</span>
           </button>
         </li>
+        {#if $userRole === 'admin'}
         <li class={activeSection === 'permissions' ? 'active' : ''}>
           <button on:click={() => switchSection('permissions')}>
             <span class="icon">🔒</span>
             <span class="text">{$i18nStore.t('sidebar_permissions')}</span>
           </button>
         </li>
+        {/if}
         <li class={activeSection === 'chat' ? 'active' : ''}>
           <button on:click={() => switchSection('chat')}>
             <span class="icon">💬</span>
@@ -194,25 +196,45 @@
               activeSectionStore={activeSectionStore}
             />
           {:else if activeSection === 'catalog-permissions'}
-            <Catalog_Permissions
-              switchSection={switchSection}
-              activeSectionStore={activeSectionStore}
-              currentCatalogId={$currentCatalogIdStore}
-              bind:this={catalogPermissionsComponent}
-            />
-            {#if $currentCatalogIdStore}
-              <div style="display: none;">Current ID: {$currentCatalogIdStore}</div>
+            {#if $userRole === 'admin'}
+              <Catalog_Permissions
+                switchSection={switchSection}
+                activeSectionStore={activeSectionStore}
+                currentCatalogId={$currentCatalogIdStore}
+                bind:this={catalogPermissionsComponent}
+              />
+              {#if $currentCatalogIdStore}
+                <div style="display: none;">Current ID: {$currentCatalogIdStore}</div>
+              {/if}
+            {:else}
+              <div class="unauthorized-section">
+                <h2>{$i18nStore.t('access_denied') || 'Access Denied'}</h2>
+                <p>{$i18nStore.t('admin_rights_required') || 'You need administrator rights to access this section.'}</p>
+                <button class="back-button" on:click={() => switchSection('catalog-detail')}>
+                  {$i18nStore.t('back_to_catalog_details') || 'Back to Catalog Details'}
+                </button>
+              </div>
             {/if}
           {:else if activeSection === 'permissions'}
-            <Permissions
-              {users}
-              {loadingUsers}
-              {usersError}
-              {editingUser}
-              {showUserModal}
-              bind:this={permissionsComponent}
-              {activeSectionStore}
-            />
+            {#if $userRole === 'admin'}
+              <Permissions
+                {users}
+                {loadingUsers}
+                {usersError}
+                {editingUser}
+                {showUserModal}
+                bind:this={permissionsComponent}
+                {activeSectionStore}
+              />
+            {:else}
+              <div class="unauthorized-section">
+                <h2>{$i18nStore.t('access_denied') || 'Access Denied'}</h2>
+                <p>{$i18nStore.t('admin_rights_required') || 'You need administrator rights to access this section.'}</p>
+                <button class="back-button" on:click={() => switchSection('catalogs')}>
+                  {$i18nStore.t('back_to_catalogs') || 'Back to Catalogs'}
+                </button>
+              </div>
+            {/if}
           {:else if activeSection === 'chat'}
             <Chat
               {messages}
@@ -464,6 +486,29 @@
     color: #4299e1;
     text-decoration: none;
   }
+
+  .unauthorized-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+
+  .unauthorized-section h2 {
+    color: #e53e3e;
+    margin-bottom: 1rem;
+  }
+
+  .unauthorized-section p {
+    margin-bottom: 2rem;
+    color: #4a5568;
+  }
+
   /* Mobile optimizations */
   @media (max-width: 768px) {
     .console-header {

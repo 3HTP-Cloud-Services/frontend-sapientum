@@ -9,11 +9,15 @@
   export let domains = [];
   export let loadingUsers = false;
   export let usersError = '';
+  export let successMessage = '';
   export let editingUser = null;
   export let showUserModal = false;
   export let activeSectionStore;
   export let allowedDomains = [{ 'id': -1, 'name': '' }];
   export let domainsError = '';
+
+  // Get current user from auth store to check if switching own admin flag
+  import { userEmail } from '../lib/auth.js';
 
   export async function fetchUsers() {
     try {
@@ -31,6 +35,14 @@
       } else if (response.status === 401) {
         // User is not authenticated
         push('/login');
+      } else if (response.status === 403) {
+        // User does not have admin permissions
+        usersError = $i18nStore.t('access_denied_admin_required') || 'Access denied. Admin permissions required.';
+
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData && errorData.error) {
+          usersError = errorData.error;
+        }
       } else {
         console.error('Error fetching users:', response.status, response.statusText);
         usersError = 'Error al cargar usuarios';
@@ -131,6 +143,51 @@
     }
   }
 
+  export async function toggleUserProperty(userId, property) {
+    try {
+      usersError = '';
+      successMessage = '';
+      const response = await fetch(`/api/users/${userId}/toggle/${property}`, {
+        method: 'PUT',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const updatedUser = await response.json();
+        const index = users.findIndex(u => u.id === updatedUser.id);
+        if (index !== -1) {
+          users[index] = updatedUser;
+          users = [...users]; // Trigger reactivity
+
+          // Show success message
+          successMessage = $i18nStore.t('saved_successfully') || 'Changes saved successfully';
+
+          // Clear success message after 3 seconds
+          setTimeout(() => {
+            successMessage = '';
+          }, 3000);
+        }
+      } else {
+        console.error(`Error toggling ${property}:`, response.status);
+        const errorData = await response.json().catch(() => ({}));
+
+        if (response.status === 403) {
+          // Check if it's a specific error message or a general access denied
+          if (errorData.error === 'cannot_remove_own_admin') {
+            usersError = $i18nStore.t('cannot_remove_own_admin') || 'You cannot remove your own administrator permissions.';
+          } else {
+            usersError = errorData.error || $i18nStore.t('access_denied_admin_required') || 'Access denied. Administrator permissions required.';
+          }
+        } else {
+          usersError = errorData.error || `Error al cambiar ${property}`;
+        }
+      }
+    } catch (err) {
+      console.error(`Error toggling ${property}:`, err);
+      usersError = `Error de conexión al cambiar ${property}`;
+    }
+  }
+
   export function closeUserModal() {
     showUserModal = false;
     editingUser = null;
@@ -175,7 +232,17 @@
 
       if (!response.ok) {
         console.error('Error saving domains:', response.status);
-        domainsError = 'Error saving domains';
+
+        if (response.status === 403) {
+          domainsError = $i18nStore.t('access_denied_admin_required') || 'Access denied. Admin permissions required.';
+        } else {
+          domainsError = 'Error saving domains';
+        }
+
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData && errorData.error) {
+          domainsError = errorData.error;
+        }
       }
     } catch (err) {
       console.error('Error saving domains:', err);
@@ -193,6 +260,11 @@
 
 <div class="section-header">
   <h2>{$i18nStore.t('sidebar_permissions')}</h2>
+  {#if successMessage}
+    <div class="success-message" transition:fade={{ duration: 150 }}>
+      {successMessage}
+    </div>
+  {/if}
 </div>
 <div class="permissions-section">
   <div class="permissions-table">
@@ -207,19 +279,52 @@
         <table>
           <thead>
           <tr>
-            <th>{$i18nStore.t('user_column')}</th>
-            <th>{$i18nStore.t('admin_rights_column')}</th>
-            <th>{$i18nStore.t('actions_column')}</th>
+            <th>{$i18nStore.t('user_column') || 'User'}</th>
+            <th>{$i18nStore.t('admin_rights_column') || 'Admin'}</th>
+            <th>{$i18nStore.t('catalog_editor_column') || 'Catalog Editor'}</th>
+            <th>{$i18nStore.t('chat_access_column') || 'Chat Access'}</th>
+            <th>{$i18nStore.t('actions_column') || 'Actions'}</th>
           </tr>
           </thead>
           <tbody>
           {#each users as user}
             <tr>
               <td>{user.email}</td>
-              <td>{user.isAdmin ? $i18nStore.t('yes') : $i18nStore.t('no')}</td>
               <td>
-                <button class="edit-button" on:click={() => editUser(user)}>{$i18nStore.t('edit_button')}</button>
-                <button class="delete-button" on:click={() => deleteUser(user.id)}>{$i18nStore.t('delete_button')}</button>
+                <label class="toggle-switch" class:disabled={user.email === $userEmail && user.isAdmin}>
+                  <input
+                    type="checkbox"
+                    checked={user.isAdmin}
+                    on:change={() => toggleUserProperty(user.id, 'isAdmin')}
+                    disabled={user.email === $userEmail && user.isAdmin}
+                    title={user.email === $userEmail && user.isAdmin ? ($i18nStore.t('cannot_remove_own_admin') || 'You cannot remove your own administrator permissions.') : ''}
+                  >
+                  <span class="toggle-slider round"></span>
+                </label>
+              </td>
+              <td>
+                <label class="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={user.isCatalogEditor}
+                    on:change={() => toggleUserProperty(user.id, 'isCatalogEditor')}
+                  >
+                  <span class="toggle-slider round"></span>
+                </label>
+              </td>
+              <td>
+                <label class="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={user.chatAccess}
+                    on:change={() => toggleUserProperty(user.id, 'chatAccess')}
+                  >
+                  <span class="toggle-slider round"></span>
+                </label>
+              </td>
+              <td>
+                <!-- button class="edit-button" on:click={() => editUser(user)}>{$i18nStore.t('edit_button') || 'Edit'}</button -->
+                <button class="delete-button" on:click={() => deleteUser(user.id)}>{$i18nStore.t('delete_button') || 'Delete'}</button>
               </td>
             </tr>
           {/each}
@@ -483,6 +588,19 @@
     color: #e53e3e;
     margin-bottom: 1rem;
   }
+
+  .success-message {
+    color: #38a169;
+    background-color: #c6f6d5;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    margin-left: 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    display: inline-block;
+    position: relative;
+    top: -2px;
+  }
   .domain_input {
     border: 1px solid green !important;
     background-color: #faffec;
@@ -490,5 +608,81 @@
   }
   .domain_td {
     vertical-align: top;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    min-height: 2.5rem;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 24px;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+  }
+
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+  }
+
+  input:checked + .toggle-slider {
+    background-color: #4299e1;
+  }
+
+  input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #4299e1;
+  }
+
+  input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+  }
+
+  .toggle-slider.round {
+    border-radius: 24px;
+  }
+
+  .toggle-slider.round:before {
+    border-radius: 50%;
+  }
+
+  .toggle-switch.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .toggle-switch.disabled input {
+    cursor: not-allowed;
+  }
+
+  .toggle-switch.disabled .toggle-slider {
+    cursor: not-allowed;
+    background-color: #d1d5db;
   }
 </style>

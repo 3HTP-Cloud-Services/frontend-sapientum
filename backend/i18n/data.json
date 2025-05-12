@@ -94,7 +94,11 @@
         "current-filename": "Nombre actual",
         "original-filename": "Nombre original",
         "drop_file_for_new_version": "Arrastrar archivo para subir una nueva versión",
-        "saving": "Grabando"
+        "saving": "Grabando",
+        "saved_successfully": "Cambios guardados con éxito",
+        "access_denied_admin_required": "Acceso denegado. Se requieren permisos de administrador.",
+        "catalog_editor_column": "Editor de Catálogos",
+        "cannot_remove_own_admin": "No puede quitar sus propios permisos de administrador."
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -191,6 +195,10 @@
         "current-filename": "Current name",
         "original-filename": "Original name",
         "drop_file_for_new_version": "Drop file for new version",
-        "saving": "Saving"
+        "saving": "Saving",
+        "saved_successfully": "Changes saved successfully",
+        "access_denied_admin_required": "Access denied. Administrator permissions required.",
+        "catalog_editor_column": "Catalog Editor",
+        "cannot_remove_own_admin": "You cannot remove your own administrator permissions."
     }
 }

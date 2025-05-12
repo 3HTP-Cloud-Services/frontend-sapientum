@@ -150,8 +150,12 @@ def check_auth():
 @app.route('/api/allowed-domains', methods=['PUT'])
 def allowed_domains():
     if not session.get('logged_in'):
-        print('nani?')
         return jsonify({"error": "No autorizado"}), 401
+
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     data = request.json
     print('allowed_domains', data)
@@ -294,6 +298,12 @@ def get_users_for_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
+    # Check if user is admin
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     catalog_users = CatalogPermission.query.filter_by(catalog_id=catalog_id).all()
     users = []
 
@@ -311,36 +321,48 @@ def get_available_users_for_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
+    # Check if user is admin
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     existing_users_query = db.session.query(CatalogPermission.user_id).filter(CatalogPermission.catalog_id == catalog_id)
     existing_user_ids = [user_id for (user_id,) in existing_users_query]
-    
+
     available_users = User.query.filter(User.is_active == True, ~User.id.in_(existing_user_ids)).all()
-    
+
     return jsonify([user.to_dict() for user in available_users])
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['POST'])
 def add_user_to_catalog(catalog_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
-        
+
+    # Check if user is admin
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     data = request.json
     if not data or 'user_id' not in data or 'permission' not in data:
         return jsonify({"error": "Se requiere user_id y permission"}), 400
-    
+
     user_id = data['user_id']
     permission_value = data['permission']
-    
+
     try:
         permission_type = PermissionType(permission_value)
     except ValueError:
         return jsonify({"error": f"Valor de permiso inválido: {permission_value}"}), 400
-    
+
     try:
         existing_permission = CatalogPermission.query.filter_by(
-            catalog_id=catalog_id, 
+            catalog_id=catalog_id,
             user_id=user_id
         ).first()
-        
+
         if existing_permission:
             existing_permission.permission = permission_type
         else:
@@ -350,7 +372,7 @@ def add_user_to_catalog(catalog_id):
                 permission=permission_type
             )
             db.session.add(new_permission)
-            
+
         db.session.commit()
         return jsonify({"success": True})
     except Exception as e:
@@ -361,16 +383,22 @@ def add_user_to_catalog(catalog_id):
 def remove_user_from_catalog(catalog_id, user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
-    
+
+    # Check if user is admin
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     try:
         permission = CatalogPermission.query.filter_by(
             catalog_id=catalog_id,
             user_id=user_id
         ).first()
-        
+
         if not permission:
             return jsonify({"error": "Permiso no encontrado"}), 404
-            
+
         db.session.delete(permission)
         db.session.commit()
         return jsonify({"success": True})
@@ -740,6 +768,12 @@ def get_users():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
+    # Check if user is admin
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     users = User.query.all()
     domains = Domain.query.all()
 
@@ -753,6 +787,12 @@ def get_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
+    # Check if user is admin
+    user_email = session.get('user_email')
+    current_user = User.query.filter_by(email=user_email).first()
+    if not current_user or not current_user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     user = User.query.get(user_id)
     if user:
         return jsonify(user.to_dict())
@@ -763,6 +803,12 @@ def get_user(user_id):
 def create_user():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
+
+    # Check if user is admin
+    user_email = session.get('user_email')
+    current_user = User.query.filter_by(email=user_email).first()
+    if not current_user or not current_user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     data = request.json
     if not data or not data.get('email'):
@@ -793,6 +839,12 @@ def update_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
+    # Check if user is admin
+    user_email = session.get('user_email')
+    current_user = User.query.filter_by(email=user_email).first()
+    if not current_user or not current_user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
     data = request.json
     if not data:
         return jsonify({"error": "No se proporcionaron datos"}), 400
@@ -814,6 +866,9 @@ def update_user(user_id):
         user.is_admin = data['isAdmin']
         user.role = 'admin' if data['isAdmin'] else 'user'
 
+    if 'isCatalogEditor' in data:
+        user.is_catalog_editor = data['isCatalogEditor']
+
     try:
         db.session.commit()
         return jsonify(user.to_dict())
@@ -822,10 +877,60 @@ def update_user(user_id):
         print(f"Error updating user: {e}")
         return jsonify({"error": "Error al actualizar usuario en la base de datos"}), 500
 
+@app.route('/api/users/<int:user_id>/toggle/<string:property>', methods=['PUT'])
+def toggle_user_property(user_id, property):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    # Check if user is admin
+    user_email = session.get('user_email')
+    current_user = User.query.filter_by(email=user_email).first()
+    if not current_user or not current_user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # Prevent admin from removing their own admin rights
+    if property == 'isAdmin' and user.id == current_user.id and user.is_admin:
+        return jsonify({"error": "cannot_remove_own_admin"}), 403
+
+    allowed_properties = {
+        'isAdmin': 'is_admin',
+        'isCatalogEditor': 'is_catalog_editor',
+        'chatAccess': 'chat_access'
+    }
+
+    if property not in allowed_properties:
+        return jsonify({"error": f"Propiedad '{property}' no válida"}), 400
+
+    db_property = allowed_properties[property]
+    current_value = getattr(user, db_property)
+    setattr(user, db_property, not current_value)
+
+    # Update role if changing admin status
+    if property == 'isAdmin':
+        user.role = 'admin' if not current_value else 'user'
+
+    try:
+        db.session.commit()
+        return jsonify(user.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error toggling user property: {e}")
+        return jsonify({"error": f"Error al cambiar propiedad de usuario: {str(e)}"}), 500
+
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
+
+    # Check if user is admin
+    user_email = session.get('user_email')
+    current_user = User.query.filter_by(email=user_email).first()
+    if not current_user or not current_user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     user = User.query.get(user_id)
     if not user:

@@ -13,6 +13,7 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     role = db.Column(db.String(50), default='user')
     is_admin = db.Column(db.Boolean, default=False)
+    is_catalog_editor = db.Column(db.Boolean, default=False)
     chat_access = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
     is_active = db.Column(db.Boolean, default=True)
@@ -23,6 +24,7 @@ class User(db.Model):
             'email': self.email,
             'chatAccess': self.chat_access,
             'isAdmin': self.is_admin,
+            'isCatalogEditor': self.is_catalog_editor,
             'isActive': self.is_active,
             'role': self.role
         }

@@ -13,6 +13,7 @@
   } from './stores.js';
   import UploadModal from './UploadModal.svelte';
   import EditModal from './EditModal.svelte';
+  import { userRole } from '../lib/auth.js';
 
   export let switchSection;
   export let activeSectionStore;
@@ -241,8 +242,10 @@
             <span class="s3-badge">S3</span>
           {/if}
         </div>
+        {#if $userRole === 'admin'}
         <button class="lock-button" on:click={() => {console.log('Catalog ID:', $selectedCatalogStore.id);viewCatalogPermissions($selectedCatalogStore.id)}}>
           <span class="lock-lock">🔒</span> {$i18nStore.t('catalog_permissions')}</button>
+        {/if}
       </div>
 
       <h3>{$i18nStore.t('documents_title')}</h3>
