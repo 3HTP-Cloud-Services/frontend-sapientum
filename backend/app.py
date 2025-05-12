@@ -633,6 +633,42 @@ def upload_new_version(file_id):
         return jsonify({"error": f"Error uploading new version: {str(e)}"}), 500
 
 
+@app.route('/api/files/<int:file_id>', methods=['PUT'])
+def update_file(file_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    try:
+        file = File.query.get(file_id)
+        if not file:
+            return jsonify({"error": "File not found"}), 404
+
+        data = request.json
+        if not data:
+            return jsonify({"error": "No se proporcionaron datos"}), 400
+
+        if 'description' in data:
+            file.summary = data['description']
+
+        if 'status' in data:
+            file.status = data['status']
+
+        if 'confidentiality' in data:
+            file.confidentiality = bool(data['confidentiality'])
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "file": file.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating file: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error updating file: {str(e)}"}), 500
+
 @app.route('/api/files/<int:file_id>/download', methods=['GET'])
 def download_file(file_id):
     if not session.get('logged_in'):

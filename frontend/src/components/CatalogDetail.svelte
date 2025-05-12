@@ -12,6 +12,7 @@
     fetchCatalogFiles
   } from './stores.js';
   import UploadModal from './UploadModal.svelte';
+  import EditModal from './EditModal.svelte';
 
   export let switchSection;
   export let activeSectionStore;
@@ -21,6 +22,9 @@
   let currentCatalogName = '';
   let currentFile = null;
   let isNewVersion = false;
+
+  let showEditModal = false;
+  let fileToEdit = null;
 
   // For tracking updates
   let updateCount = 0;
@@ -88,6 +92,24 @@
     isNewVersion = false;
   }
 
+  function editFile(file) {
+    // Create a proper copy of the file to avoid reference issues
+    // Always rebuild the fileToEdit object from scratch
+    fileToEdit = null;
+    setTimeout(() => {
+      fileToEdit = JSON.parse(JSON.stringify(file));
+      showEditModal = true;
+    }, 0);
+  }
+
+  function closeEditModal() {
+    showEditModal = false;
+    // Reset fileToEdit on close
+    setTimeout(() => {
+      fileToEdit = null;
+    }, 100);
+  }
+
   async function handleUpload(event) {
     console.log("Uploading files:", event.detail);
     const onComplete = event.detail.onComplete;
@@ -147,6 +169,45 @@
     } catch (error) {
       console.error("Download error:", error);
       alert("Error downloading file. Please try again.");
+    }
+  }
+
+  async function handleFileUpdate(event) {
+    const { id, description, status, confidentiality } = event.detail;
+
+    try {
+      const response = await fetch(`/api/files/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ description, status, confidentiality })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("File update successful:", result);
+
+        if ($selectedCatalogStore) {
+          await fetchCatalogFiles($selectedCatalogStore.id);
+        }
+
+        // After success, close the modal
+        setTimeout(() => {
+          closeEditModal();
+        }, 500); // Small delay to show the success state
+      } else {
+        console.error("File update failed:", response.status, response.statusText);
+        const errorData = await response.json();
+        console.error("Error details:", errorData);
+        alert("Error updating file. Please try again.");
+        closeEditModal(); // Close on error too
+      }
+    } catch (error) {
+      console.error("File update error:", error);
+      alert("Error updating file. Please try again.");
+      closeEditModal(); // Close on error too
     }
   }
 
@@ -210,7 +271,7 @@
             {#each $catalogFilesStore as file}
               <tr>
                 <td>{file.name || ''}</td>
-                <td class="description-cell">{file.description || ''}</td>
+                <td class="description-cell">{file.summary || file.description || ''}</td>
                 <td>
                   {#if file.uploadDate}
                     {(() => {
@@ -238,7 +299,7 @@
                   </span>
                 </td>
                 <td>
-                  <button class="icon-button edit-button" title={$i18nStore.t('edit_document')}>
+                  <button class="icon-button edit-button" on:click={() => editFile(file)} title={$i18nStore.t('edit_document')}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z"/>
                     </svg>
@@ -281,6 +342,14 @@
   existingFile={currentFile}
   on:close={closeUploadModal}
   on:upload={handleUpload}
+/>
+
+<EditModal
+  show={showEditModal}
+  file={fileToEdit}
+  i18nStore={$i18nStore}
+  on:close={closeEditModal}
+  on:update={handleFileUpdate}
 />
 
 <style>

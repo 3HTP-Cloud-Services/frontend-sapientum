@@ -108,11 +108,12 @@ export async function fetchCatalogFiles(id) {
             // Make sure we have all required fields with correct names
             id: file.id || file.s3Id || '',
             name: file.name || '',
-            description: file.description || file.summary || '',
+            description: file.description || '',
+            summary: file.summary || '',
             uploadDate: uploadDate,
             status: file.status || 'Published',
             version: file.version || '1.0',
-            size: file.size || file.size_formatted || '0 B'
+            size: file.size_formatted || file.size || '0 B'
           };
         } catch (error) {
           console.error('Error processing file data:', error, file);

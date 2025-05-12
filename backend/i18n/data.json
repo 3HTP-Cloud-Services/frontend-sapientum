@@ -93,7 +93,8 @@
         "current-version": "Versión actual",
         "current-filename": "Nombre actual",
         "original-filename": "Nombre original",
-        "drop_file_for_new_version": "Arrastrar archivo para subir una nueva versión"
+        "drop_file_for_new_version": "Arrastrar archivo para subir una nueva versión",
+        "saving": "Grabando"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -189,6 +190,7 @@
         "current-version": "Current version",
         "current-filename": "Current name",
         "original-filename": "Original name",
-        "drop_file_for_new_version": "Drop file for new version"
+        "drop_file_for_new_version": "Drop file for new version",
+        "saving": "Saving"
     }
 }
