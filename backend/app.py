@@ -14,7 +14,19 @@ static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
 app.secret_key = os.urandom(24)
-CORS(app, supports_credentials=True)
+
+# Enhanced CORS configuration for embedding
+cors = CORS(
+    app,
+    supports_credentials=True,
+    resources={
+        "/*": {
+            "origins": "*",
+            "allow_headers": ["Content-Type", "Authorization", "Accept"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        }
+    }
+)
 
 db_config = db_utils.get_db_config()
 app.config.update(db_config)
@@ -146,6 +158,22 @@ def check_auth():
             "role": session.get('user_role')
         })
     return jsonify({"authenticated": False}), 401
+
+@app.route('/api/embed/status', methods=['GET', 'OPTIONS'])
+def embed_status():
+    if request.method == 'OPTIONS':
+        return '', 204
+    return jsonify({
+        "status": "ok",
+        "version": "1.0.0",
+        "embedEnabled": True,
+        "features": [
+            "authentication",
+            "catalog_browsing",
+            "document_viewing",
+            "chat"
+        ]
+    })
 
 @app.route('/api/allowed-domains', methods=['PUT'])
 def allowed_domains():
