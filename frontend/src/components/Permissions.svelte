@@ -72,6 +72,7 @@
   }
 
   export async function saveUser() {
+    usersError = '';
     try {
       if (editingUser.id) {
         const response = await fetch(`/api/users/${editingUser.id}`, {
@@ -109,7 +110,25 @@
           users = [...users, newUser]; // Add to local data
         } else {
           console.error('Error creating user:', response.status);
-          usersError = 'Error al crear usuario';
+          const errorData = await response.json().catch(() => ({}));
+
+          if (errorData && errorData.error) {
+            if (errorData.error === 'invalid_email_error') {
+              usersError = $i18nStore.t('invalid_email_error') || 'Invalid email. Must contain a valid domain';
+            } else if (errorData.error === 'no_allowed_domains_error') {
+              usersError = $i18nStore.t('no_allowed_domains_error') || 'No allowed domains are configured';
+            } else if (errorData.error === 'domain_not_allowed_error') {
+              usersError = $i18nStore.t('domain_not_allowed_error') || 'The domain is not in the list of allowed domains';
+              if (errorData.domain) {
+                usersError += `: ${errorData.domain}`;
+              }
+            } else {
+              usersError = errorData.error;
+            }
+          } else {
+            usersError = 'Error al crear usuario';
+          }
+
         }
       }
 
@@ -191,6 +210,7 @@
   export function closeUserModal() {
     showUserModal = false;
     editingUser = null;
+    usersError = '';
   }
 
   function handleSave(event) {
@@ -203,8 +223,55 @@
     allowedDomains = [...allowedDomains, {name: '', id: -1}];
   }
 
-  function removeDomain(i) {
+  async function removeDomain(i) {
     console.log('remove domain', i);
+    const domain = allowedDomains[i];
+
+    // Only call the API if this is an existing domain with a valid ID
+    if (domain && domain.id && domain.id > 0) {
+      try {
+        domainsError = '';
+        const response = await fetch(`/api/allowed-domains/${domain.id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          console.error('Error deleting domain:', response.status);
+
+          if (response.status === 403) {
+            domainsError = $i18nStore.t('access_denied_admin_required') || 'Access denied. Admin permissions required.';
+          } else {
+            domainsError = 'Error deleting domain';
+          }
+
+          const errorData = await response.json().catch(() => ({}));
+          if (errorData && errorData.error) {
+            if (errorData.error === 'domain_in_use_error') {
+              domainsError = $i18nStore.t('domain_in_use_error') || 'Cannot delete domain because there are users associated with it';
+              if (errorData.users && errorData.users.length > 0) {
+                domainsError += `: ${errorData.users.join(', ')}`;
+              }
+            } else {
+              domainsError = errorData.error;
+            }
+          }
+          return; // Don't update local state if API call failed
+        }
+
+        // Display success message
+        successMessage = $i18nStore.t('domain_deleted_successfully') || 'Domain deleted successfully';
+        setTimeout(() => {
+          successMessage = '';
+        }, 3000);
+      } catch (err) {
+        console.error('Error deleting domain:', err);
+        domainsError = 'Connection error while deleting domain';
+        return; // Don't update local state if API call failed
+      }
+    }
+
+    // Update local state
     allowedDomains = allowedDomains.filter((_, index) => index !== i);
   }
 
@@ -376,6 +443,7 @@
   show={showUserModal}
   user={editingUser}
   catalogMode={false}
+  errorMessage={usersError}
   on:close={closeUserModal}
   on:save={handleSave}
 />

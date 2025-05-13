@@ -98,7 +98,12 @@
         "saved_successfully": "Cambios guardados con éxito",
         "access_denied_admin_required": "Acceso denegado. Se requieren permisos de administrador.",
         "catalog_editor_column": "Editor de Catálogos",
-        "cannot_remove_own_admin": "No puede quitar sus propios permisos de administrador."
+        "cannot_remove_own_admin": "No puede quitar sus propios permisos de administrador.",
+        "domain_deleted_successfully": "Dominio eliminado correctamente",
+        "domain_in_use_error": "No se puede eliminar el dominio porque hay usuarios asociados a él",
+        "no_allowed_domains_error": "No hay dominios permitidos configurados",
+        "domain_not_allowed_error": "El dominio no está en la lista de dominios permitidos",
+        "invalid_email_error": "Email inválido. Debe contener un dominio válido"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -199,6 +204,11 @@
         "saved_successfully": "Changes saved successfully",
         "access_denied_admin_required": "Access denied. Administrator permissions required.",
         "catalog_editor_column": "Catalog Editor",
-        "cannot_remove_own_admin": "You cannot remove your own administrator permissions."
+        "cannot_remove_own_admin": "You cannot remove your own administrator permissions.",
+        "domain_deleted_successfully": "Domain deleted successfully",
+        "domain_in_use_error": "Cannot delete domain because there are users associated with it",
+        "no_allowed_domains_error": "No allowed domains are configured",
+        "domain_not_allowed_error": "The domain is not in the list of allowed domains",
+        "invalid_email_error": "Invalid email. Must contain a valid domain"
     }
 }

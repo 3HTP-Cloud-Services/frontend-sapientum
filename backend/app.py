@@ -186,6 +186,41 @@ def allowed_domains():
         print(f"Error saving domains: {e}")
         return jsonify({"error": "Error al guardar dominios en la base de datos"}), 500
 
+@app.route('/api/allowed-domains/<int:domain_id>', methods=['DELETE'])
+def delete_domain(domain_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
+    try:
+        domain = Domain.query.get(domain_id)
+        if not domain:
+            return jsonify({"error": "Dominio no encontrado"}), 404
+
+        domain_name = domain.name
+        if not domain_name.startswith('@'):
+            domain_name = '@' + domain_name
+
+        users_with_domain = User.query.filter(User.email.like(f'%{domain_name}')).all()
+
+        if users_with_domain:
+            return jsonify({
+                "error": "domain_in_use_error",
+                "users": [user.email for user in users_with_domain]
+            }), 400
+
+        db.session.delete(domain)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Dominio eliminado correctamente"})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting domain: {e}")
+        return jsonify({"error": f"Error al eliminar dominio: {str(e)}"}), 500
+
 
 @app.route('/api/i18n', methods=['GET'])
 def get_translations():
@@ -814,12 +849,33 @@ def create_user():
     if not data or not data.get('email'):
         return jsonify({"error": "El email es requerido"}), 400
 
-    existing_user = User.query.filter_by(email=data.get('email')).first()
+    email = data.get('email')
+    existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         return jsonify({"error": "El email ya está en uso"}), 400
 
+    try:
+        domain_part = email.split('@')[1]
+    except (IndexError, AttributeError):
+        return jsonify({"error": "invalid_email_error"}), 400
+
+    allowed_domains = Domain.query.all()
+    domain_list = []
+    for domain in allowed_domains:
+        domain_name = domain.name
+        if domain_name.startswith('@'):
+            domain_list.append(domain_name[1:])
+        else:
+            domain_list.append(domain_name)
+
+    if not domain_list:
+        return jsonify({"error": "no_allowed_domains_error"}), 400
+
+    if domain_part not in domain_list:
+        return jsonify({"error": "domain_not_allowed_error", "domain": domain_part}), 400
+
     new_user = User(
-        email=data.get('email'),
+        email=email,
         chat_access=data.get('chatAccess', False),
         is_admin=data.get('isAdmin', False),
         role="admin" if data.get('isAdmin', False) else "user"

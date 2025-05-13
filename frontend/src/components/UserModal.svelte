@@ -6,6 +6,7 @@
   export let user;
   export let catalogMode = false;
   export let catalogId = null;
+  export let errorMessage = '';
 
   let availableUsers = [];
   let loading = false;
@@ -98,6 +99,10 @@
   <div class="modal-backdrop">
     <div class="modal">
       <h2>{user.id ? $i18nStore.t('edit_user') : $i18nStore.t('add_new_user')}</h2>
+
+      {#if errorMessage}
+        <p class="error">{errorMessage}</p>
+      {/if}
 
       {#if catalogMode && !user.id}
         {#if loading}
