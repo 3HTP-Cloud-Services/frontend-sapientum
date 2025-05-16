@@ -27,7 +27,33 @@ A simple document management application with authentication, built with Svelte 
    ```
    python app.py
    ```
-   The backend will run at http://localhost:5000
+   The backend will run at http://localhost:8000
+   
+   By default, static files are served from the static folder. If you want to disable static file serving, set the environment variable:
+   ```
+   export STATIC_MODE=false
+   ```
+
+### Running on EC2 or Another AWS Service
+
+When running on an EC2 instance or another AWS service with an IAM role attached:
+
+1. Set the `EC2_ROLE` environment variable to `true`:
+   ```
+   export EC2_ROLE=true
+   ```
+   
+   You can also add this to your startup script or systemd service file:
+   ```
+   Environment="EC2_ROLE=true"
+   ```
+
+2. Make sure the IAM role attached to your EC2 instance has the necessary permissions:
+   - SecretsManager access to read database credentials
+   - S3 access for file storage
+   - Any other AWS services your application uses
+
+This configuration tells the application to use the instance profile credentials instead of trying to assume a role.
 
 ### Frontend Setup
 

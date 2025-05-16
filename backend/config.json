@@ -1,4 +1,5 @@
 {
   "connection_secret": "arn:aws:secretsmanager:us-east-1:369595298303:secret:sapientum_connection-I7Q8Mc",
-  "database_name": "postgres"
+  "database_name": "postgres",
+  "aws_role_arn": "arn:aws:iam::369595298303:role/sapientum_role"
 }

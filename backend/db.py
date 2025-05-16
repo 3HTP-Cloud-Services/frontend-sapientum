@@ -8,6 +8,14 @@ from botocore.exceptions import ClientError
 # Global variable to store the S3 bucket name
 S3_BUCKET_NAME = None
 
+def get_aws_role_arn():
+    """Load AWS Role ARN from config.json"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, 'config.json')
+    with open(config_path, 'r') as config_file:
+        config = json.load(config_file)
+        return config.get('aws_role_arn')
+
 def get_db_config():
     """Get database configuration from secret manager"""
     global S3_BUCKET_NAME
@@ -73,12 +81,18 @@ def get_secret(secret_arn):
     print(f"Fetching database credentials from secret ARN: {secret_arn}")
 
     try:
-        # Check if we're running locally or in Lambda
+        # Check if EC2_ROLE environment variable is set to indicate we're on EC2
+        is_ec2 = os.environ.get('EC2_ROLE', 'false').lower() == 'true'
+        # Also check for Lambda
         is_lambda = os.environ.get('AWS_EXECUTION_ENV', '').startswith('AWS_Lambda_')
 
-        if is_lambda:
-            # In Lambda, we already have the necessary IAM role permissions
-            session = boto3.session.Session()
+        if is_lambda or is_ec2:
+            # In Lambda or EC2, we already have the necessary IAM role attached
+            if is_ec2:
+                print("Running on EC2, using instance profile credentials")
+            else:
+                print("Running in Lambda, using function role credentials")
+                
             client = boto3.client(
                 service_name='secretsmanager',
                 region_name='us-east-1'
@@ -87,10 +101,15 @@ def get_secret(secret_arn):
             # Running locally, assume the role first
             print("Running locally, assuming role for AWS access")
 
+            # Get the AWS role ARN from config
+            role_arn = get_aws_role_arn()
+            if not role_arn:
+                raise ValueError("AWS Role ARN not found in config")
+
             sts_client = boto3.client('sts', region_name='us-east-1')
 
             response = sts_client.assume_role(
-                RoleArn='arn:aws:iam::369595298303:role/sapientum_role',
+                RoleArn=role_arn,
                 RoleSessionName=f'AssumeRoleSession-{int(time.time())}',
                 DurationSeconds=3600
             )

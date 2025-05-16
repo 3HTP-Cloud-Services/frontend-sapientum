@@ -34,7 +34,8 @@ run:
 static:
 	@echo "Building Svelte app as a static site..."
 	cd frontend && npm run build
-	@echo "Static site built in frontend/dist/"
+	@cp -r frontend/dist/* backend/static/	
+	@echo "Static site built in frontend/dist/ copied to backend/static"
 
 # Serve the static site with Flask
 serve-static: kill-ports static

@@ -1033,7 +1033,7 @@ def delete_user(user_id):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static_files(path):
-    static_mode = os.environ.get('STATIC_MODE', 'false').lower() == 'true'
+    static_mode = os.environ.get('STATIC_MODE', 'true').lower() == 'true'  # Default to true
 
     if not static_mode:
         return jsonify({"error": "No encontrado"}), 404
@@ -1108,9 +1108,9 @@ def init_db_command():
         return False
 
 if __name__ == '__main__':
-    static_mode = os.environ.get('STATIC_MODE', 'false').lower() == 'true'
+    static_mode = os.environ.get('STATIC_MODE', 'true').lower() == 'true'
     if static_mode:
         print(f"Ejecutando en MODO ESTÁTICO - sirviendo archivos estáticos desde {static_folder}")
 
-    print(f"Servidor ejecutándose en http://localhost:8000")
-    app.run(debug=True, port=8000)
+    print(f"Servidor ejecutándose en http://0.0.0.0:8000")
+    app.run(host='0.0.0.0', port=8000)
