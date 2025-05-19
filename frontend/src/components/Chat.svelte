@@ -1,7 +1,10 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
+  
+  // Check if we're in embedded mode
+  const isEmbedded = window.isEmbedded || false;
 
   export let messages = [];
 
@@ -111,20 +114,23 @@
   }
 </script>
 
-<div class="section-header">
-  <h2>{$i18nStore.t('chat_title')}</h2>
-  <div class="chat-buttons">
-    <button on:click={() => {messages = [
-      {
-        id: 1,
-        type: 'system',
-        content: $i18nStore.t('ai_welcome'),
-        timestamp: new Date()
-      }
-    ]}} class="clear-button">{$i18nStore.t('clear_chat')}</button>
+{#if !isEmbedded}
+  <!-- In normal mode, show header with title and clear button -->
+  <div class="section-header">
+    <h2>{$i18nStore.t('chat_title')}</h2>
+    <div class="chat-buttons">
+      <button on:click={() => {messages = [
+        {
+          id: 1,
+          type: 'system',
+          content: $i18nStore.t('ai_welcome'),
+          timestamp: new Date()
+        }
+      ]}} class="clear-button">{$i18nStore.t('clear_chat')}</button>
+    </div>
   </div>
-</div>
-<div class="chat-section">
+{/if}
+<div class="chat-section" class:embedded-chat={isEmbedded}>
   <div class="chat-container">
     <div class="chat-messages" bind:this={messagesContainer}>
       {#each messages as message (message.id)}
@@ -245,6 +251,19 @@
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.875rem;
+  }
+  
+  /* Styles for embedded mode */
+  .embedded-chat {
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .embedded-chat .chat-container {
+    height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
   }
 
 </style>

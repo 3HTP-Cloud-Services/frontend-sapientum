@@ -1,6 +1,6 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
 
   export let show = false;
   export let user;

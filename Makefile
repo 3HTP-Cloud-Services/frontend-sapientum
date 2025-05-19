@@ -1,4 +1,4 @@
-.PHONY: setup-backend setup-frontend setup build-backend build-frontend build run static clean serve-static kill-ports
+.PHONY: setup-backend setup-frontend setup build-backend build-frontend build run static clean serve-static kill-ports init-frontend
 
 # Setup both backend and frontend
 setup: setup-backend setup-frontend
@@ -20,32 +20,43 @@ build-backend:
 
 # Build frontend for development
 build-frontend:
+	@echo "Syncing shared components..."
+	@./sync-shared.sh
+	@echo "Building main frontend..."
 	cd frontend && npm run build
+	@echo "Building embed frontend..."
+	cd embed-frontend && npm run build
 
 # Run both applications together
 run: 
-	@echo "Starting Flask backend and Svelte frontend..."
+	@echo "Syncing shared components..."
+	@./sync-shared.sh
+	@echo "Starting Flask backend and both Svelte frontends..."
 	@trap 'kill 0' SIGINT SIGTERM EXIT; \
 	(cd backend && python app.py) & \
 	(cd frontend && npm run dev) & \
+	(cd embed-frontend && npm run dev) & \
 	wait
 
 # Build frontend as a static site
 static:
-	@echo "Building Svelte app as a static site..."
+	@echo "Syncing shared components..."
+	@./sync-shared.sh
+	@echo "Building Svelte apps as static sites..."
 	cd frontend && npm run build
-	@cp -r frontend/dist/* backend/static/	
-	@echo "Static site built in frontend/dist/ copied to backend/static"
+	@mkdir -p backend/static/app
+	@cp -r frontend/dist/* backend/static/app/
+	cd embed-frontend && npm run build
+	@mkdir -p backend/static/embed
+	@cp -r embed-frontend/dist/* backend/static/embed/
+	@echo "Static sites built and copied to backend/static/" 
 
 # Serve the static site with Flask
 serve-static: kill-ports static
 	@echo "Creating Flask static server..."
-	@mkdir -p backend/static
-	@rm -rf backend/static/* # Clear previous static files
-	@cp -r frontend/dist/* backend/static/
 	@echo "Setting correct permissions..."
 	@chmod -R 755 backend/static
-	@echo "Serving static site with Flask..."
+	@echo "Serving static sites with Flask..."
 	@trap 'kill 0' SIGINT SIGTERM EXIT; \
 	cd backend && STATIC_MODE=true python app.py
 
@@ -57,11 +68,12 @@ clean:
 	find . -name __pycache__ -type d -exec rm -rf {} +
 	find . -name "*.pyc" -delete
 	
-# Kill processes using specific ports (8000 for Flask, 5173 for Vite)
+# Kill processes using specific ports (8000 for Flask, 5173 and 5573 for Vite)
 kill-ports:
-	@echo "Killing processes on ports 8000 and 5173..."
+	@echo "Killing processes on ports 8000, 5173, and 5573..."
 	-@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	-@lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+	-@lsof -ti:5573 | xargs kill -9 2>/dev/null || true
 	@echo "Ports cleared."
 
 # Check Python files for syntax correctness (excluding .venv directory)
@@ -71,3 +83,10 @@ lint-backend:
 	@find backend -name "*.py" -type f -not -path "*/\.venv/*" -exec echo "Checking {}" \; -exec python -m py_compile {} \;
 	@find backend -name "*.py" -type f -not -path "*/\.venv/*" -exec echo "Checking {}" \; -exec pylint {} \;
 	@echo "Syntax check completed."
+
+# Initialize frontend projects with npm install
+init-frontend:
+	@echo "Installing dependencies for frontend projects..."
+	cd frontend && npm install
+	cd ../embed-frontend && npm install
+	@echo "Dependencies installed successfully."

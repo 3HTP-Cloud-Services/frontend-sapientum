@@ -1,7 +1,25 @@
-# Svelte 5 + Flask App
+# Sapientum Application with Shared Components
 
-A simple document management application with authentication, built with Svelte 5 frontend and Flask backend.
+This application consists of two separate frontends that share common components:
 
+1. **Main Frontend** (port 5173) - Full application with all features
+2. **Chat-only Frontend** (port 5573) - Streamlined interface with only chat functionality
+
+Both frontends connect to the same backend API.
+
+## Project Structure
+
+```
+/svelte_flask/
+  /backend/                  # Flask backend API
+  /frontend/                 # Main Svelte application
+  /embed-frontend/           # Chat-only Svelte application
+  /shared-components/        # Shared UI components and utilities
+    /Header/                 # Shared header component
+    /Login/                  # Shared login component
+    /Chat/                   # Shared chat component
+    /utils/                  # Shared utilities (auth, i18n)
+```
 
 ## Setup Instructions
 
@@ -55,7 +73,7 @@ When running on an EC2 instance or another AWS service with an IAM role attached
 
 This configuration tells the application to use the instance profile credentials instead of trying to assume a role.
 
-### Frontend Setup
+### Main Frontend Setup
 
 1. Navigate to the frontend directory:
    ```
@@ -71,13 +89,46 @@ This configuration tells the application to use the instance profile credentials
    ```
    npm run dev
    ```
-   The frontend will run at http://localhost:5173
+   The main frontend will run at http://localhost:5173
+
+### Chat-only Frontend Setup
+
+1. Navigate to the embed-frontend directory:
+   ```
+   cd embed-frontend
+   ```
+
+2. Install dependencies:
+   ```
+   npm install
+   ```
+
+3. Run the development server:
+   ```
+   npm run dev
+   ```
+   The chat-only frontend will run at http://localhost:5573
+
+### Starting All Applications at Once
+
+Use the provided script to start all applications:
+```
+./start-apps.sh
+```
 
 ## Usage
 
-1. Access the application at http://localhost:5173
-2. Login with username: `user` and password: `user123`
-3. Browse the document list and view document details
+1. Access the main application at http://localhost:5173
+2. Access the chat-only application at http://localhost:5573
+3. Login with username: `user` and password: `user123`
+
+## Embedding Architecture
+
+- The main application includes all features (catalogs, permissions, chat)
+- The chat-only application includes only the header and chat interface
+- Both applications share common UI components through the shared-components directory
+- The backend detects embedded mode based on the origin/referer headers
+- In embedded mode, users must have chat access permission to use the application
 
 ## API Endpoints
 

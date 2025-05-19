@@ -1,26 +1,27 @@
 <script>
   import { link } from 'svelte-spa-router';
-  import { logout, isAuthenticated, userRole } from '../lib/auth.js';
+  import { logout, isAuthenticated, userRole } from '@shared/utils/auth.js';
   import { push } from 'svelte-spa-router';
   import { onMount, onDestroy } from 'svelte';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore, setLocale } from '@shared/utils/i18n.js';
   import { writable } from 'svelte/store';
   import { fade, fly } from 'svelte/transition';
-  
+
+  // Import shared components
+  import Header from '@shared/Header/Header.svelte';
+
   // Store for passing catalog ID between components
   const currentCatalogIdStore = writable(null);
 
   import Catalog from '../components/Catalog.svelte';
   import Catalog_Permissions from '../components/Catalog_Permissions.svelte';
   import Permissions from '../components/Permissions.svelte';
-  import Chat from '../components/Chat.svelte';
+  import Chat from '@shared/Chat/Chat.svelte';
+
+  // Check if we're in embedded mode
+  const isEmbedded = window.isEmbedded || false;
 
   $: i18n = $i18nStore;
-  function setLocale(locale) {
-    if ($i18nStore) {
-      $i18nStore.locale = locale;
-    }
-  }
 
   const activeSectionStore = writable('catalogs');
   // Active section state
@@ -103,13 +104,43 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     if ($isAuthenticated) {
-      const savedSection = localStorage.getItem('activeConsoleSection');
-      if (savedSection) {
-        activeSection = savedSection;
-        $activeSectionStore = savedSection;
-        localStorage.removeItem('activeConsoleSection'); // Clear after use
+      if (isEmbedded) {
+        // In embedded mode, always start with chat section
+        console.log('Starting in embedded mode, checking chat access...');
+        activeSection = 'chat';
+        $activeSectionStore = 'chat';
+
+        // Check if user has chat access
+        try {
+          const response = await fetch('/api/check-chat-access', {
+            credentials: 'include'
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Chat access check result:', data);
+            if (!data.has_access) {
+              // If no chat access, log out
+              console.log('User does not have chat access, logging out');
+              await logout();
+              push('/login');
+            }
+          } else {
+            console.error('Error checking chat access');
+          }
+        } catch (error) {
+          console.error('Network error checking chat access:', error);
+        }
+      } else {
+        // Normal mode - load saved section
+        const savedSection = localStorage.getItem('activeConsoleSection');
+        if (savedSection) {
+          activeSection = savedSection;
+          $activeSectionStore = savedSection;
+          localStorage.removeItem('activeConsoleSection'); // Clear after use
+        }
       }
     }
 
@@ -131,50 +162,44 @@
   });
 </script>
 
-<div class="console">
-  <header class="console-header">
-    <h1>{$i18nStore.t('title')}</h1>
-    <div class="header-controls">
-      <div>
-        <button class={`locale_button en_button ${$i18nStore.locale === 'en' ? 'selected' : ''}`}
-                on:click={() => setLocale('en')}>English</button>
-        <button class={`locale_button es_button ${$i18nStore.locale === 'es' ? 'selected' : ''}`}
-                on:click={() => setLocale('es')}>Español</button>
-      </div>
-      <div class="logout_container">
-        <button class="logout-button" on:click={handleLogout}>{$i18nStore.t('logout')}</button>
-      </div>
-    </div>
-  </header>
+<div class="console hide-in-embed">
+  <!-- Hide header and sidebar in embedded mode -->
+  {#if !isEmbedded}
+    <Header
+      title={$i18nStore.t('title')}
+      handleLogout={handleLogout}
+      showAdminControls={$userRole === 'admin'}
+    />
+  {/if}
 
-  <div class="console-container">
-    <nav class="sidebar" class:collapsed={sidebarCollapsed} class:mobile={isMobile}>
-      <div class="sidebar-toggle" on:click={toggleSidebar}>
-        <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
-      </div>
-      <ul>
-        <li class={activeSection === 'catalogs' || activeSection === 'catalog-detail' || activeSection === 'catalog-permissions' ? 'active' : ''}>
-          <button on:click={() => switchSection('catalogs')}>
-            <span class="icon">📄</span>
-            <span class="text">{$i18nStore.t('sidebar_catalogs')}</span>
-          </button>
-        </li>
-        {#if $userRole === 'admin'}
-        <li class={activeSection === 'permissions' ? 'active' : ''}>
-          <button on:click={() => switchSection('permissions')}>
-            <span class="icon">🔒</span>
-            <span class="text">{$i18nStore.t('sidebar_permissions')}</span>
-          </button>
-        </li>
-        {/if}
-        <li class={activeSection === 'chat' ? 'active' : ''}>
-          <button on:click={() => switchSection('chat')}>
-            <span class="icon">💬</span>
-            <span class="text">{$i18nStore.t('sidebar_chat')}</span>
-          </button>
-        </li>
-      </ul>
-    </nav>
+  <div class="console-container" class:embedded-mode={isEmbedded}>
+    {#if !isEmbedded}
+      <nav class="sidebar" class:collapsed={sidebarCollapsed} class:mobile={isMobile}>
+        <div class="sidebar-toggle" on:click={toggleSidebar}>
+          <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
+        </div>
+        <ul>
+          <li class={activeSection === 'catalogs' || activeSection === 'catalog-detail' || activeSection === 'catalog-permissions' ? 'active' : ''}>
+            <button on:click={() => switchSection('catalogs')}>
+              <span class="icon">📄</span>
+              <span class="text">{$i18nStore.t('sidebar_catalogs')}</span>
+            </button>
+          </li>
+          <li class={activeSection === 'permissions' ? 'active' : ''}>
+            <button on:click={() => switchSection('permissions')}>
+              <span class="icon">🔒</span>
+              <span class="text">{$i18nStore.t('sidebar_permissions')}</span>
+            </button>
+          </li>
+          <li class={activeSection === 'chat' ? 'active' : ''}>
+            <button on:click={() => switchSection('chat')}>
+              <span class="icon">💬</span>
+              <span class="text">{$i18nStore.t('sidebar_chat')}</span>
+            </button>
+          </li>
+        </ul>
+      </nav>
+    {/if}
 
     <main class="content" class:expanded={sidebarCollapsed}>
       {#key activeSection}
@@ -228,7 +253,7 @@
               />
             {:else}
               <div class="unauthorized-section">
-                <h2>{$i18nStore.t('access_denied') || 'Access Denied'}</h2>
+                <h2>{$i18nStore.t('access_denied') || 'Access Denied'} eee</h2>
                 <p>{$i18nStore.t('admin_rights_required') || 'You need administrator rights to access this section.'}</p>
                 <button class="back-button" on:click={() => switchSection('catalogs')}>
                   {$i18nStore.t('back_to_catalogs') || 'Back to Catalogs'}
@@ -461,6 +486,13 @@
 
   .content.expanded {
     margin-left: 0; /* Don't use negative margin which causes horizontal scroll */
+  }
+
+  /* Styles for embedded mode */
+  .embedded-mode .content {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    height: 100vh;
   }
 
   @media (max-width: 768px) {

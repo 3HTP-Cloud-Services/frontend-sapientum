@@ -2,22 +2,28 @@
   import Router from 'svelte-spa-router';
   import { push, location } from 'svelte-spa-router';
   import { onMount } from 'svelte';
-  import { isAuthenticated, checkAuth } from './lib/auth.js';
-  import { i18nStore, initializeI18n } from './lib/i18n.js';
+  import { isAuthenticated, checkAuth } from '@shared/utils/auth.js';
+  import { i18nStore, initializeI18n } from '@shared/utils/i18n.js';
   import Login from './routes/Login.svelte';
   import Console from './routes/Console.svelte';
+  import EmbeddedApp from './routes/EmbeddedApp.svelte';
   import { writable } from 'svelte/store';
 
   const routes = {
     '/': Console,
     '/console': Console,
     '/login': Login,
+    '/embedded': EmbeddedApp,
+    '/embedded/*': EmbeddedApp,
   };
 
   // Add a loading indicator
   const isLoading = writable(true);
   const isEmbedded = window.isEmbedded || false;
   const embeddedTheme = window.embeddedTheme || 'light';
+  
+  // Check if we're in embedded mode from URL
+  const inEmbeddedMode = $location && ($location.startsWith('/embedded'));
 
   // Message handler for embedded mode
   function handleMessage(event) {
@@ -36,7 +42,7 @@
 
   // Send message to parent (if in embedded mode)
   function sendMessageToParent(message) {
-    if (isEmbedded && window.parent && window.parent !== window) {
+    if ((isEmbedded || inEmbeddedMode) && window.parent && window.parent !== window) {
       window.parent.postMessage(message, '*');
     }
   }
@@ -50,7 +56,7 @@
     }
 
     // Set up message event listener for embedded mode
-    if (isEmbedded) {
+    if (isEmbedded || inEmbeddedMode) {
       window.addEventListener('message', handleMessage);
     }
 
@@ -68,9 +74,16 @@
       await checkAuth();
     }
 
-    // If the route is empty, go to the console
-    if ($location === '' || $location === '/') {
-      console.log('Empty location detected, pushing to console');
+    // Route handling based on mode
+    if (isEmbedded || inEmbeddedMode) {
+      // If we're in embedded mode but not on an embedded route, redirect to embedded
+      if (!$location.startsWith('/embedded')) {
+        console.log('Embedded mode detected, redirecting to embedded route');
+        push('/embedded');
+      }
+    } else if ($location === '' || $location === '/') {
+      // If regular mode and the route is empty, go to the console
+      console.log('Empty location detected in regular mode, pushing to console');
       push('/console');
     }
 
@@ -78,7 +91,7 @@
     isLoading.set(false);
 
     // Notify parent when navigation occurs (for embedded mode)
-    if (isEmbedded) {
+    if (isEmbedded || inEmbeddedMode) {
       sendMessageToParent({
         type: 'sapientum:navigationChanged',
         path: $location
@@ -87,7 +100,7 @@
 
     return () => {
       // Clean up event listener
-      if (isEmbedded) {
+      if (isEmbedded || inEmbeddedMode) {
         window.removeEventListener('message', handleMessage);
       }
     };
@@ -95,7 +108,7 @@
 
   // Watch for route changes and notify parent in embedded mode
   $: {
-    if (isEmbedded && !isLoading) {
+    if ((isEmbedded || inEmbeddedMode) && !isLoading) {
       sendMessageToParent({
         type: 'sapientum:navigationChanged',
         path: $location
@@ -103,16 +116,20 @@
     }
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (except for embedded routes)
   $: {
-    if (!$isAuthenticated && $location !== '/login' && $location !== '' && $location !== '/') {
+    if (!$isAuthenticated && 
+        $location !== '/login' && 
+        $location !== '' && 
+        $location !== '/' && 
+        !$location.startsWith('/embedded')) {
       console.log('Not authenticated, redirecting to login from', $location);
       push('/login');
     }
   }
 </script>
 
-<div class="container" class:embedded={isEmbedded} data-theme={embeddedTheme}>
+<div class="container" class:embedded={isEmbedded || inEmbeddedMode} data-theme={embeddedTheme}>
   {#if $isLoading}
     <div class="loading">Loading application...</div>
   {:else}

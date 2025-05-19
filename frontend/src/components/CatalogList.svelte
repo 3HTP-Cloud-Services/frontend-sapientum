@@ -1,7 +1,7 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { fade } from 'svelte/transition';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
   import { createEventDispatcher, onMount } from 'svelte';
   import {
     catalogsStore,

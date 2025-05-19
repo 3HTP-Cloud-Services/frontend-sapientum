@@ -2,7 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
   import UserModal from './UserModal.svelte';
 
   export let users = [];
@@ -17,7 +17,7 @@
   export let domainsError = '';
 
   // Get current user from auth store to check if switching own admin flag
-  import { userEmail } from '../lib/auth.js';
+  import { userEmail } from '@shared/utils/auth.js';
 
   export async function fetchUsers() {
     try {

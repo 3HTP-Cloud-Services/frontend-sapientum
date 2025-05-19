@@ -2,12 +2,15 @@ import { writable } from 'svelte/store';
 import './app.css'
 import './embedded.css'
 import App from './App.svelte'
-import {isAuthenticated} from "./lib/auth.js";
+import {isAuthenticated} from "@shared/utils/auth.js";
 
 // Parse URL parameters
 const urlParams = new URLSearchParams(window.location.search);
-const isEmbedded = urlParams.get('embedded') === 'true';
 const theme = urlParams.get('theme') || 'light';
+
+// Check if we're in embedded mode (either by route or query param)
+const isEmbedded = urlParams.get('embedded') === 'true' || 
+                   window.location.pathname.startsWith('/embedded');
 
 // Set a flag for static mode at the global level
 window.isStaticMode = window.location.pathname === '/' &&

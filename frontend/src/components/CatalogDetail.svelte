@@ -1,5 +1,5 @@
 <script>
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
   import { onMount, beforeUpdate, afterUpdate } from 'svelte';
   import {
     selectedCatalogStore,
@@ -13,7 +13,7 @@
   } from './stores.js';
   import UploadModal from './UploadModal.svelte';
   import EditModal from './EditModal.svelte';
-  import { userRole } from '../lib/auth.js';
+  import { userRole } from '@shared/utils/auth.js';
 
   export let switchSection;
   export let activeSectionStore;

@@ -8,12 +8,70 @@ from models import db, User, Domain, CatalogPermission, Catalog, PermissionType,
 import db as db_utils
 import traceback
 from datetime import datetime
+from werkzeug.local import LocalProxy
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
 app.secret_key = os.urandom(24)
+
+def get_config():
+    """Get app configuration from config.json"""
+    config_path = os.path.join(current_dir, 'config.json')
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        app.logger.error(f"Error loading config.json: {e}")
+        return {}
+
+# Function to check if a request is from an embedded context
+def is_embedded_request():
+    """
+    Determine if the current request is from an embedded context.
+    Returns True if the request origin is not in the allowed non-embedded origins.
+    """
+    config = get_config()
+    non_embedded_origins = config.get('non_embedded_origins', [])
+    
+    # Check origin header
+    origin, referer = print_origin()
+
+    if origin and origin in non_embedded_origins:
+        print('NOT EMBEDDED ACTUALLY')
+        return False
+
+    print('EMBEDDED ACTUALLY')
+
+    # Check referer header as fallback
+    if referer:
+        for allowed_origin in non_embedded_origins:
+            if referer.startswith(allowed_origin):
+                return False
+    
+
+
+    # Default to False if neither header is present
+    return False
+
+
+def print_origin():
+    origin = request.headers.get('Origin')
+    referer = request.headers.get('Referer')
+    # If not explicitly from a non-embedded origin, assume it's embedded
+    # if origin or referer:
+    #     embedded = True
+    print("\n" + "*" * 50)
+    print("*" + " " * 48 + "*")
+    print("*" + " " * 15 + "EMBEDDED REQUEST" + " " * 15 + "*")
+    print("*" + " " * 48 + "*")
+    print("*" + " " * 10 + f"Origin: {origin or 'None'}" + " " * 10 + "*")
+    print("*" + " " * 10 + f"Referer: {referer or 'None'}" + " " * 10 + "*")
+    print("*" + " " * 48 + "*")
+    print("*" * 50 + "\n")
+    return origin, referer
+
 
 # Enhanced CORS configuration for embedding
 cors = CORS(
@@ -128,13 +186,26 @@ def login():
     user = User.query.filter_by(email=email).first()
 
     if user and password == "user123":  # Hardcoded password check for simplicity
+        # Check if this is an embedded request
+        embedded = is_embedded_request()
+        
+        # Check if the user has chat access when in embedded mode
+        if embedded and not user.chat_access:
+            return jsonify({
+                "success": False, 
+                "message": "You do not have access to chat functionality, which is required for embedded mode",
+                "error": "no_chat_access"
+            }), 403
+            
         session['logged_in'] = True
         session['user_email'] = email
         session['user_role'] = user.role
+        session['is_embedded'] = embedded
 
         return jsonify({
             "success": True,
-            "role": user.role
+            "role": user.role,
+            "is_embedded": embedded
         })
 
     if not user:
@@ -147,15 +218,20 @@ def logout():
     session.pop('logged_in', None)
     session.pop('user_email', None)
     session.pop('user_role', None)
+    session.pop('is_embedded', None)
     return jsonify({"success": True})
 
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
     if session.get('logged_in'):
+        # Get embedded status from session or check current request
+        embedded = session.get('is_embedded', is_embedded_request())
+        
         return jsonify({
             "authenticated": True,
             "email": session.get('user_email'),
-            "role": session.get('user_role')
+            "role": session.get('user_role'),
+            "is_embedded": embedded
         })
     return jsonify({"authenticated": False}), 401
 
@@ -173,6 +249,33 @@ def embed_status():
             "document_viewing",
             "chat"
         ]
+    })
+
+@app.route('/api/check-chat-access', methods=['GET'])
+def check_chat_access():
+    if not session.get('logged_in'):
+        return jsonify({
+            "has_access": False,
+            "error": "Not authenticated"
+        }), 401
+    
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    
+    if not user:
+        return jsonify({
+            "has_access": False,
+            "error": "User not found"
+        }), 404
+    
+    # Check if this is an embedded request
+    embedded = is_embedded_request()
+    
+    return jsonify({
+        "has_access": user.chat_access,
+        "is_admin": user.is_admin,
+        "user_email": user.email,
+        "is_embedded": embedded
     })
 
 @app.route('/api/allowed-domains', methods=['PUT'])
@@ -266,32 +369,6 @@ def get_translations():
             "i18n_warning": "Error al obtener traducción",
         }
     return jsonify(TRANSLATIONS)
-
-@app.route('/api/i18n', methods=['POST'])
-def update_translations():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    data = request.json
-    if not data:
-        return jsonify({"error": "No se proporcionaron datos"}), 400
-
-    if 'language' not in data or 'updates' not in data:
-        return jsonify({"error": "Se requiere 'language' y 'updates'"}), 400
-
-    language = data['language']
-    updates = data['updates']
-
-    if language not in TRANSLATIONS:
-        return jsonify({"error": f"Idioma '{language}' no soportado"}), 400
-
-    for key, value in updates.items():
-        if key in TRANSLATIONS[language]:
-            TRANSLATIONS[language][key] = value
-        else:
-            return jsonify({"error": f"Clave de traducción '{key}' no encontrada"}), 400
-
-    return jsonify({"success": True, "message": "Traducciones actualizadas correctamente"})
 
 @app.route('/api/catalogs', methods=['GET'])
 def get_catalogs():
@@ -810,6 +887,7 @@ def download_file(file_id):
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    print('helo chat')
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 

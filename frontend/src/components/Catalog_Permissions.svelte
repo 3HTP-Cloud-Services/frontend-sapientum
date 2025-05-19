@@ -2,7 +2,7 @@
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
   import UserModal from './UserModal.svelte';
 
   export let switchSection;

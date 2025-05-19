@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
   import { fade } from 'svelte/transition';
-  import { i18nStore } from '../lib/i18n.js';
+  import { i18nStore } from '@shared/utils/i18n.js';
 
   export let documents = [];
   export let loading = true;
