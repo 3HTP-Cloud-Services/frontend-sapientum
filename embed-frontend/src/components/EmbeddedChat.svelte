@@ -2,7 +2,9 @@
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import { i18nStore, initializeI18n } from '@shared/utils/i18n.js';
+
   import { writable } from 'svelte/store';
+  import { logout , isAuthenticated } from '../lib/auth.js';
 
   export let messages = [];
   export let userInput = '';
@@ -17,6 +19,28 @@
         timestamp: new Date(Date.now() - 60000)
       }
     ];
+  }
+
+  export let handleLogout = async () => {
+    try {
+      // Create and dispatch a custom event before logging out
+      const logoutEvent = new CustomEvent('app-logout');
+      window.dispatchEvent(logoutEvent);
+      
+      // Perform the actual logout API call
+      await logout();
+      
+      // Use window.location for a hard redirect
+      window.location.hash = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  function setLocale(locale) {
+    if ($i18nStore) {
+      $i18nStore.locale = locale;
+    }
   }
 
   function scrollToBottom() {
@@ -44,10 +68,10 @@
 
     try {
       // Simple request with just the message
-      const requestBody = { 
+      const requestBody = {
         message: messageToSend
       };
-      
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -73,7 +97,7 @@
       } else {
         console.error('Error from chat API:', response.status);
 
-        let fallbackResponse = $i18nStore.t('chat_connection_error') || 
+        let fallbackResponse = $i18nStore.t('chat_connection_error') ||
           "I'm having trouble connecting to the server. Please try again later.";
 
         messages = [...messages, {
@@ -88,9 +112,9 @@
     } catch (error) {
       console.error('Network error when calling chat API:', error);
 
-      let errorMessage = $i18nStore.t('chat_connection_error') || 
+      let errorMessage = $i18nStore.t('chat_connection_error') ||
         "I'm having trouble connecting to the server. Please try again later.";
-      
+
       messages = [...messages, {
         id: messages.length + 1,
         type: 'system',
@@ -116,12 +140,20 @@
 </script>
 
 <div class="embedded-chat">
-  <!-- Chat header -->
   <div class="chat-header">
     <h2>{$i18nStore?.t('chat_title') || 'Chat'}</h2>
+
+    <div class="language-selector">
+      <button class={`locale-button ${$i18nStore.locale === 'en' ? 'selected' : ''}`}
+              on:click={() => setLocale('en')}>English</button>
+      <button class={`locale-button ${$i18nStore.locale === 'es' ? 'selected' : ''}`}
+              on:click={() => setLocale('es')}>Español</button>
+    </div>
+    <div class="logout-container">
+      <button class="logout-button" on:click={handleLogout}>{$i18nStore?.t('logout') || 'Logout'}</button>
+    </div>
   </div>
 
-  <!-- Chat interface -->
   <div class="chat-container">
     <div class="chat-messages" bind:this={messagesContainer}>
       {#each messages as message (message.id)}
@@ -145,6 +177,62 @@
 </div>
 
 <style>
+  .chat-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: #4a5568;
+    padding: 0.75rem 1rem;
+    color: white;
+  }
+
+  .chat-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    flex: 1;
+  }
+
+  .language-selector {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0;
+    margin-right: 1rem;
+  }
+
+  .logout-container {
+    min-width: 150px; /* Adjust this value based on your largest text */
+  }
+
+  .logout-button {
+    background-color: #e53e3e;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  .locale-button {
+    margin: 0 4px;
+    color: white;
+    background-color: #718096;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .locale-button.selected {
+    background-color: #4a72b3;
+    border: 2px solid white;
+  }
+
+  .locale-button:hover {
+    opacity: 0.9;
+  }
+
   .embedded-chat {
     display: flex;
     flex-direction: column;
@@ -157,17 +245,6 @@
     right: 0;
     bottom: 0;
     z-index: 9999;
-  }
-
-  .chat-header {
-    background-color: #4a5568;
-    padding: 0.75rem 1rem;
-    color: white;
-  }
-
-  .chat-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
   }
 
   .chat-container {
@@ -252,7 +329,7 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
-  
+
   .loading-container {
     display: flex;
     flex-direction: column;
@@ -262,7 +339,7 @@
     width: 100%;
     color: #4a5568;
   }
-  
+
   .loading-spinner {
     width: 40px;
     height: 40px;
@@ -272,7 +349,7 @@
     animation: spin 1s linear infinite;
     margin-bottom: 1rem;
   }
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }

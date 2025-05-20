@@ -17,11 +17,11 @@
   async function handleSubmit() {
     error = '';
     isLoading = true;
-    
+
     const result = await login(username, password);
-    
+
     isLoading = false;
-    
+
     if (result.success) {
       push('/');
     } else {
@@ -38,12 +38,6 @@
 </script>
 
 <div class="login-container">
-  <div class="language-selector">
-    <button class={`locale_button ${$i18nStore.locale === 'en' ? 'selected' : ''}`}
-            on:click={() => setLocale('en')}>English</button>
-    <button class={`locale_button ${$i18nStore.locale === 'es' ? 'selected' : ''}`}
-            on:click={() => setLocale('es')}>Español</button>
-  </div>
   <h1>{$i18nStore.t('login_title')}</h1>
 
   <form on:submit|preventDefault={handleSubmit}>
@@ -52,7 +46,7 @@
     {/if}
 
     <div class="form-group">
-      <label for="username">{$i18nStore.t('username')}</label>
+      <label for="username">{$i18nStore.t('username')} snncxc</label>
       <input
         type="text"
         id="username"
@@ -118,7 +112,7 @@
     background-color: rgba(255, 107, 107, 0.1);
     border-radius: 4px;
   }
-  
+
   input:disabled, button:disabled {
     opacity: 0.7;
     cursor: not-allowed;

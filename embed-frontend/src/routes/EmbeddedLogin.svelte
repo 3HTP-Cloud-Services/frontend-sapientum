@@ -9,7 +9,7 @@
   let error = '';
   let isLoading = false;
   let hasChatAccess = false;
-  
+
   // Check if we're in chatOnly mode
   const urlParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const chatOnly = urlParams.get('chatOnly') === 'true';
@@ -23,13 +23,13 @@
   async function handleSubmit() {
     error = '';
     isLoading = true;
-    
+
     const result = await login(username, password);
-    
+
     if (result.success) {
       // Check if the user has chat access
       hasChatAccess = await checkChatAccess();
-      
+
       if (hasChatAccess) {
         push('/embedded/chat');
       } else {
@@ -44,22 +44,22 @@
     } else {
       error = result.message || 'Login failed';
     }
-    
+
     isLoading = false;
   }
 
-  // Initialize i18n directly 
+  // Initialize i18n directly
   onMount(async () => {
     // Initialize i18n if needed
     console.log('EmbeddedLogin mounted');
-    
+
     // Check if already authenticated
     const isAuth = await checkAuth();
-    
+
     if (isAuth) {
       // Check if user has chat access
       hasChatAccess = await checkChatAccess();
-      
+
       if (hasChatAccess) {
         push('/embedded/chat');
       } else {
@@ -81,7 +81,7 @@
     <button class={`locale-button ${$i18nStore?.locale === 'es' ? 'selected' : ''}`}
             on:click={() => setLocale('es')}>Español</button>
   </div>
-  
+
   <div class="login-form">
     <h1>{$i18nStore?.t('embedded_login_title') || 'Chat Login'}</h1>
 
@@ -91,7 +91,7 @@
       {/if}
 
       <div class="form-group">
-        <label for="username">{$i18nStore?.t('username') || 'Username'}</label>
+        <label for="username">{$i18nStore?.t('username') || 'Username'} cccc</label>
         <input
           type="text"
           id="username"
@@ -217,7 +217,7 @@
     border-radius: 4px;
     font-size: 0.9rem;
   }
-  
+
   .loading-container {
     display: flex;
     flex-direction: column;
@@ -226,7 +226,7 @@
     height: 100%;
     color: #4a5568;
   }
-  
+
   .loading-spinner {
     width: 40px;
     height: 40px;
@@ -236,7 +236,7 @@
     animation: spin 1s linear infinite;
     margin-bottom: 1rem;
   }
-  
+
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }

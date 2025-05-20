@@ -2,7 +2,8 @@
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
   import { i18nStore } from '../lib/i18n.js';
-  
+  import Header from './components/Header.svelte';
+
   // Check if we're in embedded mode
   const isEmbedded = window.isEmbedded || false;
 
@@ -252,14 +253,14 @@
     cursor: pointer;
     font-size: 0.875rem;
   }
-  
+
   /* Styles for embedded mode */
   .embedded-chat {
     height: 100vh;
     margin: 0;
     padding: 0;
   }
-  
+
   .embedded-chat .chat-container {
     height: 100vh;
     border-radius: 0;

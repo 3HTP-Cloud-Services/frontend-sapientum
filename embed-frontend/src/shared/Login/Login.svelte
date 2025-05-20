@@ -21,11 +21,11 @@
   async function handleSubmit() {
     error = '';
     isLoading = true;
-    
+
     const result = await login(username, password);
-    
+
     isLoading = false;
-    
+
     if (result.success) {
       push(redirectTo);
     } else {
@@ -159,7 +159,7 @@
     cursor: pointer;
     margin-top: 1rem;
   }
-  
+
   input:disabled, button:disabled {
     opacity: 0.7;
     cursor: not-allowed;
