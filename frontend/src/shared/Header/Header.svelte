@@ -10,7 +10,7 @@
     push('/login');
   };
   export let title = "Sapientum";
-
+  
   function setLocale(locale) {
     if ($i18nStore) {
       $i18nStore.locale = locale;
@@ -87,10 +87,6 @@
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
-  }
-
-  .logout-button:hover {
-    background-color: #f54e4e;
   }
 
   /* Mobile optimizations */

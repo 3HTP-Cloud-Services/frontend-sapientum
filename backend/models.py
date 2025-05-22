@@ -169,3 +169,27 @@ class Version(db.Model):
             'original_file': self.file.name,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+class Conversation(db.Model):
+    __tablename__ = 'conversations'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(1024), default='', nullable=False)
+    # should be set by the AI afterwards to group conversations.
+    speaker_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    speaker = db.relationship('User', backref='sent_messages', lazy=True)
+    catalog_id = db.Column(db.Integer, db.ForeignKey('catalogs.id'), nullable=False)
+    catalog = db.relationship('Catalog', backref='messages', lazy=True)
+    session_id = db.Column(db.String(1024), default='', nullable=False)
+    # do note that the session_id may change later if the conversation is old enough
+    # are we interested in old session ids? I gather we are not
+
+class Message(db.Model):
+    __tablename__ = 'messages'
+    def __repr__(self):
+        return f"Message(id={self.id}, speaker='{self.speaker}', receiver='{self.receiver}', subject='{self.subject}')"
+    id = db.Column(db.Integer, primary_key=True)
+    is_request = db.Column(db.Boolean, default=False, nullable=False) # false for responses from the AI
+    prompt = db.Column(db.Text, default='', nullable=True)
+    # should be null for requests, save the prompt that generated the response for responses
+    message = db.Column(db.Text, default='', nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)

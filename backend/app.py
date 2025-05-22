@@ -9,6 +9,7 @@ import db as db_utils
 import traceback
 from datetime import datetime
 from werkzeug.local import LocalProxy
+from chat import generate_ai_response
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -122,58 +123,6 @@ USERS = [
     }
 ]
 
-DOCUMENTS = [
-    {
-        "id": 1,
-        "title": "Procedimientos de Evaluación de Competencia de IA",
-        "content": "Este documento describe métricas para medir el rendimiento de la IA incluyendo precisión, tiempo de respuesta y amplitud de conocimiento. El documento también analiza estrategias de implementación para diversos contextos organizacionales y mejores prácticas para evaluar la competencia de IA en diferentes dominios. La evaluación debe incluir tanto métricas cuantitativas como evaluaciones cualitativas."
-    },
-    {
-        "id": 2,
-        "title": "Estrategias de Implementación para Sistemas de IA",
-        "content": "Este documento describe estrategias de implementación para sistemas de IA en varios contextos organizacionales, incluyendo mejores prácticas para despliegue e integración. Cubre consideraciones técnicas, gestión de partes interesadas y técnicas de mitigación de riesgos. El documento también proporciona un marco para evaluar la preparación organizacional para la adopción de IA."
-    },
-    {
-        "id": 3,
-        "title": "Casos de Estudio de Implementación de IA",
-        "content": "Este documento proporciona casos de estudio de implementaciones exitosas de IA con análisis detallado de resultados y lecciones aprendidas. Cada caso de estudio examina los desafíos enfrentados, soluciones implementadas y resultados logrados. El documento concluye con patrones comunes y mejores prácticas derivadas de estos ejemplos del mundo real."
-    }
-]
-
-def generate_ai_response(user_query):
-    responses = {
-        'hola': '¡Hola! ¿Cómo puedo ayudarte hoy?',
-        'ayuda': 'Puedo ayudarte con resúmenes de documentos, responder preguntas sobre el sistema o proporcionar orientación sobre la evaluación de competencia de IA.',
-        'documento': '¿Qué documento te gustaría que resuma o proporcione información?',
-        'resumir': 'Puedo resumir documentos para ti. Por favor, especifica qué documento te gustaría que resuma.',
-        'permisos': 'Los permisos de usuario son administrados por los administradores. Hay diferentes niveles de acceso para documentos y funcionalidad de chat.',
-        'hello': '¡Hola! ¿Cómo puedo ayudarte hoy?',
-        'help': 'Puedo ayudarte con resúmenes de documentos, responder preguntas sobre el sistema o proporcionar orientación sobre la evaluación de competencia de IA.',
-    }
-
-    doc_responses = {}
-    for doc in DOCUMENTS:
-        doc_id = str(doc['id'])
-        doc_title = doc['title'].lower()
-        doc_responses[f'document {doc_id}'] = f"{doc['title']} - {doc['content'][:150]}..."
-        doc_responses[doc_title] = f"{doc['title']} - {doc['content'][:150]}..."
-
-    all_responses = {**responses, **doc_responses}
-
-    lower_query = user_query.lower()
-
-    for keyword, response in all_responses.items():
-        if keyword in lower_query:
-            return response
-
-    for doc in DOCUMENTS:
-        title_words = doc['title'].lower().split()
-        for word in title_words:
-            if len(word) > 3 and word in lower_query:
-                return f"Encontré un documento que podría interesarte: {doc['title']} - {doc['content'][:100]}..."
-
-    return "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
-
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
@@ -199,6 +148,7 @@ def login():
             
         session['logged_in'] = True
         session['user_email'] = email
+        session['user_id'] = user.id
         session['user_role'] = user.role
         session['is_embedded'] = embedded
 
@@ -887,17 +837,19 @@ def download_file(file_id):
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    print('helo chat')
+    print('helo chat: ', session.get('user_id'))
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
 
     data = request.json
     user_message = data.get('message', '')
-
+    catalog = data.get('catalog', '')
+    conversation = data.get('conversation', '')
+    print('data: ', user_message, catalog)
     if not user_message:
         return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
-    ai_response = generate_ai_response(user_message)
+    ai_response = generate_ai_response(user_message, catalog, conversation, session.get('user_id'))
 
     return jsonify({
         "response": ai_response,

@@ -93,6 +93,7 @@
     try {
       // Add catalog ID to the request
       const requestBody = {
+        conversation: -1, // for now let's just create a new conversation 
         message: messageToSend,
         catalogId: selectedCatalogId
       };
