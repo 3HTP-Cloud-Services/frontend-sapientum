@@ -80,7 +80,7 @@
     }
 
     isLoading.set(false);
-    
+
     // Clean up event listener
     return () => {
       window.removeEventListener('app-logout', handleLogoutEvent);
