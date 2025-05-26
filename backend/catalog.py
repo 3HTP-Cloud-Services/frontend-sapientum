@@ -6,7 +6,7 @@ from aws_utils import (
     create_s3_folder
 )
 from db import get_bucket_name
-from models import db, Catalog, User, File, Version
+from models import db, Catalog, User, File, Version, Conversation
 from flask import session
 import traceback
 from datetime import datetime
@@ -278,7 +278,6 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
                 created_by_id=user_id,
                 is_active=True
             )
-
             db.session.add(new_catalog)
             db.session.commit()
 

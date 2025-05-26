@@ -1,5 +1,6 @@
 # models.py
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.sql import func
 import enum
 
@@ -182,12 +183,15 @@ class Conversation(db.Model):
     session_id = db.Column(db.String(1024), default='', nullable=False)
     # do note that the session_id may change later if the conversation is old enough
     # are we interested in old session ids? I gather we are not
+    __table_args__ = (UniqueConstraint('speaker_id', 'catalog_id', name='unique_user_catalog_conversation'),)
 
 class Message(db.Model):
     __tablename__ = 'messages'
     def __repr__(self):
-        return f"Message(id={self.id}, speaker='{self.speaker}', receiver='{self.receiver}', subject='{self.subject}')"
+        return f"Message(id={self.id}, conversation='{self.conversation_id}')"
     id = db.Column(db.Integer, primary_key=True)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('conversations.id'), nullable=False)
+    conversation = db.relationship('Conversation', backref='messages', lazy=True)
     is_request = db.Column(db.Boolean, default=False, nullable=False) # false for responses from the AI
     prompt = db.Column(db.Text, default='', nullable=True)
     # should be null for requests, save the prompt that generated the response for responses

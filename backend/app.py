@@ -10,6 +10,7 @@ import traceback
 from datetime import datetime
 from werkzeug.local import LocalProxy
 from chat import generate_ai_response
+from urllib.parse import quote
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
@@ -811,7 +812,7 @@ def download_file(file_id):
 
         s3_key = active_version.s3Id
         filename = active_version.filename
-
+        encoded_filename = quote(filename.encode('utf-8'))
         s3_client = get_client_with_assumed_role('s3')
 
         try:
@@ -826,13 +827,15 @@ def download_file(file_id):
                 file_content,
                 mimetype=s3_response.get('ContentType', 'application/octet-stream'),
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
+                    "Content-Disposition": f"attachment; filename={encoded_filename}"
                 }
             )
         except Exception as e:
+            traceback.print_exc()
             return jsonify({"error": f"Error retrieving file from S3: {str(e)}"}), 500
 
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
 @app.route('/api/chat', methods=['POST'])
@@ -843,13 +846,12 @@ def chat():
 
     data = request.json
     user_message = data.get('message', '')
-    catalog = data.get('catalog', '')
-    conversation = data.get('conversation', '')
+    catalog = data.get('catalogId', '')
     print('data: ', user_message, catalog)
     if not user_message:
         return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
-    ai_response = generate_ai_response(user_message, catalog, conversation, session.get('user_id'))
+    ai_response = generate_ai_response(user_message, catalog, session.get('user_id'))
 
     return jsonify({
         "response": ai_response,

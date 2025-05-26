@@ -1,10 +1,6 @@
 from datetime import datetime
 
-from flask_sqlalchemy import SQLAlchemy
-
-from models import Conversation, Message
-
-db = SQLAlchemy()
+from models import db, Conversation, Message
 
 DOCUMENTS = [
     {
@@ -24,14 +20,21 @@ DOCUMENTS = [
     }
 ]
 
-def generate_ai_response(user_query, catalog_id=None, conversation_id=None, user_id=None):
+def get_conversation(user_id, catalog_id):
+    existing_conversation = Conversation.query.filter_by(
+        speaker_id=user_id,
+        catalog_id=catalog_id
+    ).first()
 
-    #first, let's create a convo if one does not exist.
-    if conversation_id == -1:
-        # create the convo
-        conversation_id = create_new_conversation(user_id, catalog_id)
+    if existing_conversation:
+        return existing_conversation.id
 
-    #now, create the message that came in
+    conversation = create_new_conversation(user_id, catalog_id)
+    return conversation.id
+
+def generate_ai_response(user_query, catalog_id=None, user_id=None):
+    conversation_id = get_conversation(user_id, catalog_id)
+
     message_in = Message(
         conversation_id = conversation_id,
         is_request = True,
@@ -69,7 +72,7 @@ def generate_ai_response(user_query, catalog_id=None, conversation_id=None, user
         prompt = 'system prompt',
         created_at=datetime.now()
     )
-
+    print("creating ", str(message_out))
     for keyword, response in all_responses.items():
         if keyword in lower_query:
             message_out.response = response
@@ -99,4 +102,5 @@ def create_new_conversation(user_id, catalog_id):
     )
     db.session.add(conversation)
     db.session.commit()
+    print(f"Created new conversation with ID {conversation.id} {conversation.title}")
     return conversation
