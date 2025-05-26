@@ -1,12 +1,14 @@
 <script>
   import { push } from 'svelte-spa-router';
   import { onMount } from 'svelte';
-  import { i18nStore, initializeI18n } from '@shared/utils/i18n.js';
+  import { i18nStore, initializeI18n } from '../utils/i18n.js';
 
   import { writable } from 'svelte/store';
-  import { logout , isAuthenticated } from '../lib/auth.js';
+  import { logout , isAuthenticated } from '../utils/auth.js';
 
-  import Header from '../components/Header.svelte';
+  import Header from '../Header/Header.svelte';
+
+  export let isEmbedded = true;
 
   export const catalogsStore = writable([]);
 
@@ -214,8 +216,10 @@
   });
 </script>
 
-<div class="embedded-chat">
+<div class={ isEmbedded? 'embedded-chat' : '' }>
+  {#if isEmbedded}
   <Header handleLogout={handleLogout} title="Sapientum Chat" />
+  {/if}
 
   <div class="catalog-list">
     {#each $catalogsStore as catalog (catalog.id)}

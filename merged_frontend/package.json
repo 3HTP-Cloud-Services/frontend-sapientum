@@ -1,0 +1,19 @@
+{
+  "name": "merged-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "embed-frontend"
+  ],
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:embed": "cd embed-frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "build:embed": "cd embed-frontend && npm run build",
+    "preview:frontend": "cd frontend && npm run preview",
+    "preview:embed": "cd embed-frontend && npm run preview",
+    "install:all": "npm install && cd frontend && npm install && cd ../embed-frontend && npm install"
+  }
+}
