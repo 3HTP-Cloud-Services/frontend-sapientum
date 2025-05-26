@@ -33,7 +33,6 @@
   .header {
     background-color: #4a5568;
     color: white;
-    padding: 0 1rem;
     height: 60px;
     position: sticky;
     top: 0;

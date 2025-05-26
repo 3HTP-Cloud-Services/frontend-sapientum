@@ -17,7 +17,7 @@
   export let domainsError = '';
 
   // Get current user from auth store to check if switching own admin flag
-  import { userEmail } from '@shared/utils/auth.js';
+  import { userEmail } from '../../../shared-components/utils/auth.js';
 
   export async function fetchUsers() {
     try {

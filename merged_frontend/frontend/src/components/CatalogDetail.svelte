@@ -13,7 +13,7 @@
   } from './stores.js';
   import UploadModal from './UploadModal.svelte';
   import EditModal from './EditModal.svelte';
-  import { userRole } from '@shared/utils/auth.js';
+  import { userRole } from '../../../shared-components/utils/auth.js';
 
   export let switchSection;
   export let activeSectionStore;
