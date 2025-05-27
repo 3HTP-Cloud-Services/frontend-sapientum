@@ -7,18 +7,21 @@ export default defineConfig({
   base: './',  // Use relative paths for assets
   resolve: {
     alias: {
-      '@shared': path.resolve(__dirname, 'src/shared')
-    }
+      '@shared': path.resolve(__dirname, '../shared-components')
+    },
+    // Help Vite find dependencies for shared components
+    preserveSymlinks: false
   },
   optimizeDeps: {
-    include: ['i18n-js']
+    include: ['svelte-spa-router', 'i18n-js']
   },
   build: {
     commonjsOptions: {
       include: [/node_modules/, /shared-components/]
     },
     rollupOptions: {
-      external: ['i18n-js']
+      // Don't externalize these dependencies
+      external: []
     }
   },
   server: {

@@ -19,11 +19,66 @@
   let selectedCatalogId = null;
   let messagesContainer;
 
-  function selectCatalog(id) {
-    selectedCatalogId = id;
-    // Initialize messages for this catalog if they don't exist
-    if (!$messagesByCatalog[id]) {
-      const initialMessage = {
+  async function loadConversationMessages(catalogId) {
+    try {
+      const response = await fetch(`/api/conversations/${catalogId}`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const messages = await response.json();
+        
+        // Convert timestamps and add proper message structure
+        const formattedMessages = messages.map(msg => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+        }));
+
+        // If no messages exist, add welcome message
+        if (formattedMessages.length === 0) {
+          formattedMessages.push({
+            id: 1,
+            type: 'system',
+            content: $i18nStore?.t('ai_welcome') || 'Welcome! How can I help you today?',
+            timestamp: new Date(Date.now() - 60000)
+          });
+        }
+
+        messagesByCatalog.update(msgs => ({
+          ...msgs,
+          [catalogId]: formattedMessages
+        }));
+
+        // Scroll to bottom after messages are loaded, but only for the currently selected catalog
+        if (catalogId === selectedCatalogId) {
+          setTimeout(scrollToBottom, 100);
+        }
+      } else {
+        console.error('Error loading conversation messages:', response.status);
+        // Fallback to welcome message
+        const welcomeMessage = {
+          id: 1,
+          type: 'system',
+          content: $i18nStore?.t('ai_welcome') || 'Welcome! How can I help you today?',
+          timestamp: new Date(Date.now() - 60000)
+        };
+
+        messagesByCatalog.update(msgs => ({
+          ...msgs,
+          [catalogId]: [welcomeMessage]
+        }));
+
+        // Scroll to bottom after welcome message, but only for the currently selected catalog
+        if (catalogId === selectedCatalogId) {
+          setTimeout(scrollToBottom, 100);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading conversation messages:', error);
+      // Fallback to welcome message
+      const welcomeMessage = {
         id: 1,
         type: 'system',
         content: $i18nStore?.t('ai_welcome') || 'Welcome! How can I help you today?',
@@ -32,32 +87,42 @@
 
       messagesByCatalog.update(msgs => ({
         ...msgs,
-        [id]: [initialMessage]
+        [catalogId]: [welcomeMessage]
       }));
+
+      // Scroll to bottom after welcome message, but only for the currently selected catalog
+      if (catalogId === selectedCatalogId) {
+        setTimeout(scrollToBottom, 100);
+      }
     }
   }
 
-  // Initialize the first catalog when data loads
+  function selectCatalog(id) {
+    selectedCatalogId = id;
+    // Load conversation messages for this catalog if they don't exist
+    if (!$messagesByCatalog[id]) {
+      loadConversationMessages(id);
+    } else {
+      // If messages already exist, scroll to bottom immediately
+      setTimeout(scrollToBottom, 50);
+    }
+  }
+
+  // Initialize the first catalog when data loads and preload conversations for all catalogs
   $: if ($catalogsStore.length && selectedCatalogId === null) {
+    // Select the first catalog
     selectCatalog($catalogsStore[0]?.id);
+    
+    // Preload conversation messages for all catalogs asynchronously
+    $catalogsStore.forEach(catalog => {
+      if (!$messagesByCatalog[catalog.id]) {
+        loadConversationMessages(catalog.id);
+      }
+    });
   }
 
   // Current messages for the selected catalog
   $: currentMessages = selectedCatalogId ? ($messagesByCatalog[selectedCatalogId] || []) : [];
-
-  // Initial welcome message for each new catalog
-  $: if ($i18nStore && Object.keys($messagesByCatalog).length === 0 && $catalogsStore.length > 0) {
-    const initialMessages = {};
-    $catalogsStore.forEach(catalog => {
-      initialMessages[catalog.id] = [{
-        id: 1,
-        type: 'system',
-        content: $i18nStore?.t('ai_welcome') || 'Welcome! How can I help you today?',
-        timestamp: new Date(Date.now() - 60000)
-      }];
-    });
-    messagesByCatalog.set(initialMessages);
-  }
 
   export let handleLogout = async () => {
     try {
@@ -90,14 +155,16 @@
   async function sendMessage() {
     if (!userInput.trim() || !selectedCatalogId) return;
 
+    // Generate a temporary ID for optimistic updates (will be replaced by real DB ID)
+    const tempId = Date.now();
     const userMessage = {
-      id: (currentMessages.length + 1),
+      id: tempId,
       type: 'user',
       content: userInput,
       timestamp: new Date()
     };
 
-    // Update messages for the selected catalog
+    // Optimistically add user message to UI
     messagesByCatalog.update(msgs => ({
       ...msgs,
       [selectedCatalogId]: [...(msgs[selectedCatalogId] || []), userMessage]
@@ -109,9 +176,8 @@
     setTimeout(scrollToBottom, 0);
 
     try {
-      // Add catalog ID to the request
       const requestBody = {
-        conversation: -1, // for now let's just create a new conversation
+        conversation: -1,
         message: messageToSend,
         catalogId: selectedCatalogId
       };
@@ -128,21 +194,29 @@
       if (response.ok) {
         const data = await response.json();
 
-        // Add the response to the current catalog's messages
+        // Add AI response
+        const aiMessage = {
+          id: Date.now() + 1, // Temporary ID
+          type: 'system',
+          content: data.response,
+          timestamp: new Date()
+        };
+
         messagesByCatalog.update(msgs => {
           const catalogMessages = msgs[selectedCatalogId] || [];
           return {
             ...msgs,
-            [selectedCatalogId]: [...catalogMessages, {
-              id: catalogMessages.length + 1,
-              type: 'system',
-              content: data.response,
-              timestamp: new Date()
-            }]
+            [selectedCatalogId]: [...catalogMessages, aiMessage]
           };
         });
 
         setTimeout(scrollToBottom, 0);
+        
+        // Reload conversation to get real IDs from database
+        setTimeout(() => {
+          loadConversationMessages(selectedCatalogId);
+        }, 100);
+        
       } else if (response.status === 401) {
         push('/embedded/login');
       } else {
@@ -151,17 +225,18 @@
         let fallbackResponse = $i18nStore.t('chat_connection_error') ||
                 "I'm having trouble connecting to the server. Please try again later.";
 
-        // Add error message to the current catalog
+        const errorMessage = {
+          id: Date.now() + 1,
+          type: 'system',
+          content: fallbackResponse,
+          timestamp: new Date()
+        };
+
         messagesByCatalog.update(msgs => {
           const catalogMessages = msgs[selectedCatalogId] || [];
           return {
             ...msgs,
-            [selectedCatalogId]: [...catalogMessages, {
-              id: catalogMessages.length + 1,
-              type: 'system',
-              content: fallbackResponse,
-              timestamp: new Date()
-            }]
+            [selectedCatalogId]: [...catalogMessages, errorMessage]
           };
         });
 
@@ -173,16 +248,18 @@
       let errorMessage = $i18nStore.t('chat_connection_error') ||
               "I'm having trouble connecting to the server. Please try again later.";
 
+      const errorMsg = {
+        id: Date.now() + 1,
+        type: 'system',
+        content: errorMessage,
+        timestamp: new Date()
+      };
+
       messagesByCatalog.update(msgs => {
         const catalogMessages = msgs[selectedCatalogId] || [];
         return {
           ...msgs,
-          [selectedCatalogId]: [...catalogMessages, {
-            id: catalogMessages.length + 1,
-            type: 'system',
-            content: errorMessage,
-            timestamp: new Date()
-          }]
+          [selectedCatalogId]: [...catalogMessages, errorMsg]
         };
       });
 
@@ -200,16 +277,22 @@
   onMount(async () => {
     console.log('EmbeddedChat mounted');
 
-    const response = await fetch('/api/catalogs', {
-      credentials: 'include'
-    });
+    try {
+      // Load catalogs and conversations asynchronously
+      const catalogsResponse = await fetch('/api/catalogs', {
+        credentials: 'include'
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      catalogsStore.set(data);
-    } else {
-      console.error('Error fetching catalogs:', response.status, response.statusText);
-      errorStore.set('Error al cargar catálogos');
+      if (catalogsResponse.ok) {
+        const catalogs = await catalogsResponse.json();
+        catalogsStore.set(catalogs);
+        
+        // The reactive statement will handle catalog selection and conversation loading
+      } else {
+        console.error('Error fetching catalogs:', catalogsResponse.status, catalogsResponse.statusText);
+      }
+    } catch (error) {
+      console.error('Error in onMount:', error);
     }
 
     setTimeout(scrollToBottom, 0);

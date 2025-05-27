@@ -9,7 +9,7 @@ setup-backend:
 
 # Setup frontend
 setup-frontend:
-	cd frontend && npm install
+	cd merged_frontend && npm install
 
 # Build both backend and frontend
 build: build-backend build-frontend
@@ -20,35 +20,25 @@ build-backend:
 
 # Build frontend for development
 build-frontend:
-	@echo "Syncing shared components..."
-	@./sync-shared.sh
-	@echo "Building main frontend..."
-	cd frontend && npm run build
-	@echo "Building embed frontend..."
-	cd embed-frontend && npm run build
+	@echo "Building merged frontend..."
+	cd merged_frontend && npm run build:both
 
 # Run both applications together
 run: 
-	@echo "Syncing shared components..."
-	@./sync-shared.sh
-	@echo "Starting Flask backend and both Svelte frontends..."
+	@echo "Starting Flask backend and merged frontend..."
 	@trap 'kill 0' SIGINT SIGTERM EXIT; \
 	(cd backend && python app.py) & \
-	(cd frontend && npm run dev) & \
-	(cd embed-frontend && npm run dev) & \
+	(cd merged_frontend && npm run dev:both) & \
 	wait
 
 # Build frontend as a static site
 static:
-	@echo "Syncing shared components..."
-	@./sync-shared.sh
-	@echo "Building Svelte apps as static sites..."
-	cd frontend && npm run build
+	@echo "Building merged frontend as static sites..."
+	cd merged_frontend && npm run build:both
 	@mkdir -p backend/static/app
-	@cp -r frontend/dist/* backend/static/app/
-	cd embed-frontend && npm run build
+	@cp -r merged_frontend/frontend/dist/* backend/static/app/
 	@mkdir -p backend/static/embed
-	@cp -r embed-frontend/dist/* backend/static/embed/
+	@cp -r merged_frontend/embed-frontend/dist/* backend/static/embed/
 	@echo "Static sites built and copied to backend/static/" 
 
 # Serve the static site with Flask
@@ -62,8 +52,9 @@ serve-static: kill-ports static
 
 # Clean build artifacts
 clean:
-	rm -rf frontend/dist
-	rm -rf frontend/node_modules
+	rm -rf merged_frontend/frontend/dist
+	rm -rf merged_frontend/embed-frontend/dist
+	rm -rf merged_frontend/node_modules
 	rm -rf backend/static
 	find . -name __pycache__ -type d -exec rm -rf {} +
 	find . -name "*.pyc" -delete
@@ -86,7 +77,6 @@ lint-backend:
 
 # Initialize frontend projects with npm install
 init-frontend:
-	@echo "Installing dependencies for frontend projects..."
-	cd frontend && npm install
-	cd ../embed-frontend && npm install
+	@echo "Installing dependencies for merged frontend project..."
+	cd merged_frontend && npm install
 	@echo "Dependencies installed successfully."

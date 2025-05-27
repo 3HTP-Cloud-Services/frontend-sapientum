@@ -75,7 +75,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
     print("creating ", str(message_out))
     for keyword, response in all_responses.items():
         if keyword in lower_query:
-            message_out.response = response
+            message_out.message = response
             db.session.add(message_out)
             db.session.commit()
             return response
@@ -85,12 +85,16 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
         for word in title_words:
             if len(word) > 3 and word in lower_query:
                 msg = f"Encontré un documento que podría interesarte: {doc['title']} - {doc['content'][:100]}..."
-                message_out.response = msg
+                message_out.message = msg
                 db.session.add(message_out)
                 db.session.commit()
                 return msg
 
-    return "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
+    default_response = "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
+    message_out.message = default_response
+    db.session.add(message_out)
+    db.session.commit()
+    return default_response
 
 def create_new_conversation(user_id, catalog_id):
     curr_date = datetime.now().strftime("%Y-%m-%d") # by default, let's use the date as the convo

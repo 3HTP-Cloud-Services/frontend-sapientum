@@ -838,6 +838,46 @@ def download_file(file_id):
         traceback.print_exc()
         return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
+@app.route('/api/conversations/<int:catalog_id>', methods=['GET'])
+def get_conversation_messages(catalog_id):
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    user_id = session.get('user_id')
+    
+    try:
+        from models import Conversation, Message
+        
+        # Find the conversation for this user and catalog
+        conversation = Conversation.query.filter_by(
+            speaker_id=user_id,
+            catalog_id=catalog_id
+        ).first()
+        
+        if not conversation:
+            return jsonify([])  # Return empty array if no conversation exists
+        
+        # Get all messages for this conversation, ordered by creation time
+        messages = Message.query.filter_by(
+            conversation_id=conversation.id
+        ).order_by(Message.created_at).all()
+        
+        # Convert messages to the format expected by the frontend
+        formatted_messages = []
+        for msg in messages:
+            formatted_messages.append({
+                'id': msg.id,
+                'type': 'user' if msg.is_request else 'system',
+                'content': msg.message,
+                'timestamp': msg.created_at.isoformat() if msg.created_at else None
+            })
+        
+        return jsonify(formatted_messages)
+        
+    except Exception as e:
+        print(f"Error fetching conversation messages: {e}")
+        return jsonify({"error": "Error al cargar mensajes"}), 500
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     print('helo chat: ', session.get('user_id'))
