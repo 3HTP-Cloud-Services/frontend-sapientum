@@ -150,18 +150,36 @@
           <input type="email" id="email" bind:value={user.email} required />
         </div>
 
-        <div class="form-group checkbox">
-          <label>
-            <input type="checkbox" bind:checked={user.chatAccess} />
-            {$i18nStore.t('enable_chat_access')}
-          </label>
-        </div>
-
-        <div class="form-group checkbox">
-          <label>
-            <input type="checkbox" bind:checked={user.isAdmin} />
-            {$i18nStore.t('admin_rights')}
-          </label>
+        <div class="form-group">
+          <table class="toggle-table">
+            <tr>
+              <td class="toggle-description">{$i18nStore.t('admin_rights')}</td>
+              <td>
+                <label class="toggle-switch">
+                  <input type="checkbox" bind:checked={user.isAdmin} />
+                  <span class="toggle-slider round"></span>
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <td class="toggle-description">{$i18nStore.t('catalog_editor_column') || 'Catalog Editor'}</td>
+              <td>
+                <label class="toggle-switch">
+                  <input type="checkbox" bind:checked={user.isCatalogEditor} />
+                  <span class="toggle-slider round"></span>
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <td class="toggle-description">{$i18nStore.t('enable_chat_access')}</td>
+              <td>
+                <label class="toggle-switch">
+                  <input type="checkbox" bind:checked={user.chatAccess} />
+                  <span class="toggle-slider round"></span>
+                </label>
+              </td>
+            </tr>
+          </table>
         </div>
       {/if}
 
@@ -268,5 +286,77 @@
     border-radius: 4px;
     cursor: pointer;
     font-weight: 500;
+  }
+
+  /* Toggle switch styles */
+  .toggle-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .toggle-table td {
+    padding: 0.5rem 0;
+    vertical-align: middle;
+  }
+
+  .toggle-description {
+    width: 80%;
+    font-weight: normal;
+    color: #4a5568;
+  }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 24px;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+  }
+
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+  }
+
+  input:checked + .toggle-slider {
+    background-color: #4299e1;
+  }
+
+  input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #4299e1;
+  }
+
+  input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+  }
+
+  .toggle-slider.round {
+    border-radius: 24px;
+  }
+
+  .toggle-slider.round:before {
+    border-radius: 50%;
   }
 </style>
