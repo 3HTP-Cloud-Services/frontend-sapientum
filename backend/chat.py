@@ -1,6 +1,8 @@
 from datetime import datetime
+import json
 
 from models import db, Conversation, Message
+from aws_utils import invoke_lambda_with_sigv4, get_lambda_url, get_agent_id, get_agent_alias_id
 
 DOCUMENTS = [
     {
@@ -35,6 +37,7 @@ def get_conversation(user_id, catalog_id):
 def generate_ai_response(user_query, catalog_id=None, user_id=None):
     conversation_id = get_conversation(user_id, catalog_id)
 
+    # Save the user's message to the database
     message_in = Message(
         conversation_id = conversation_id,
         is_request = True,
@@ -45,56 +48,104 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
     db.session.add(message_in)
     db.session.commit()
 
-    responses = {
-        'hola': '¡Hola! ¿Cómo puedo ayudarte hoy?',
-        'ayuda': 'Puedo ayudarte con resúmenes de documentos, responder preguntas sobre el sistema o proporcionar orientación sobre la evaluación de competencia de IA.',
-        'documento': '¿Qué documento te gustaría que resuma o proporcione información?',
-        'resumir': 'Puedo resumir documentos para ti. Por favor, especifica qué documento te gustaría que resuma.',
-        'permisos': 'Los permisos de usuario son administrados por los administradores. Hay diferentes niveles de acceso para documentos y funcionalidad de chat.',
-        'hello': '¡Hola! ¿Cómo puedo ayudarte hoy?',
-        'help': 'Puedo ayudarte con resúmenes de documentos, responder preguntas sobre el sistema o proporcionar orientación sobre la evaluación de competencia de IA.',
-    }
-
-    doc_responses = {}
-    for doc in DOCUMENTS:
-        doc_id = str(doc['id'])
-        doc_title = doc['title'].lower()
-        doc_responses[f'document {doc_id}'] = f"{doc['title']} - {doc['content'][:150]}..."
-        doc_responses[doc_title] = f"{doc['title']} - {doc['content'][:150]}..."
-
-    all_responses = {**responses, **doc_responses}
-
-    lower_query = user_query.lower()
-
+    # Create a placeholder for the AI response
     message_out = Message(
         conversation_id = conversation_id,
         is_request = False,
         prompt = 'system prompt',
-        created_at=datetime.now()
+        created_at = datetime.now()
     )
-    print("creating ", str(message_out))
-    for keyword, response in all_responses.items():
-        if keyword in lower_query:
-            message_out.message = response
-            db.session.add(message_out)
-            db.session.commit()
-            return response
+    db.session.add(message_out)
+    db.session.commit()
+
+    try:
+        # Prepare the request payload for the Lambda function
+        payload = {
+            'message': user_query,
+            'conversation_id': conversation_id,
+            'catalog_id': catalog_id,
+            'user_id': user_id,
+            'agent_id': get_agent_id(),
+            'agent_alias_id': get_agent_alias_id(),
+            'enable_trace': False
+        }
+
+        # Get the Lambda function URL from config
+        lambda_url = get_lambda_url()
+
+        # Call the Lambda function using SigV4 authentication
+        print(f"Calling Lambda function at {lambda_url} with payload: {payload}")
+        lambda_response = invoke_lambda_with_sigv4(
+            url=lambda_url,
+            method='POST',
+            service='lambda',
+            region='us-east-1',
+            body=payload,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        print(f"Lambda response: {lambda_response}")
+        # Process the Lambda response
+        if lambda_response and isinstance(lambda_response, dict):
+            # Extract assistant_response.text from the Lambda response
+            if 'assistant_response' in lambda_response and 'text' in lambda_response['assistant_response']:
+                print("getting a response from lambda: ", lambda_response['assistant_response']['text'])
+                ai_response = lambda_response['assistant_response']['text']
+
+                # Extract agent_session_id from the Lambda response and update the conversation
+                if 'agent_session_id' in lambda_response:
+                    agent_session_id = lambda_response['agent_session_id']
+                    print(f"Updating conversation with agent_session_id: {agent_session_id}")
+                    conversation = Conversation.query.get(conversation_id)
+                    if conversation:
+                        conversation.session_id = agent_session_id
+                        db.session.commit()
+            elif 'response' in lambda_response:
+                # Fallback to old response format if assistant_response.text is not available
+                print("falling back to old response format: ", lambda_response['response'])
+                ai_response = lambda_response['response']
+            else:
+                # Fallback to document search if Lambda response doesn't have expected fields
+                print("lambda response doesn't have expected fields, falling back to document search")
+                ai_response = search_documents(user_query)
+        else:
+            # Fallback to document search if Lambda call fails
+            print("no response from lambda, falling back to document search")
+            ai_response = search_documents(user_query)
+
+        print("final response: ", ai_response)
+        # Update the message in the database
+        message_out.message = ai_response
+        db.session.commit()
+
+        return ai_response
+
+    except Exception as e:
+        print(f"Error generating AI response: {e}")
+        import traceback
+        traceback.print_exc()
+
+        # Fallback to document search if an error occurs
+        fallback_response = search_documents(user_query)
+
+        # Update the message in the database
+        message_out.message = fallback_response
+        db.session.commit()
+
+        return fallback_response
+
+
+def search_documents(query):
+    """Search for relevant documents based on the query"""
+    lower_query = query.lower()
 
     for doc in DOCUMENTS:
         title_words = doc['title'].lower().split()
         for word in title_words:
             if len(word) > 3 and word in lower_query:
-                msg = f"Encontré un documento que podría interesarte: {doc['title']} - {doc['content'][:100]}..."
-                message_out.message = msg
-                db.session.add(message_out)
-                db.session.commit()
-                return msg
+                return f"Encontré un documento que podría interesarte: {doc['title']} - {doc['content'][:100]}..."
 
-    default_response = "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
-    message_out.message = default_response
-    db.session.add(message_out)
-    db.session.commit()
-    return default_response
+    return "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
 
 def create_new_conversation(user_id, catalog_id):
     curr_date = datetime.now().strftime("%Y-%m-%d") # by default, let's use the date as the convo

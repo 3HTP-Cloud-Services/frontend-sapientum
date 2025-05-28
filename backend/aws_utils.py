@@ -1,9 +1,12 @@
 import boto3
 from botocore.exceptions import ClientError
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
 import os
 import time
 import traceback
 import json
+import requests
 from datetime import datetime
 
 # Global variables
@@ -12,14 +15,34 @@ _credentials_expiry = 0
 _last_refresh_attempt = 0
 _using_instance_profile = False
 
-# Load AWS Role ARN from config
-def get_aws_role_arn():
-    """Load AWS Role ARN from config.json"""
+# Load config values
+def get_config_value(key, default=None):
+    """Load a value from config.json"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(current_dir, 'config.json')
-    with open(config_path, 'r') as config_file:
-        config = json.load(config_file)
-        return config.get('aws_role_arn')
+    try:
+        with open(config_path, 'r') as config_file:
+            config = json.load(config_file)
+            return config.get(key, default)
+    except Exception as e:
+        print(f"Error loading config value {key}: {e}")
+        return default
+
+def get_aws_role_arn():
+    """Load AWS Role ARN from config.json"""
+    return get_config_value('aws_role_arn')
+
+def get_lambda_url():
+    """Load Lambda URL from config.json"""
+    return get_config_value('lambda_url', 'https://lambda.us-east-1.amazonaws.com/2015-03-31/functions/my-function/invocations')
+
+def get_agent_id():
+    """Load Agent ID from config.json"""
+    return get_config_value('agent_id')
+
+def get_agent_alias_id():
+    """Load Agent Alias ID from config.json"""
+    return get_config_value('agent_alias_id')
 
 
 def refresh_credentials():
@@ -40,14 +63,14 @@ def refresh_credentials():
 
     try:
         _last_refresh_attempt = current_time
-        
+
         # Check if EC2_ROLE environment variable is set to indicate we're on EC2
         is_ec2 = os.environ.get('EC2_ROLE', 'false').lower() == 'true'
-        
+
         if is_ec2:
             print("Running on EC2, using instance profile credentials")
             _using_instance_profile = True
-            
+
             # When using instance profile, we don't need to store credentials
             # as boto3 will automatically use the instance profile
             _credentials = {}
@@ -56,7 +79,7 @@ def refresh_credentials():
         else:
             # Running locally, assume a role
             _using_instance_profile = False
-            
+
             # Get the AWS role ARN from config
             role_arn = get_aws_role_arn()
             if not role_arn:
@@ -193,7 +216,7 @@ def list_s3_files(bucket_name, prefix=''):
 
                 if not file_name:
                     continue
-                
+
                 # Skip .metadata files when listing regular files
                 if file_name == '.metadata':
                     continue
@@ -233,16 +256,16 @@ def get_s3_folder_metadata(bucket_name, folder_name):
         # Get a fresh S3 client with assumed role credentials
         s3_client = get_client_with_assumed_role('s3')
         import json
-        
+
         folder_path = f"catalog_dir/{folder_name}/"
         metadata_key = f"{folder_path}.metadata"
-        
+
         try:
             response = s3_client.get_object(
                 Bucket=bucket_name,
                 Key=metadata_key
             )
-            
+
             metadata_content = json.loads(response['Body'].read().decode('utf-8'))
             return metadata_content
         except Exception as e:
@@ -309,16 +332,16 @@ def create_s3_folder(bucket_name, folder_name, description=None, catalog_type=No
 
         # Create a .metadata file inside the folder with catalog details
         import json
-        
+
         metadata_content = {
             'type': catalog_type or 's3_folder',
             'description': description or f"S3 folder in catalog_dir ({folder_name})",
             'created_at': str(datetime.now()),
             'name': folder_name
         }
-        
+
         metadata_key = f"{folder_path}.metadata"
-        
+
         s3_client.put_object(
             Bucket=bucket_name,
             Key=metadata_key,
@@ -358,5 +381,83 @@ def upload_file_to_s3(bucket_name, catalog_folder, file_obj, file_content, conte
         return file_key
     except Exception as e:
         print(f"Error uploading file to S3: {e}")
+        traceback.print_exc()
+        return None
+
+
+def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lambda', body=None, headers=None):
+    """
+    Invoke an AWS Lambda function or API using SigV4 authentication.
+
+    Args:
+        url (str): The URL to send the request to
+        method (str): HTTP method (GET, POST, etc.)
+        region (str): AWS region
+        service (str): AWS service (lambda, execute-api, etc.)
+        body (dict, optional): Request body to be sent as JSON
+        headers (dict, optional): Additional headers to include in the request
+
+    Returns:
+        dict: The response from the Lambda function or API
+    """
+    try:
+        # Create a session and get credentials
+        session = boto3.Session()
+        credentials = session.get_credentials()
+
+        # If we're using assumed role credentials, use those instead
+        global _credentials, _using_instance_profile
+        if not _using_instance_profile and _credentials:
+            from botocore.credentials import Credentials
+            credentials = Credentials(
+                access_key=_credentials['AccessKeyId'],
+                secret_key=_credentials['SecretAccessKey'],
+                token=_credentials['SessionToken']
+            )
+
+        # Prepare headers
+        request_headers = {'Host': url.split('/')[2]}
+        if headers:
+            request_headers.update(headers)
+
+        # Create the request
+        request_body = json.dumps(body) if body else ''
+        aws_request = AWSRequest(
+            method=method,
+            url=url,
+            data=request_body if body else None,
+            headers=request_headers
+        )
+
+        # Sign the request
+        SigV4Auth(credentials, service, region).add_auth(aws_request)
+
+        # Convert AWSRequest to requests library format
+        request_kwargs = {
+            'method': method,
+            'url': url,
+            'headers': dict(aws_request.headers)
+        }
+
+        if body:
+            request_kwargs['json'] = body
+
+        # Send the request
+        response = requests.request(**request_kwargs)
+
+        # Check if the request was successful
+        if response.status_code >= 400:
+            print(f"Error invoking Lambda: HTTP {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+
+        # Parse and return the response
+        try:
+            return response.json()
+        except ValueError:
+            return response.text
+
+    except Exception as e:
+        print(f"Error invoking Lambda with SigV4: {e}")
         traceback.print_exc()
         return None

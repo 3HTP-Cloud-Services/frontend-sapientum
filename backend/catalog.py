@@ -6,7 +6,7 @@ from aws_utils import (
     create_s3_folder
 )
 from db import get_bucket_name
-from models import db, Catalog, User, File, Version, Conversation
+from models import db, Catalog, User, File, Version, Conversation, CatalogPermission, PermissionType
 from flask import session
 import traceback
 from datetime import datetime
@@ -57,7 +57,7 @@ def get_s3_folders():
 
         folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
         print(f"Found {len(folders)} folders in S3 bucket '{bucket_name}/catalog_dir'")
-        
+
         return folders
     except Exception as e:
         print(f"Error getting S3 folders: {e}")
@@ -91,22 +91,72 @@ def get_all_catalogs():
         return []
 
 def get_catalog_users(catalog_id):
-    catalog_users = [
-        {
-            "id": 1,
-            "email": "jprojas@3htp.com",
-            "fullName": "Juan Pedro Rojas",
-            "role": "lector"
-        },
-        {
-            "id": 2,
-            "email": "drisi@3htp.com",
-            "fullName": "Dante Risi",
-            "role": "editor"
-        },
-    ]
+    print('get_catalog_users:', catalog_id)
 
-    return catalog_users
+    catalog_users = CatalogPermission.query.filter_by(catalog_id=catalog_id).all()
+    users = []
+
+    for cu in catalog_users:
+        user = User.query.get(cu.user_id)
+        if user:
+            user_data = user.to_dict()
+            user_data['permission'] = cu.permission.value
+            users.append(user_data)
+
+    return users
+
+def get_available_users_for_catalog(catalog_id):
+    existing_users_query = db.session.query(CatalogPermission.user_id).filter(CatalogPermission.catalog_id == catalog_id)
+    existing_user_ids = [user_id for (user_id,) in existing_users_query]
+
+    available_users = User.query.filter(User.is_active == True, ~User.id.in_(existing_user_ids)).all()
+
+    return [user.to_dict() for user in available_users]
+
+def add_user_to_catalog(catalog_id, user_id, permission_value):
+    try:
+        permission_type = PermissionType(permission_value)
+    except ValueError:
+        return {"error": f"Valor de permiso inválido: {permission_value}"}, 400
+
+    try:
+        existing_permission = CatalogPermission.query.filter_by(
+            catalog_id=catalog_id,
+            user_id=user_id
+        ).first()
+
+        if existing_permission:
+            existing_permission.permission = permission_type
+        else:
+            new_permission = CatalogPermission(
+                catalog_id=catalog_id,
+                user_id=user_id,
+                permission=permission_type
+            )
+            db.session.add(new_permission)
+
+        db.session.commit()
+        return {"success": True}
+    except Exception as e:
+        db.session.rollback()
+        return {"error": f"Error al guardar permisos: {str(e)}"}, 500
+
+def remove_user_from_catalog(catalog_id, user_id):
+    try:
+        permission = CatalogPermission.query.filter_by(
+            catalog_id=catalog_id,
+            user_id=user_id
+        ).first()
+
+        if not permission:
+            return {"error": "Permiso no encontrado"}, 404
+
+        db.session.delete(permission)
+        db.session.commit()
+        return {"success": True}
+    except Exception as e:
+        db.session.rollback()
+        return {"error": f"Error al eliminar permiso: {str(e)}"}, 500
 
 def get_catalog_files(catalog_id):
     """Get all files for a catalog directly from the database"""
@@ -188,17 +238,17 @@ def get_s3_catalog_by_name(catalog_name):
     try:
         # First try to find by s3Id which maps to the folder name
         catalog = Catalog.query.filter_by(s3Id=catalog_name, is_active=True).first()
-        
+
         # If not found, try by name
         if not catalog:
             catalog = Catalog.query.filter_by(name=catalog_name, is_active=True).first()
-            
+
         if catalog:
             catalog_dict = catalog.to_dict()
             catalog_dict['catalog_name'] = catalog.name
             catalog_dict['document_count'] = random.randint(3, 50)
             return catalog_dict
-            
+
         return None
     except Exception as e:
         print(f"Error getting catalog by name: {e}")
@@ -211,32 +261,32 @@ def get_s3_catalog_files(catalog_id):
     try:
         # Get catalog from the database
         catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
-        
+
         # If not found by ID, try by s3Id
         if not catalog:
             catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
-            
+
         if not catalog:
             print(f"Catalog not found with id/s3Id {catalog_id}")
             return []
-                
+
         # Get files directly from S3
         bucket_name = get_bucket_name()
         if not bucket_name:
             print("Error: No S3 bucket name available")
             return []
-            
+
         # Use the sanitized s3Id as the folder name in S3
         folder_name = catalog.s3Id  # This is already sanitized
         folder_prefix = f"catalog_dir/{folder_name}"
         s3_files = list_s3_files(bucket_name, folder_prefix)
-        
+
         # Do some minimal processing to ensure frontend compatibility
         for file in s3_files:
             # Make sure uploadDate is a string the frontend can parse
             if isinstance(file.get('uploadDate'), datetime):
                 file['uploadDate'] = file['uploadDate'].isoformat()
-                
+
         return s3_files
     except Exception as e:
         print(f"Error getting S3 catalog files: {e}")
