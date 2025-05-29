@@ -27,7 +27,7 @@ build-frontend:
 run: 
 	@echo "Starting Flask backend and merged frontend..."
 	@trap 'kill 0' SIGINT SIGTERM EXIT; \
-	(cd backend && python app.py) & \
+	(cd backend && export FLASK_ENV=development; python app.py) & \
 	(cd merged_frontend && npm run dev:both) & \
 	wait
 

@@ -122,12 +122,33 @@
           </div>
 
           <div class="form-group">
-            <label for="permission">{$i18nStore.t('doc_access_label')}</label>
-            <select id="permission" bind:value={user.permission}>
-              <option value="permission-not-allowed">{$i18nStore.t('permission-not-allowed')}</option>
-              <option value="permission-read-only">{$i18nStore.t('permission-read-only')}</option>
-              <option value="permission-full">{$i18nStore.t('permission-full')}</option>
-            </select>
+            <label>{$i18nStore.t('doc_access_label')}</label>
+            <table class="radio-table">
+              <tr>
+                <td>
+                  <input type="radio" name="permission" value="permission-not-allowed" bind:group={user.permission} class="radio-input">
+                </td>
+                <td on:click={() => user.permission = 'permission-not-allowed'}>
+                  <span>{$i18nStore.t('permission-not-allowed')}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="radio" name="permission" value="permission-read-only" bind:group={user.permission} class="radio-input">
+                </td>
+                <td on:click={() => user.permission = 'permission-read-only'}>
+                  <span class="radio-text">{$i18nStore.t('permission-read-only')} eeee</span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="radio" name="permission" value="permission-full" bind:group={user.permission} class="radio-input">
+                </td>
+                <td on:click={() => user.permission = 'permission-full'}>
+                  <span>{$i18nStore.t('permission-full')}</span>
+                </td>
+              </tr>
+            </table>
           </div>
         {/if}
       {:else if catalogMode && user.id}
@@ -137,12 +158,33 @@
         </div>
 
         <div class="form-group">
-          <label for="permission">{$i18nStore.t('doc_access_label')}</label>
-          <select id="permission" bind:value={user.permission}>
-            <option value="permission-not-allowed">{$i18nStore.t('permission-not-allowed')}</option>
-            <option value="permission-read-only">{$i18nStore.t('permission-read-only')}</option>
-            <option value="permission-full">{$i18nStore.t('permission-full')}</option>
-          </select>
+          <label>{$i18nStore.t('doc_access_label')}</label>
+          <table class="radio-table">
+            <tr>
+              <td>
+                <input type="radio" name="permission-edit" value="permission-not-allowed" bind:group={user.permission} class="radio-input">
+              </td>
+              <td on:click={() => user.permission = 'permission-not-allowed'}>
+                <span>{$i18nStore.t('permission-not-allowed')}</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <input type="radio" name="permission-edit" value="permission-read-only" bind:group={user.permission} class="radio-input">
+              </td>
+              <td on:click={() => user.permission = 'permission-read-only'}>
+                <span>{$i18nStore.t('permission-read-only')}</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <input type="radio" name="permission-edit" value="permission-full" bind:group={user.permission} class="radio-input">
+              </td>
+              <td on:click={() => user.permission = 'permission-full'}>
+                <span>{$i18nStore.t('permission-full')}</span>
+              </td>
+            </tr>
+          </table>
         </div>
       {:else}
         <div class="form-group">
@@ -358,5 +400,50 @@
 
   .toggle-slider.round:before {
     border-radius: 50%;
+  }
+
+  /* Radio button styles */
+  .radio-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+  }
+
+  .radio-table tr {
+    transition: background-color 0.2s;
+  }
+
+  .radio-table tr:hover {
+    background-color: #f7fafc;
+  }
+
+  .radio-table td {
+    padding: 0.5rem;
+    vertical-align: middle;
+  }
+
+  .radio-table td:first-child {
+    width: 40px;
+    text-align: center;
+  }
+
+  .radio-table td:nth-child(2) {
+    vertical-align: top;
+    padding-top: 0.6rem;
+  }
+
+  .radio-input {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    accent-color: #ccc;
+  }
+
+  .radio-input:checked {
+    accent-color: #4299e1;
+  }
+  .radio-table span {
+    font-size: 1rem;
   }
 </style>

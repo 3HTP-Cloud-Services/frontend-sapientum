@@ -150,12 +150,14 @@
               <span class="text">{$i18nStore.t('sidebar_catalogs')}</span>
             </button>
           </li>
+          {#if $userRole === 'admin'}
           <li class={activeSection === 'permissions' ? 'active' : ''}>
             <button on:click={() => switchSection('permissions')}>
               <span class="icon">🔒</span>
               <span class="text">{$i18nStore.t('sidebar_permissions')}</span>
             </button>
           </li>
+          {/if}
           <li class={activeSection === 'chat' ? 'active' : ''}>
             <button on:click={() => switchSection('chat')}>
               <span class="icon">💬</span>
@@ -217,7 +219,7 @@
               />
             {:else}
               <div class="unauthorized-section">
-                <h2>{$i18nStore.t('access_denied') || 'Access Denied'} eee</h2>
+                <h2>{$i18nStore.t('access_denied') || 'Access Denied'}</h2>
                 <p>{$i18nStore.t('admin_rights_required') || 'You need administrator rights to access this section.'}</p>
                 <button class="back-button" on:click={() => switchSection('catalogs')}>
                   {$i18nStore.t('back_to_catalogs') || 'Back to Catalogs'}

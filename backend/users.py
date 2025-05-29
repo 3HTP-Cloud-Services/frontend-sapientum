@@ -77,6 +77,7 @@ def create_user(data):
         email=email,
         chat_access=data.get('chatAccess', False),
         is_admin=data.get('isAdmin', False),
+        is_catalog_editor=data.get('isCatalogEditor', False),
         role="admin" if data.get('isAdmin', False) else "user"
     )
 

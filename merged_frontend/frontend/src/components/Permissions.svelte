@@ -16,6 +16,9 @@
   export let allowedDomains = [{ 'id': -1, 'name': '' }];
   export let domainsError = '';
 
+  // Track which toggles are currently being processed
+  let togglesInFlight = {};
+
   // Get current user from auth store to check if switching own admin flag
   import { userEmail } from '../../../shared-components/utils/auth.js';
 
@@ -164,6 +167,12 @@
 
   export async function toggleUserProperty(userId, property) {
     try {
+      // Create a unique key for this toggle
+      const toggleKey = `${userId}-${property}`;
+
+      // Mark this toggle as in flight
+      togglesInFlight = { ...togglesInFlight, [toggleKey]: true };
+
       usersError = '';
       successMessage = '';
       const response = await fetch(`/api/users/${userId}/toggle/${property}`, {
@@ -204,6 +213,11 @@
     } catch (err) {
       console.error(`Error toggling ${property}:`, err);
       usersError = `Error de conexión al cambiar ${property}`;
+    } finally {
+      // Remove this toggle from in flight regardless of success or failure
+      const toggleKey = `${userId}-${property}`;
+      const { [toggleKey]: _, ...rest } = togglesInFlight;
+      togglesInFlight = rest;
     }
   }
 
@@ -358,33 +372,37 @@
             <tr>
               <td>{user.email}</td>
               <td>
-                <label class="toggle-switch" class:disabled={user.email === $userEmail && user.isAdmin}>
+                <label class="toggle-switch" class:disabled={user.email === $userEmail && user.isAdmin || togglesInFlight[`${user.id}-isAdmin`]}>
                   <input
                     type="checkbox"
                     checked={user.isAdmin}
                     on:change={() => toggleUserProperty(user.id, 'isAdmin')}
-                    disabled={user.email === $userEmail && user.isAdmin}
-                    title={user.email === $userEmail && user.isAdmin ? ($i18nStore.t('cannot_remove_own_admin') || 'You cannot remove your own administrator permissions.') : ''}
+                    disabled={user.email === $userEmail && user.isAdmin || togglesInFlight[`${user.id}-isAdmin`]}
+                    title={user.email === $userEmail && user.isAdmin ? ($i18nStore.t('cannot_remove_own_admin') || 'You cannot remove your own administrator permissions.') : togglesInFlight[`${user.id}-isAdmin`] ? 'Updating...' : ''}
                   >
                   <span class="toggle-slider round"></span>
                 </label>
               </td>
               <td>
-                <label class="toggle-switch">
+                <label class="toggle-switch" class:disabled={togglesInFlight[`${user.id}-isCatalogEditor`]}>
                   <input
                     type="checkbox"
                     checked={user.isCatalogEditor}
                     on:change={() => toggleUserProperty(user.id, 'isCatalogEditor')}
+                    disabled={togglesInFlight[`${user.id}-isCatalogEditor`]}
+                    title={togglesInFlight[`${user.id}-isCatalogEditor`] ? 'Updating...' : ''}
                   >
                   <span class="toggle-slider round"></span>
                 </label>
               </td>
               <td>
-                <label class="toggle-switch">
+                <label class="toggle-switch" class:disabled={togglesInFlight[`${user.id}-chatAccess`]}>
                   <input
                     type="checkbox"
                     checked={user.chatAccess}
                     on:change={() => toggleUserProperty(user.id, 'chatAccess')}
+                    disabled={togglesInFlight[`${user.id}-chatAccess`]}
+                    title={togglesInFlight[`${user.id}-chatAccess`] ? 'Updating...' : ''}
                   >
                   <span class="toggle-slider round"></span>
                 </label>
