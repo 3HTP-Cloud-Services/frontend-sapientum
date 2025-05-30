@@ -4,12 +4,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
 import json
-from models import db, User, Domain, Catalog, File, Version
+from models import db, User, Domain, Catalog, File, Version, ActivityLog, EventType
 import db as db_utils
 import traceback
 from datetime import datetime
 from werkzeug.local import LocalProxy
 from chat import generate_ai_response
+from activity import create_activity_chat_log
 from urllib.parse import quote
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -142,7 +143,7 @@ def login():
         # Check if the user has chat access when in embedded mode
         if embedded and not user.chat_access:
             return jsonify({
-                "success": False, 
+                "success": False,
                 "message": "You do not have access to chat functionality, which is required for embedded mode",
                 "error": "no_chat_access"
             }), 403
@@ -842,11 +843,14 @@ def get_conversation_messages(catalog_id):
         print(f"Error fetching conversation messages: {e}")
         return jsonify({"error": "Error al cargar mensajes"}), 500
 
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     print('helo chat: ', session.get('user_id'))
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
+
+
 
     data = request.json
     user_message = data.get('message', '')
@@ -855,7 +859,10 @@ def chat():
     if not user_message:
         return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
-    ai_response = generate_ai_response(user_message, catalog, session.get('user_id'))
+    user_id = session.get('user_id')
+    ai_response, message_id = generate_ai_response(user_message, catalog, user_id)
+
+    create_activity_chat_log(EventType.CHAT_INTERACTION, user_id, catalog, message_id, 'spoke to the ai')
 
     return jsonify({
         "response": ai_response,

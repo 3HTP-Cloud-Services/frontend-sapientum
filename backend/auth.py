@@ -85,7 +85,6 @@ def get_all_users():
         traceback.print_exc()
         return []
 
-
 def get_user_by_id(user_id, users_list=None):
     if users_list is None:
         users_list = get_all_users()
@@ -94,100 +93,3 @@ def get_user_by_id(user_id, users_list=None):
         if user['id'] == user_id:
             return user
     return None
-
-
-def update_user_in_dynamo(user_data):
-    def operation():
-        original_username = user_data.get('original_username')
-        new_username = user_data.get('email')
-        new_role = 'admin' if user_data.get('isAdmin') else 'user'
-
-        table = get_dynamodb_table('sapientum_people')
-
-        if original_username != new_username:
-            table.delete_item(
-                Key={
-                    'username': original_username
-                }
-            )
-
-            table.put_item(
-                Item={
-                    'username': new_username,
-                    'role': new_role
-                }
-            )
-        else:
-            table.update_item(
-                Key={
-                    'username': original_username
-                },
-                UpdateExpression="set #r = :r",
-                ExpressionAttributeNames={
-                    '#r': 'role'
-                },
-                ExpressionAttributeValues={
-                    ':r': new_role
-                }
-            )
-
-        return True
-
-    try:
-        return execute_with_token_refresh(operation)
-    except ClientError as e:
-        print(f"Error updating user in DynamoDB: {e}")
-        traceback.print_exc()
-        return False
-    except Exception as e:
-        print(f"Unexpected error updating user: {e}")
-        traceback.print_exc()
-        return False
-
-
-def create_user_in_dynamo(user_data):
-    def operation():
-        username = user_data.get('email')
-        role = 'admin' if user_data.get('isAdmin') else 'user'
-
-        table = get_dynamodb_table('sapientum_people')
-        table.put_item(
-            Item={
-                'username': username,
-                'role': role
-            }
-        )
-        return True
-
-    try:
-        return execute_with_token_refresh(operation)
-    except ClientError as e:
-        print(f"Error creating user in DynamoDB: {e}")
-        traceback.print_exc()
-        return False
-    except Exception as e:
-        print(f"Unexpected error creating user: {e}")
-        traceback.print_exc()
-        return False
-
-
-def delete_user_from_dynamo(username):
-    def operation():
-        table = get_dynamodb_table('sapientum_people')
-        table.delete_item(
-            Key={
-                'username': username
-            }
-        )
-        return True
-
-    try:
-        return execute_with_token_refresh(operation)
-    except ClientError as e:
-        print(f"Error deleting user from DynamoDB: {e}")
-        traceback.print_exc()
-        return False
-    except Exception as e:
-        print(f"Unexpected error deleting user: {e}")
-        traceback.print_exc()
-        return False

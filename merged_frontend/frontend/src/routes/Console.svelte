@@ -17,16 +17,37 @@
   import Catalog_Permissions from '../components/Catalog_Permissions.svelte';
   import Permissions from '../components/Permissions.svelte';
   import Chat from '../../../shared-components/Chat/EmbeddedChat.svelte';
+  import { catalogsStore, loadingStore, errorStore, fetchCatalogs } from '../components/stores.js';
 
   $: i18n = $i18nStore;
 
-  const activeSectionStore = writable('catalogs');
+  const activeSectionStore = writable('chat');
   // Active section state
-  let activeSection = 'catalogs';
+  let activeSection = 'chat';
 
   $: {
     $activeSectionStore = activeSection;
     console.log(`Active section changed to ${activeSection}`);
+  }
+
+  // Flag to determine if catalog menu should be shown
+  let showCatalogMenu = false;
+
+  // Flag to track if user has explicitly selected a section
+  let userSelectedSection = false;
+
+  // Update showCatalogMenu when catalogs are loaded
+  $: {
+    if (!$loadingStore) {
+      showCatalogMenu = $catalogsStore && $catalogsStore.length > 0;
+      console.log(`Catalog menu visibility: ${showCatalogMenu} (${$catalogsStore.length} catalogs)`);
+
+      // Only auto-switch to catalogs if user hasn't explicitly selected a section yet
+      if (activeSection === 'chat' && !userSelectedSection && ($userRole === 'admin' || showCatalogMenu)) {
+        activeSection = 'catalogs';
+        $activeSectionStore = 'catalogs';
+      }
+    }
   }
 
   let catalogs = [];
@@ -77,9 +98,11 @@
   function switchSection(section) {
     console.log(`Switching to section: ${section}`);
 
+    // Mark that user has explicitly selected a section
+    userSelectedSection = true;
+
     activeSection = section;
     $activeSectionStore = section;
-
   }
 
   let catalogComponent;
@@ -103,13 +126,20 @@
 
   onMount(async () => {
     if ($isAuthenticated) {
-        // Normal mode - load saved section
-        const savedSection = localStorage.getItem('activeConsoleSection');
-        if (savedSection) {
-          activeSection = savedSection;
-          $activeSectionStore = savedSection;
-          localStorage.removeItem('activeConsoleSection'); // Clear after use
+        // For admin users, we can load the saved section immediately
+        if ($userRole === 'admin') {
+          const savedSection = localStorage.getItem('activeConsoleSection');
+          if (savedSection) {
+            activeSection = savedSection;
+            $activeSectionStore = savedSection;
+            userSelectedSection = true; // Consider saved section as user selection
+            localStorage.removeItem('activeConsoleSection'); // Clear after use
+          }
         }
+
+        // Load catalogs to determine menu visibility
+        // For non-admin users, we'll wait until catalogs are loaded to decide which section to show
+        fetchCatalogs();
     }
 
     checkMobile();
@@ -144,12 +174,14 @@
           <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
         </div>
         <ul>
+          {#if showCatalogMenu || $userRole === 'admin'}
           <li class={activeSection === 'catalogs' || activeSection === 'catalog-detail' || activeSection === 'catalog-permissions' ? 'active' : ''}>
             <button on:click={() => switchSection('catalogs')}>
               <span class="icon">📄</span>
               <span class="text">{$i18nStore.t('sidebar_catalogs')}</span>
             </button>
           </li>
+          {/if}
           {#if $userRole === 'admin'}
           <li class={activeSection === 'permissions' ? 'active' : ''}>
             <button on:click={() => switchSection('permissions')}>

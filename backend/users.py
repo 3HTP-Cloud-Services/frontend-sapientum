@@ -1,5 +1,8 @@
 from flask import session, request, jsonify
-from models import db, User, Domain
+
+from activity import create_activity_user_log
+from models import db, User, Domain, EventType
+
 
 def get_users():
     if not session.get('logged_in'):
@@ -43,6 +46,7 @@ def create_user(data):
     user_email = session.get('user_email')
     current_user = User.query.filter_by(email=user_email).first()
     if not current_user or not current_user.is_admin:
+        create_activity_user_log(EventType.PERMISSION_VIOLATION, session.get['user_id'], None, message='User ' + session['user_email'] + ' has no permission to create another user!')
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     if not data or not data.get('email'):
@@ -84,6 +88,7 @@ def create_user(data):
     try:
         db.session.add(new_user)
         db.session.commit()
+        create_activity_user_log(EventType.USER_CREATION, session['user_id'], new_user.id, 'User ' + session['user_email'] + ' created the user ' + email)
         return jsonify(new_user.to_dict()), 201
     except Exception as e:
         db.session.rollback()
@@ -125,6 +130,7 @@ def update_user(user_id, data):
 
     try:
         db.session.commit()
+        create_activity_user_log(EventType.USER_EDITION, session.get['user_id'], user.id, 'User ' + session['user_email'] + ' edited the user ' + user.email + str(user))
         return jsonify(user.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -168,6 +174,8 @@ def toggle_user_property(user_id, property):
 
     try:
         db.session.commit()
+        create_activity_user_log(EventType.USER_EDITION, session['user_id'], None, 'User ' + session['user_email'] +
+             ' edited the user ' + str(user.id) + ' property ' + property)
         return jsonify(user.to_dict())
     except Exception as e:
         db.session.rollback()

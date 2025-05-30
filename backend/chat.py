@@ -118,7 +118,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
         message_out.message = ai_response
         db.session.commit()
 
-        return ai_response
+        return ai_response, message_in.id
 
     except Exception as e:
         print(f"Error generating AI response: {e}")

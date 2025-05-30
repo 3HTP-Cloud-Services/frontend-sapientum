@@ -66,7 +66,33 @@ def get_s3_folders():
 
 def get_all_catalogs():
     try:
-        db_catalogs = Catalog.query.filter_by(is_active=True).all()
+        from flask import session
+
+        # Get current user
+        user_email = session.get('user_email')
+        user = User.query.filter_by(email=user_email).first()
+
+        if not user:
+            return []
+
+        # If user is admin or catalog editor, return all catalogs
+        if user.is_admin or user.is_catalog_editor:
+            db_catalogs = Catalog.query.filter_by(is_active=True).all()
+        else:
+            # For regular users with chat_access, only return catalogs they have permissions for
+            if user.chat_access:
+                # Get catalog IDs where user has permissions
+                user_permissions = CatalogPermission.query.filter_by(user_id=user.id).all()
+                catalog_ids = [perm.catalog_id for perm in user_permissions
+                              if perm.permission != PermissionType.NOT_ALLOWED]
+
+                if not catalog_ids:
+                    return []  # User has no catalog permissions
+
+                db_catalogs = Catalog.query.filter(Catalog.id.in_(catalog_ids), Catalog.is_active==True).all()
+            else:
+                return []  # User has no chat access
+
         catalog_list = []
 
         for catalog in db_catalogs:

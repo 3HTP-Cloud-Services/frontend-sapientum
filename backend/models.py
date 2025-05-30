@@ -197,3 +197,34 @@ class Message(db.Model):
     # should be null for requests, save the prompt that generated the response for responses
     message = db.Column(db.Text, default='', nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class EventType(enum.Enum):
+    PERMISSION_VIOLATION = "permission_violation"
+    USER_CREATION = "user_creation"
+    USER_DELETION = "user_deletion"
+    USER_EDITION = "user_edition"
+    USER_PERMISSION = "user_permission"
+    CATALOG_CREATION = "catalog_creation"
+    CATALOG_EDITION = "catalog_edition"
+    CATALOG_DELETION = "catalog_deletion"
+    FILE_UPLOAD = "file_upload"
+    FILE_DELETION = "file_deletion"
+    FILE_VERSION = "file_new_version"
+    CHAT_INTERACTION = "chat_interaction"
+
+class ActivityLog(db.Model):
+    __tablename__ = 'activitylogs'
+    def __repr__(self):
+        return f"Activity"
+    id = db.Column(db.Integer, primary_key=True)
+    activity = db.Column(db.String(1024), default='', nullable=False)
+    message = db.Column(db.Text, default='', nullable=True)
+    event = db.Column(db.Enum(EventType), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    other_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
+    catalog_id = db.Column(db.Integer, db.ForeignKey('catalogs.id'), nullable=True)
+    file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)
+    version_id = db.Column(db.Integer, db.ForeignKey('versions.id'), nullable=True)
+    message_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=True)
