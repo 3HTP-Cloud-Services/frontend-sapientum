@@ -201,6 +201,7 @@ class Message(db.Model):
 
 class EventType(enum.Enum):
     PERMISSION_VIOLATION = "permission_violation"
+    USER_LOGIN = "user_login"
     USER_CREATION = "user_creation"
     USER_DELETION = "user_deletion"
     USER_EDITION = "user_edition"

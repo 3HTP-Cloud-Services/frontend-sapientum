@@ -190,6 +190,8 @@ def delete_user(user_id):
     user_email = session.get('user_email')
     current_user = User.query.filter_by(email=user_email).first()
     if not current_user or not current_user.is_admin:
+        create_activity_user_log(EventType.USER_PERMISSION, session['user_id'], user_id, 'User ' + session['user_email'] +
+                                 ' tried to delete the user ' + str(user_id))
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     user = User.query.get(user_id)
@@ -200,6 +202,8 @@ def delete_user(user_id):
         deleted_user = user.to_dict()
         db.session.delete(user)
         db.session.commit()
+        create_activity_user_log(EventType.USER_DELETION, session['user_id'], user_id, 'User ' + session['user_email'] +
+             ' deleted the user ' + str(user.id))
         return jsonify({"success": True, "eliminado": deleted_user})
     except Exception as e:
         db.session.rollback()

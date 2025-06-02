@@ -1,6 +1,11 @@
 from botocore.exceptions import ClientError
+from sqlalchemy.event import Events
+
 from aws_utils import get_dynamodb_table, execute_with_token_refresh
 import traceback
+
+from backend.activity import create_activity_user_log
+from backend.models import EventType
 from models import User
 
 def authenticate_user(email, password):
@@ -14,6 +19,7 @@ def authenticate_user(email, password):
         stored_password = 'user123'
 
         if stored_password == password:
+            create_activity_user_log(EventType.USER_LOGIN, user.id, None, 'User ' + email + ' logged in')
             return user.to_dict(), None
         else:
             return None, "Invalid credentials"
