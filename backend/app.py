@@ -899,6 +899,68 @@ def delete_user(user_id):
     from users import delete_user as delete_existing_user
     return delete_existing_user(user_id)
 
+@app.route('/api/activity-logs', methods=['GET'])
+def get_activity_logs():
+    if not session.get('logged_in'):
+        return jsonify({"error": "No autorizado"}), 401
+
+    # Check if user is admin
+    user_email = session.get('user_email')
+    user = User.query.filter_by(email=user_email).first()
+    if not user or not user.is_admin:
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+
+    try:
+        # Get all activity logs, ordered by creation time (newest first)
+        logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).all()
+
+        # Convert logs to dictionaries with user email
+        formatted_logs = []
+        for log in logs:
+            log_dict = {
+                'id': log.id,
+                'activity': log.activity,
+                'message': log.message,
+                'event': log.event.value if log.event else None,
+                'user_id': log.user_id,
+                'other_user_id': log.other_user_id,
+                'created_at': log.created_at.isoformat() if log.created_at else None,
+                'catalog_id': log.catalog_id,
+                'file_id': log.file_id,
+                'version_id': log.version_id,
+                'message_id': log.message_id
+            }
+
+            # Add user email
+            user = User.query.get(log.user_id)
+            if user:
+                log_dict['user_email'] = user.email
+
+            # Add other user email if present
+            if log.other_user_id:
+                other_user = User.query.get(log.other_user_id)
+                if other_user:
+                    log_dict['other_user_email'] = other_user.email
+
+            # Add catalog name if present
+            if log.catalog_id:
+                catalog = Catalog.query.get(log.catalog_id)
+                if catalog:
+                    log_dict['catalog_name'] = catalog.name
+
+            # Add file name if present
+            if log.file_id:
+                file = File.query.get(log.file_id)
+                if file:
+                    log_dict['file_name'] = file.name
+
+            formatted_logs.append(log_dict)
+
+        return jsonify({"logs": formatted_logs})
+    except Exception as e:
+        print(f"Error fetching activity logs: {e}")
+        return jsonify({"error": "Error al cargar registros de actividad"}), 500
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static_files(path):

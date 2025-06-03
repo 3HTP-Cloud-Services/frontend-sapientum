@@ -16,6 +16,7 @@
   import Catalog from '../components/Catalog.svelte';
   import Catalog_Permissions from '../components/Catalog_Permissions.svelte';
   import Permissions from '../components/Permissions.svelte';
+  import ActivityLog from '../components/ActivityLog.svelte';
   import Chat from '../../../shared-components/Chat/EmbeddedChat.svelte';
   import { catalogsStore, loadingStore, errorStore, fetchCatalogs } from '../components/stores.js';
 
@@ -189,6 +190,12 @@
               <span class="text">{$i18nStore.t('sidebar_permissions')}</span>
             </button>
           </li>
+          <li class={activeSection === 'activity-log' ? 'active' : ''}>
+            <button on:click={() => switchSection('activity-log')}>
+              <span class="icon">📋</span>
+              <span class="text">{$i18nStore.t('activity_log') || 'Activity Log'}</span>
+            </button>
+          </li>
           {/if}
           <li class={activeSection === 'chat' ? 'active' : ''}>
             <button on:click={() => switchSection('chat')}>
@@ -247,6 +254,20 @@
                 {editingUser}
                 {showUserModal}
                 bind:this={permissionsComponent}
+                {activeSectionStore}
+              />
+            {:else}
+              <div class="unauthorized-section">
+                <h2>{$i18nStore.t('access_denied') || 'Access Denied'}</h2>
+                <p>{$i18nStore.t('admin_rights_required') || 'You need administrator rights to access this section.'}</p>
+                <button class="back-button" on:click={() => switchSection('catalogs')}>
+                  {$i18nStore.t('back_to_catalogs') || 'Back to Catalogs'}
+                </button>
+              </div>
+            {/if}
+          {:else if activeSection === 'activity-log'}
+            {#if $userRole === 'admin'}
+              <ActivityLog
                 {activeSectionStore}
               />
             {:else}
