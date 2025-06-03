@@ -6,7 +6,7 @@ This application consists of two separate frontends that share common components
 2. **Chat-only Frontend** (port 5573) - Streamlined interface with only chat functionality
 
 Both frontends connect to the same backend API.
-
+ 
 ## Project Structure
 
 ```
