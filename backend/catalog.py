@@ -302,9 +302,10 @@ def get_s3_catalog_files(catalog_id):
             print("Error: No S3 bucket name available")
             return []
 
-        # Use the sanitized s3Id as the folder name in S3
-        folder_name = catalog.s3Id  # This is already sanitized
-        folder_prefix = f"catalog_dir/{folder_name}"
+        # Use the s3Id as the folder path in S3
+        # s3Id now contains the path in format "{catalog_type}/{sanitized_s3_name}"
+        folder_path = catalog.s3Id  # This already includes catalog_type and sanitized name
+        folder_prefix = f"catalog_dir/{folder_path}"
         s3_files = list_s3_files(bucket_name, folder_prefix)
 
         # Do some minimal processing to ensure frontend compatibility
@@ -331,11 +332,65 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             print("Error: No catalog name provided")
             return None
 
+        # Use default catalog_type if not provided
+        if not catalog_type:
+            catalog_type = 's3_folder'
+
         # Sanitize catalog name for S3 compatibility
         sanitized_s3_name = sanitize_s3_folder_name(catalog_name)
 
-        # Create the S3 folder with sanitized name
-        folder_path = create_s3_folder(bucket_name, sanitized_s3_name)
+        # Check if catalog_type folder exists in catalog_dir
+        catalog_type_folders = list_s3_folder_contents(bucket_name, 'catalog_dir')
+
+        # Create catalog_type folder if it doesn't exist
+        if catalog_type not in catalog_type_folders:
+            print(f"Creating catalog_type folder: {catalog_type}")
+            type_folder_path = create_s3_folder(bucket_name, catalog_type)
+            if not type_folder_path:
+                print(f"Error creating catalog_type folder: {catalog_type}")
+                return None
+
+        # Create the catalog folder inside the catalog_type folder
+        # We'll use a path format of catalog_dir/{catalog_type}/{sanitized_s3_name}
+        # But we need to modify how create_s3_folder works to handle this
+
+        # Get a fresh S3 client with assumed role credentials
+        from aws_utils import get_client_with_assumed_role
+        s3_client = get_client_with_assumed_role('s3')
+
+        # Create the folder path
+        folder_path = f"catalog_dir/{catalog_type}/{sanitized_s3_name}/"
+
+        # Create the folder in S3
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=folder_path,
+            Body=''
+        )
+
+        # Create a .metadata file inside the folder with catalog details
+        import json
+        from datetime import datetime
+
+        metadata_content = {
+            'type': catalog_type,
+            'description': description or f"S3 folder in catalog_dir/{catalog_type} ({catalog_name})",
+            'created_at': str(datetime.now()),
+            'name': catalog_name
+        }
+
+        metadata_key = f"{folder_path}.metadata"
+
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=metadata_key,
+            Body=json.dumps(metadata_content),
+            ContentType='application/json'
+        )
+
+        print(f"Successfully created folder {folder_path} in bucket {bucket_name}")
+        print(f"Added metadata file {metadata_key} in bucket {bucket_name}")
+
         if not folder_path:
             return None
 
@@ -346,11 +401,15 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             user = User.query.filter_by(email=user_email).first()
             user_id = user.id if user else None
 
+            # Store the full path (including catalog_type) in the s3Id field
+            # This will be used by other functions to locate the folder
+            s3_path = f"{catalog_type}/{sanitized_s3_name}"
+
             new_catalog = Catalog(
                 name=catalog_name,  # Use original name for display
-                s3Id=sanitized_s3_name,  # Use sanitized name for S3
-                description=description or f"S3 folder in catalog_dir ({catalog_name})",
-                type=catalog_type or 's3_folder',
+                s3Id=s3_path,  # Use path including catalog_type
+                description=description or f"S3 folder in catalog_dir/{catalog_type} ({catalog_name})",
+                type=catalog_type,
                 created_by_id=user_id,
                 is_active=True
             )
