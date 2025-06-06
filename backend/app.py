@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, session, send_from_directory, send_file, Response
-# from flask_cors import CORS
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
@@ -75,19 +75,24 @@ def print_origin():
     print("*" * 50 + "\n")
     return origin, referer
 
-
-# Enhanced CORS configuration for embedding
-# cors = CORS(
-#     app,
-#     supports_credentials=True,
-#     resources={
-#         "/*": {
-#             "origins": "*",
-#             "allow_headers": ["Content-Type", "Authorization", "Accept"],
-#             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-#         }
-#     }
-# )
+# Enhanced CORS configuration - only for local development
+# Lambda Function URL handles CORS in production
+if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') is None:
+    # Running locally, enable Flask CORS
+    cors = CORS(
+        app,
+        supports_credentials=True,
+        resources={
+            "/*": {
+                "origins": "*",
+                "allow_headers": ["Content-Type", "Authorization", "Accept"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+            }
+        }
+    )
+    print("Local development: Flask CORS enabled")
+else:
+    print("Lambda environment: Using Lambda Function URL CORS")
 
 db_config = db_utils.get_db_config()
 app.config.update(db_config)
@@ -911,8 +916,18 @@ def get_activity_logs():
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     try:
-        # Get all activity logs, ordered by creation time (newest first)
-        logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).all()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        # Ensure per_page is within reasonable limits
+        per_page = min(per_page, 100)
+        
+        # Get paginated activity logs, ordered by creation time (newest first)
+        pagination = ActivityLog.query.order_by(ActivityLog.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        logs = pagination.items
 
         # Convert logs to dictionaries with user email
         formatted_logs = []
@@ -956,7 +971,17 @@ def get_activity_logs():
 
             formatted_logs.append(log_dict)
 
-        return jsonify({"logs": formatted_logs})
+        return jsonify({
+            "logs": formatted_logs,
+            "pagination": {
+                "page": pagination.page,
+                "per_page": pagination.per_page,
+                "total": pagination.total,
+                "pages": pagination.pages,
+                "has_prev": pagination.has_prev,
+                "has_next": pagination.has_next
+            }
+        })
     except Exception as e:
         print(f"Error fetching activity logs: {e}")
         return jsonify({"error": "Error al cargar registros de actividad"}), 500

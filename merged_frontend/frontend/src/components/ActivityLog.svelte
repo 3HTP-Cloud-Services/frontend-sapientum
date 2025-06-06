@@ -10,18 +10,36 @@
   let loading = false;
   let error = '';
   let successMessage = '';
+  
+  // Pagination state
+  let currentPage = 1;
+  let perPage = 20;
+  let totalPages = 1;
+  let totalItems = 0;
+  let hasNext = false;
+  let hasPrev = false;
 
-  async function fetchActivityLogs() {
+  async function fetchActivityLogs(page = currentPage) {
     try {
       loading = true;
       error = '';
-      const response = await fetch('/api/activity-logs', {
+      const response = await fetch(`/api/activity-logs?page=${page}&per_page=${perPage}`, {
         credentials: 'include'
       });
 
       if (response.ok) {
         const data = await response.json();
         activityLogs = data.logs;
+        
+        // Update pagination state
+        if (data.pagination) {
+          currentPage = data.pagination.page;
+          totalPages = data.pagination.pages;
+          totalItems = data.pagination.total;
+          hasNext = data.pagination.has_next;
+          hasPrev = data.pagination.has_prev;
+        }
+        
         console.log('Activity logs loaded:', activityLogs);
       } else if (response.status === 401) {
         // User is not authenticated
@@ -74,6 +92,25 @@
     return eventTypes[eventType] || eventType;
   }
 
+  // Pagination navigation functions
+  function goToPage(page) {
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+      fetchActivityLogs(page);
+    }
+  }
+
+  function nextPage() {
+    if (hasNext) {
+      goToPage(currentPage + 1);
+    }
+  }
+
+  function prevPage() {
+    if (hasPrev) {
+      goToPage(currentPage - 1);
+    }
+  }
+
   $: if ($activeSectionStore === 'activity-log') {
     console.log("Activity Log section is now active");
     fetchActivityLogs();
@@ -120,6 +157,51 @@
           {/each}
         </tbody>
       </table>
+      
+      <!-- Pagination Controls -->
+      {#if totalPages > 1}
+        <div class="pagination-controls" transition:fade={{ duration: 150 }}>
+          <div class="pagination-info">
+            <span>{$i18nStore.t('showing') || 'Showing'} {((currentPage - 1) * perPage) + 1}-{Math.min(currentPage * perPage, totalItems)} {$i18nStore.t('of') || 'of'} {totalItems} {$i18nStore.t('items') || 'items'}</span>
+          </div>
+          
+          <div class="pagination-buttons">
+            <button 
+              class="pagination-btn" 
+              disabled={!hasPrev}
+              on:click={prevPage}
+              title="{$i18nStore.t('previous_page') || 'Previous page'}"
+            >
+              ← {$i18nStore.t('previous') || 'Previous'}
+            </button>
+            
+            <div class="page-numbers">
+              {#each Array(totalPages).fill(0) as _, i}
+                {#if i + 1 === 1 || i + 1 === totalPages || (i + 1 >= currentPage - 2 && i + 1 <= currentPage + 2)}
+                  <button 
+                    class="page-btn" 
+                    class:active={i + 1 === currentPage}
+                    on:click={() => goToPage(i + 1)}
+                  >
+                    {i + 1}
+                  </button>
+                {:else if i + 1 === currentPage - 3 || i + 1 === currentPage + 3}
+                  <span class="ellipsis">...</span>
+                {/if}
+              {/each}
+            </div>
+            
+            <button 
+              class="pagination-btn" 
+              disabled={!hasNext}
+              on:click={nextPage}
+              title="{$i18nStore.t('next_page') || 'Next page'}"
+            >
+              {$i18nStore.t('next') || 'Next'} →
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -176,5 +258,82 @@
     align-items: center;
     margin-bottom: 1.5rem;
     min-height: 2.5rem;
+  }
+
+  /* Pagination styles */
+  .pagination-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1.5rem;
+    padding: 1rem 0;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .pagination-info {
+    color: #718096;
+    font-size: 0.875rem;
+  }
+
+  .pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .pagination-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    background-color: white;
+    color: #4a5568;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+  }
+
+  .pagination-btn:hover:not(:disabled) {
+    background-color: #f7fafc;
+    border-color: #cbd5e0;
+  }
+
+  .pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .page-btn {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    background-color: white;
+    color: #4a5568;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    min-width: 2.5rem;
+    transition: all 0.2s;
+  }
+
+  .page-btn:hover {
+    background-color: #f7fafc;
+    border-color: #cbd5e0;
+  }
+
+  .page-btn.active {
+    background-color: #3182ce;
+    border-color: #3182ce;
+    color: white;
+  }
+
+  .ellipsis {
+    padding: 0.5rem 0.25rem;
+    color: #a0aec0;
+    font-size: 0.875rem;
   }
 </style>
