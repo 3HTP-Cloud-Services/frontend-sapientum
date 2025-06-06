@@ -3,7 +3,7 @@ import './app.css'
 import './embedded.css'
 import App from './App.svelte'
 import {isAuthenticated} from '../../shared-components/utils/auth.js';
-import config from './config.json';
+import config from './backend.json';
 
 // Parse URL parameters
 const urlParams = new URLSearchParams(window.location.search);
