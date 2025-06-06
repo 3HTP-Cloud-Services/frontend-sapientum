@@ -13,23 +13,16 @@ const theme = urlParams.get('theme') || 'light';
 const isEmbedded = urlParams.get('embedded') === 'true' ||
                    window.location.pathname.startsWith('/embedded');
 
-// Set a flag for static mode at the global level
-window.isStaticMode = window.location.pathname === '/' &&
-                      !window.location.href.includes('localhost:5173');
+// Static mode flag is no longer used for API URL selection but kept for compatibility
+window.isStaticMode = false;
 
 window.isEmbedded = isEmbedded;
 window.embeddedTheme = theme;
 
 // Set up API configuration
 const getApiBaseUrl = () => {
-  // If in static mode, always use lambda
-  if (window.isStaticMode) {
-    console.log('Using lambda API URL:', config.lambda.apiUrl);
-    return config.lambda.apiUrl;
-  }
-  // Otherwise use local
-  console.log('Using local API URL:', config.local.apiUrl);
-  return config.local.apiUrl;
+  console.log('Using API URL:', config.apiUrl);
+  return config.apiUrl;
 };
 
 // Override fetch for API calls
@@ -48,11 +41,7 @@ window.fetch = function(url, options = {}) {
   return originalFetch(url, options);
 };
 
-if (window.isStaticMode) {
-  console.log('Application starting in STATIC mode');
-} else {
-  console.log('Application starting in DEVELOPMENT mode');
-}
+console.log('Application starting with fixed API URL');
 
 if (isEmbedded) {
   console.log('Application running in embedded mode with theme:', theme);

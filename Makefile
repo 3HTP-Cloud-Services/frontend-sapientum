@@ -33,10 +33,14 @@ run:
 
 # Build frontend as a static site
 static:
+	@echo "Cleaning static directories..."
+	@rm -rf backend/static
+	@rm -rf merged_frontend/frontend/dist
+	@rm -rf merged_frontend/embed-frontend/dist
 	@echo "Building merged frontend as static sites..."
 	cd merged_frontend && npm run build:both
-	@mkdir -p backend/static/app
-	@cp -r merged_frontend/frontend/dist/* backend/static/app/
+	@mkdir -p backend/static
+	@cp -r merged_frontend/frontend/dist/* backend/static/
 	@mkdir -p backend/static/embed
 	@cp -r merged_frontend/embed-frontend/dist/* backend/static/embed/
 	@echo "Static sites built and copied to backend/static/" 

@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, session, send_from_directory, send_file, Response
-from flask_cors import CORS
+# from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import os
@@ -77,17 +77,17 @@ def print_origin():
 
 
 # Enhanced CORS configuration for embedding
-cors = CORS(
-    app,
-    supports_credentials=True,
-    resources={
-        "/*": {
-            "origins": "*",
-            "allow_headers": ["Content-Type", "Authorization", "Accept"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-        }
-    }
-)
+# cors = CORS(
+#     app,
+#     supports_credentials=True,
+#     resources={
+#         "/*": {
+#             "origins": "*",
+#             "allow_headers": ["Content-Type", "Authorization", "Accept"],
+#             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+#         }
+#     }
+# )
 
 db_config = db_utils.get_db_config()
 app.config.update(db_config)
