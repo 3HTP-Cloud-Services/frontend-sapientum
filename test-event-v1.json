@@ -1,0 +1,61 @@
+{
+  "resource": "/api/login",
+  "path": "/api/login",
+  "httpMethod": "POST",
+  "headers": {
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Content-Type": "application/json",
+    "Host": "api.example.com",
+    "User-Agent": "Mozilla/5.0",
+    "X-Forwarded-For": "127.0.0.1",
+    "X-Forwarded-Port": "443",
+    "X-Forwarded-Proto": "https"
+  },
+  "multiValueHeaders": {
+    "Accept": ["application/json"],
+    "Accept-Encoding": ["gzip, deflate, br"],
+    "Content-Type": ["application/json"],
+    "Host": ["api.example.com"],
+    "User-Agent": ["Mozilla/5.0"],
+    "X-Forwarded-For": ["127.0.0.1"],
+    "X-Forwarded-Port": ["443"],
+    "X-Forwarded-Proto": ["https"]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "123456",
+    "resourcePath": "/api/login",
+    "httpMethod": "POST",
+    "extendedRequestId": "request-id",
+    "requestTime": "04/Mar/2020:19:15:17 +0000",
+    "path": "/api/login",
+    "accountId": "123456789012",
+    "protocol": "HTTP/1.1",
+    "stage": "prod",
+    "domainPrefix": "api",
+    "requestTimeEpoch": 1583349317135,
+    "requestId": "request-id",
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "accountId": null,
+      "cognitoIdentityId": null,
+      "caller": null,
+      "sourceIp": "127.0.0.1",
+      "principalOrgId": null,
+      "accessKey": null,
+      "cognitoAuthenticationType": null,
+      "cognitoAuthenticationProvider": null,
+      "userArn": null,
+      "userAgent": "Mozilla/5.0",
+      "user": null
+    },
+    "domainName": "api.example.com",
+    "apiId": "api-id"
+  },
+  "body": "{\"username\":\"jpnunez@3htp.com\",\"password\":\"user123\"}",
+  "isBase64Encoded": false
+}
