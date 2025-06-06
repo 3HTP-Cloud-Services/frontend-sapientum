@@ -107,7 +107,12 @@
         "domain_not_allowed_error": "El dominio no está en la lista de dominios permitidos",
         "invalid_email_error": "Email inválido. Debe contener un dominio válido",
         "chat_connection_error": "Error de conexion al grabar conversacion",
-        "activity_log": "Bitácora"
+        "activity_log": "Bitácora",
+        "date": "Fecha",
+        "user": "Usuario",
+        "event_type": "Tipo de evento",
+        "activity": "Actividad",
+        "message": "Mensaje"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -217,6 +222,11 @@
         "domain_not_allowed_error": "The domain is not in the list of allowed domains",
         "invalid_email_error": "Invalid email. Must contain a valid domain",
         "chat_connection_error": "Connection error when saving conversation",
-        "activity_log": "Activity Log"
+        "activity_log": "Activity Log",
+        "date": "Date",
+        "user": "User",
+        "event_type": "Event Type",
+        "activity": "Activity",
+        "message": "Message"
     }
 }
