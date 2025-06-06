@@ -29,7 +29,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         //        target: 'http://localhost:8000',
-        target: 'https://blvjad1mla.execute-api.us-east-1.amazonaws.com/Prod/api',
+        target: 'https://iiyi5tvfpv6ezql6s3tyyuzcea0xsbdp.lambda-url.us-east-1.on.aws/api',
         changeOrigin: true
       }
     }

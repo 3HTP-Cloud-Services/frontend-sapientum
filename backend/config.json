@@ -3,12 +3,12 @@
   "database_name": "postgres",
   "aws_role_arn": "arn:aws:iam::369595298303:role/sapientum_role",
   "non_embedded_origins": [
-    "http://localhost:5173", 
+    "http://localhost:5173",
     "http://localhost:8000",
     "https://localhost:5173",
     "https://localhost:8000"
   ],
-  "lambda_url": "https://zmcchahha2ifjeqgqkgihbemne0wknql.lambda-url.us-east-1.on.aws/",
+  "lambda_url": "https://iiyi5tvfpv6ezql6s3tyyuzcea0xsbdp.lambda-url.us-east-1.on.aws/",
   "agent_id": "EPQNIMHUT5",
   "agent_alias_id": "G9T58YNXXC"
 }

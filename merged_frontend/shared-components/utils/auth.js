@@ -10,11 +10,11 @@ export const checkAuth = async () => {
     const response = await fetch('/api/check-auth', {
       credentials: 'include'
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       isAuthenticated.set(data.authenticated);
-      
+
       if (data.authenticated) {
         userRole.set(data.role);
         userEmail.set(data.email);
@@ -24,7 +24,7 @@ export const checkAuth = async () => {
         userEmail.set(null);
         isEmbedded.set(false);
       }
-      
+
       return data.authenticated;
     } else {
       isAuthenticated.set(false);
@@ -53,23 +53,23 @@ export const login = async (username, password) => {
       body: JSON.stringify({ username, password }),
       credentials: 'include'
     });
-    
+
     const data = await response.json();
-    
+
     if (response.ok && data.success) {
       isAuthenticated.set(true);
       userRole.set(data.role);
       userEmail.set(username);
       isEmbedded.set(data.is_embedded || false);
-      return { 
-        success: true, 
+      return {
+        success: true,
         role: data.role,
         is_embedded: data.is_embedded || false
       };
     } else {
       if (data.error === 'no_chat_access') {
-        return { 
-          success: false, 
+        return {
+          success: false,
           message: data.message || 'You do not have chat access',
           error: 'no_chat_access'
         };
@@ -102,15 +102,15 @@ export const checkChatAccess = async () => {
     const response = await fetch('/api/check-chat-access', {
       credentials: 'include'
     });
-    
+
     if (response.ok) {
       const data = await response.json();
-      
+
       // Update embedded status from the response
       if (data.is_embedded !== undefined) {
         isEmbedded.set(data.is_embedded);
       }
-      
+
       return data.has_access === true;
     }
     return false;

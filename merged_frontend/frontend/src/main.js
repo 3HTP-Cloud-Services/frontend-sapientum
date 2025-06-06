@@ -3,6 +3,7 @@ import './app.css'
 import './embedded.css'
 import App from './App.svelte'
 import {isAuthenticated} from '../../shared-components/utils/auth.js';
+import config from './config.json';
 
 // Parse URL parameters
 const urlParams = new URLSearchParams(window.location.search);
@@ -18,6 +19,34 @@ window.isStaticMode = window.location.pathname === '/' &&
 
 window.isEmbedded = isEmbedded;
 window.embeddedTheme = theme;
+
+// Set up API configuration
+const getApiBaseUrl = () => {
+  // If in static mode, always use lambda
+  if (window.isStaticMode) {
+    console.log('Using lambda API URL:', config.lambda.apiUrl);
+    return config.lambda.apiUrl;
+  }
+  // Otherwise use local
+  console.log('Using local API URL:', config.local.apiUrl);
+  return config.local.apiUrl;
+};
+
+// Override fetch for API calls
+const originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  // Only intercept calls to /api
+  if (typeof url === 'string' && url.startsWith('/api')) {
+    const baseUrl = getApiBaseUrl();
+    const normalizedEndpoint = url.replace('/api/', '');
+    const newUrl = `${baseUrl}/${normalizedEndpoint}`;
+    console.log(`Redirecting API call from ${url} to ${newUrl}`);
+    return originalFetch(newUrl, options);
+  }
+
+  // Pass through all other fetch calls
+  return originalFetch(url, options);
+};
 
 if (window.isStaticMode) {
   console.log('Application starting in STATIC mode');

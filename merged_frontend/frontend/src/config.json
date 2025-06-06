@@ -1,0 +1,8 @@
+{
+  "local": {
+    "apiUrl": "/api"
+  },
+  "lambda": {
+    "apiUrl": "https://iiyi5tvfpv6ezql6s3tyyuzcea0xsbdp.lambda-url.us-east-1.on.aws/api"
+  }
+}
