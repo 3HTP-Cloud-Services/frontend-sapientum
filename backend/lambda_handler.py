@@ -10,8 +10,8 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 # Importar la aplicación Flask
-from backend.app import app
-from backend.models import db
+from app import app
+from models import db
 import backend.db as db_utils
 
 # Usar un adaptador WSGI alternativo
@@ -107,7 +107,7 @@ def lambda_handler(event, context):
                         print("Base de datos SQLite inicializada correctamente")
 
                         # Crear un usuario de prueba si no existe
-                        from backend.models import User
+                        from models import User
                         if not User.query.filter_by(email="jpnunez@3htp.com").first():
                             test_user = User(
                                 email="jpnunez@3htp.com",

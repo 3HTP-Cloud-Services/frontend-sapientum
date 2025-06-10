@@ -8,4 +8,4 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
 # Importar db para que esté disponible al importar el paquete
-from backend.db import get_db_config, get_bucket_name, test_connection
+from db import get_db_config, get_bucket_name, test_connection

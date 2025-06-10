@@ -5,7 +5,7 @@ from aws_utils import (
     upload_file_to_s3,
     create_s3_folder
 )
-from backend.activity import create_activity_catalog_log
+from activity import create_activity_catalog_log
 from db import get_bucket_name
 from models import db, Catalog, User, File, Version, Conversation, CatalogPermission, PermissionType, EventType
 from flask import session

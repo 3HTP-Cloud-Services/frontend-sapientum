@@ -3,8 +3,8 @@ from sqlalchemy.event import Events
 
 import traceback
 
-from backend.activity import create_activity_user_log
-from backend.models import EventType
+from activity import create_activity_user_log
+from models import EventType
 from models import User
 
 def authenticate_user(email, password):
