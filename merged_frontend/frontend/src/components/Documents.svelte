@@ -4,6 +4,7 @@
   import { writable } from 'svelte/store';
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
   export let documents = [];
   export let loading = true;
@@ -19,7 +20,7 @@
   export async function fetchDocuments() {
     try {
       loading = true;
-      const response = await fetch('/api/catalogs', {
+      const response = await httpCall('/api/catalogs', {
         credentials: 'include'
       });
 
@@ -46,7 +47,7 @@
       loadingDocument = true;
       documentError = '';
 
-      const response = await fetch(`/api/catalogs/${id}`, {
+      const response = await httpCall(`/api/catalogs/${id}`, {
         credentials: 'include'
       });
 

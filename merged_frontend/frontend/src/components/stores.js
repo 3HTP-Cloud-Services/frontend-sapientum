@@ -1,4 +1,5 @@
 import { writable, get } from 'svelte/store';
+import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
 export const catalogsStore = writable([]);
 export const selectedCatalogStore = writable(null);
@@ -21,7 +22,7 @@ export async function fetchCatalogs() {
     loadingStore.set(true);
     errorStore.set('');
 
-    const response = await fetch('/api/catalogs', {
+    const response = await httpCall('/api/catalogs', {
       credentials: 'include'
     });
 
@@ -61,7 +62,7 @@ export async function fetchCatalog(id) {
       return;
     }
 
-    const response = await fetch(`/api/catalogs/${id}`, {
+    const response = await httpCall(`/api/catalogs/${id}`, {
       credentials: 'include'
     });
 
@@ -93,7 +94,7 @@ export async function fetchCatalogFiles(id) {
     filesErrorStore.set('');
     catalogFilesStore.set([]);
 
-    const response = await fetch(`/api/catalogs/${id}/files`, {
+    const response = await httpCall(`/api/catalogs/${id}/files`, {
       credentials: 'include'
     });
 

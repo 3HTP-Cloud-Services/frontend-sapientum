@@ -18,6 +18,22 @@ def create_activity_user_log(event, user_id, other_user_id, activity):
         print(f"Error creating activity log: {e}")
         return False
 
+def create_activity_catalog_log(event, user_id, catalog_id, activity):
+    try:
+        activity_log = ActivityLog(
+            activity=activity,
+            event=event,
+            catalog_id=catalog_id,
+            created_at=datetime.now()
+        )
+        db.session.add(activity_log)
+        db.session.commit()
+        print(f"Activity log created: Event {event}, User {user_id} edited catalog {catalog_id}: {activity}")
+        return True
+    except Exception as e:
+        print(f"Error creating activity log: {e}")
+        return False
+
 def create_activity_chat_log(event, user_id, catalog_id, message_id, activity):
     try:
         activity_log = ActivityLog(

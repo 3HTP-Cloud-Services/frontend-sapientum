@@ -4,6 +4,7 @@
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
   import UserModal from './UserModal.svelte';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
   export let users = [];
   export let domains = [];
@@ -26,7 +27,7 @@
     try {
       loadingUsers = true;
       usersError = '';
-      const response = await fetch('/api/users', {
+      const response = await httpCall('/api/users', {
         credentials: 'include'
       });
 
@@ -78,7 +79,7 @@
     usersError = '';
     try {
       if (editingUser.id) {
-        const response = await fetch(`/api/users/${editingUser.id}`, {
+        const response = await httpCall(`/api/users/${editingUser.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
@@ -99,7 +100,7 @@
           usersError = 'Error al actualizar usuario';
         }
       } else {
-        const response = await fetch('/api/users', {
+        const response = await httpCall('/api/users', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -148,7 +149,7 @@
     }
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await httpCall(`/api/users/${userId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -175,7 +176,7 @@
 
       usersError = '';
       successMessage = '';
-      const response = await fetch(`/api/users/${userId}/toggle/${property}`, {
+      const response = await httpCall(`/api/users/${userId}/toggle/${property}`, {
         method: 'PUT',
         credentials: 'include'
       });
@@ -245,7 +246,7 @@
     if (domain && domain.id && domain.id > 0) {
       try {
         domainsError = '';
-        const response = await fetch(`/api/allowed-domains/${domain.id}`, {
+        const response = await httpCall(`/api/allowed-domains/${domain.id}`, {
           method: 'DELETE',
           credentials: 'include'
         });
@@ -302,7 +303,7 @@
       const domainsToSave = allowedDomains.filter(domain => domain.name.trim() !== '');
 
       // This would be replaced with an actual API call when backend is ready
-      const response = await fetch('/api/allowed-domains', {
+      const response = await httpCall('/api/allowed-domains', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

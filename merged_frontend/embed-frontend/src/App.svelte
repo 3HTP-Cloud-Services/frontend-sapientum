@@ -5,6 +5,7 @@
   import { isAuthenticated, checkAuth } from '../../shared-components/utils/auth.js';
   import { i18nStore, initializeI18n } from '../../shared-components/utils/i18n.js';
   import { writable } from 'svelte/store';
+  import { httpCall } from '../../shared-components/utils/httpCall.js';
 
   import Login from '../../shared-components/Login/Login.svelte';
   import EmbeddedChat from '../../shared-components/Chat/EmbeddedChat.svelte';
@@ -22,7 +23,7 @@
 
   async function handleLogout() {
     try {
-      await fetch('/api/logout', {
+      await httpCall('/api/logout', {
         method: 'POST',
         credentials: 'include'
       });

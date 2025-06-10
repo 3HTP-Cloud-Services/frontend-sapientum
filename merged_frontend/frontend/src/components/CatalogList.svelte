@@ -3,6 +3,7 @@
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
   import { createEventDispatcher, onMount } from 'svelte';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
   import {
     catalogsStore,
     loadingStore,
@@ -60,7 +61,7 @@
         formData.append('file', file);
       }
 
-      const response = await fetch(`/api/catalogs/${event.detail.catalogId}/upload`, {
+      const response = await httpCall(`/api/catalogs/${event.detail.catalogId}/upload`, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -92,7 +93,7 @@
 
   async function fetchCatalogTypes() {
     try {
-      const response = await fetch('/api/catalog-types', {
+      const response = await httpCall('/api/catalog-types', {
         credentials: 'include'
       });
 
@@ -127,7 +128,7 @@
     console.log("Creating new catalog:", newCatalog);
 
     try {
-      const response = await fetch('/api/catalogs', {
+      const response = await httpCall('/api/catalogs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

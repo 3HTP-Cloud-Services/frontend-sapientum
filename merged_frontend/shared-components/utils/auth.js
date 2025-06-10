@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { httpCall } from './httpCall.js';
 
 export const isAuthenticated = writable(false);
 export const userRole = writable(null);
@@ -7,7 +8,7 @@ export const isEmbedded = writable(false);
 
 export const checkAuth = async () => {
   try {
-    const response = await fetch('/api/check-auth', {
+    const response = await httpCall('/api/check-auth', {
       credentials: 'include'
     });
 
@@ -45,7 +46,7 @@ export const checkAuth = async () => {
 
 export const login = async (username, password) => {
   try {
-    const response = await fetch('/api/login', {
+    const response = await httpCall('/api/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -84,7 +85,7 @@ export const login = async (username, password) => {
 
 export const logout = async () => {
   try {
-    await fetch('/api/logout', {
+    await httpCall('/api/logout', {
       method: 'POST',
       credentials: 'include'
     });
@@ -99,7 +100,7 @@ export const logout = async () => {
 
 export const checkChatAccess = async () => {
   try {
-    const response = await fetch('/api/check-chat-access', {
+    const response = await httpCall('/api/check-chat-access', {
       credentials: 'include'
     });
 

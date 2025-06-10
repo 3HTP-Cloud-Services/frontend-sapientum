@@ -4,6 +4,7 @@
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
   import UserModal from './UserModal.svelte';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
   export let switchSection;
   export let activeSectionStore;
@@ -27,7 +28,7 @@
     error = null;
 
     try {
-      const response = await fetch(`/api/catalogs/${currentCatalogId}/users`, {
+      const response = await httpCall(`/api/catalogs/${currentCatalogId}/users`, {
         credentials: 'include'
       });
 
@@ -77,7 +78,7 @@
       console.log('Using user_id:', userId);
 
       const url = `/api/catalogs/${currentCatalogId}/users`;
-      const response = await fetch(url, {
+      const response = await httpCall(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -105,7 +106,7 @@
   async function removeUser(userId) {
     if (confirm($i18nStore.t('confirm_remove_user'))) {
       try {
-        const response = await fetch(`/api/catalogs/${currentCatalogId}/users/${userId}`, {
+        const response = await httpCall(`/api/catalogs/${currentCatalogId}/users/${userId}`, {
           method: 'DELETE',
           credentials: 'include'
         });

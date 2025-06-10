@@ -5,8 +5,9 @@ from aws_utils import (
     upload_file_to_s3,
     create_s3_folder
 )
+from backend.activity import create_activity_catalog_log
 from db import get_bucket_name
-from models import db, Catalog, User, File, Version, Conversation, CatalogPermission, PermissionType
+from models import db, Catalog, User, File, Version, Conversation, CatalogPermission, PermissionType, EventType
 from flask import session
 import traceback
 from datetime import datetime
@@ -350,10 +351,6 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
                 print(f"Error creating catalog_type folder: {catalog_type}")
                 return None
 
-        # Create the catalog folder inside the catalog_type folder
-        # We'll use a path format of catalog_dir/{catalog_type}/{sanitized_s3_name}
-        # But we need to modify how create_s3_folder works to handle this
-
         # Get a fresh S3 client with assumed role credentials
         from aws_utils import get_client_with_assumed_role
         s3_client = get_client_with_assumed_role('s3')
@@ -415,6 +412,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             )
             db.session.add(new_catalog)
             db.session.commit()
+            create_activity_catalog_log(EventType.CATALOG_CREATION, session.get['user_id'], new_catalog.id, 'User ' + session['user_email'] + ' created the catalog ' + catalog_name)
 
             return new_catalog.to_dict()
         except Exception as db_error:
@@ -521,6 +519,8 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
 
                     # Commit the transaction
                     db.session.commit()
+
+                    create_activity_catalog_log(EventType.FILE_UPLOAD, session.get['user_id'], new_file.id, 'User ' + session['user_email'] + ' uploaded the file ' + file_obj.filename)
 
                     # Return the file dictionary
                     file_dict = new_file.to_dict()

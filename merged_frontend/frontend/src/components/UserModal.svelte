@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
   export let show = false;
   export let user;
@@ -39,7 +40,7 @@
       const url = `/api/catalogs/${catalogId}/available-users`;
       console.log('Fetching from URL:', url);
 
-      const response = await fetch(url, {
+      const response = await httpCall(url, {
         credentials: 'include'
       });
 

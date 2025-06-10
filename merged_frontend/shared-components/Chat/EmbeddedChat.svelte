@@ -5,6 +5,7 @@
 
   import { writable } from 'svelte/store';
   import { logout , isAuthenticated } from '../utils/auth.js';
+  import { httpCall } from '../utils/httpCall.js';
 
   import Header from '../Header/Header.svelte';
 
@@ -21,7 +22,7 @@
 
   async function loadConversationMessages(catalogId) {
     try {
-      const response = await fetch(`/api/conversations/${catalogId}`, {
+      const response = await httpCall(`/api/conversations/${catalogId}`, {
         credentials: 'include'
       });
 
@@ -182,7 +183,7 @@
         catalogId: selectedCatalogId
       };
 
-      const response = await fetch('/api/chat', {
+      const response = await httpCall('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -279,7 +280,7 @@
 
     try {
       // Load catalogs and conversations asynchronously
-      const catalogsResponse = await fetch('/api/catalogs', {
+      const catalogsResponse = await httpCall('/api/catalogs', {
         credentials: 'include'
       });
 

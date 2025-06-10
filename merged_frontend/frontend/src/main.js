@@ -25,21 +25,7 @@ const getApiBaseUrl = () => {
   return config.apiUrl;
 };
 
-// Override fetch for API calls
-const originalFetch = window.fetch;
-window.fetch = function(url, options = {}) {
-  // Only intercept calls to /api
-  if (typeof url === 'string' && url.startsWith('/api')) {
-    const baseUrl = getApiBaseUrl();
-    const normalizedEndpoint = url.replace('/api/', '');
-    const newUrl = `${baseUrl}/${normalizedEndpoint}`;
-    console.log(`Redirecting API call from ${url} to ${newUrl}`);
-    return originalFetch(newUrl, options);
-  }
-
-  // Pass through all other fetch calls
-  return originalFetch(url, options);
-};
+// Fetch override removed - using httpCall function instead
 
 console.log('Application starting with fixed API URL');
 

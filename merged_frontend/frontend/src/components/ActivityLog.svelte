@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
   export let activeSectionStore;
 
@@ -23,7 +24,7 @@
     try {
       loading = true;
       error = '';
-      const response = await fetch(`/api/activity-logs?page=${page}&per_page=${perPage}`, {
+      const response = await httpCall(`/api/activity-logs?page=${page}&per_page=${perPage}`, {
         credentials: 'include'
       });
 

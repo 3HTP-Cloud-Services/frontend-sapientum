@@ -13,6 +13,8 @@ from chat import generate_ai_response
 from activity import create_activity_chat_log
 from urllib.parse import quote
 
+from catalog import get_all_catalogs
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 
@@ -331,8 +333,6 @@ def get_translations():
 def get_catalogs():
     if not session.get('logged_in'):
         return jsonify({"error": "No autorizado"}), 401
-
-    from catalog import get_all_catalogs
     catalogs = get_all_catalogs()
     return jsonify(catalogs)
 
@@ -919,10 +919,10 @@ def get_activity_logs():
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
-        
+
         # Ensure per_page is within reasonable limits
         per_page = min(per_page, 100)
-        
+
         # Get paginated activity logs, ordered by creation time (newest first)
         pagination = ActivityLog.query.order_by(ActivityLog.created_at.desc()).paginate(
             page=page, per_page=per_page, error_out=False

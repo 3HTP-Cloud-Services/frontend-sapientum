@@ -1,6 +1,7 @@
 <script>
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
   import { onMount, beforeUpdate, afterUpdate } from 'svelte';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
   import {
     selectedCatalogStore,
     catalogFilesStore,
@@ -132,7 +133,7 @@
         url = `/api/catalogs/${event.detail.catalogId}/upload`;
       }
 
-      const response = await fetch(url, {
+      const response = await httpCall(url, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -177,7 +178,7 @@
     const { id, description, status, confidentiality } = event.detail;
 
     try {
-      const response = await fetch(`/api/files/${id}`, {
+      const response = await httpCall(`/api/files/${id}`, {
         method: 'PUT',
         credentials: 'include',
         headers: {

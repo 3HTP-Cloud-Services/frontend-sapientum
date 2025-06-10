@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { I18n } from 'i18n-js';
+import { httpCall } from './httpCall.js';
 
 export const i18nStore = writable(null);
 export const currentLocale = writable("en");
@@ -47,7 +48,7 @@ export async function initializeI18n() {
     let i18n = new I18n(defaultTranslations);
 
     try {
-      const response = await fetch('/api/i18n');
+      const response = await httpCall('/api/i18n');
       if (response.ok) {
         const translations = await response.json();
         i18n = new I18n({ ...defaultTranslations, ...translations });
@@ -103,7 +104,7 @@ export function t(key, options) {
 
 export async function updateTranslations(language, updates) {
   try {
-    const response = await fetch('/api/i18n', {
+    const response = await httpCall('/api/i18n', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -128,7 +129,7 @@ export async function updateTranslations(language, updates) {
 
 export async function refreshTranslations() {
   try {
-    const response = await fetch('/api/i18n');
+    const response = await httpCall('/api/i18n');
     if (response.ok) {
       const translations = await response.json();
       const i18n = new I18n(translations);
