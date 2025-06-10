@@ -138,12 +138,23 @@ def login():
     email = data.get('username')
     password = data.get('password')
 
-    # NOTE: We're using a hardcoded password here for development
-    # In production, you would use proper password hashing and authentication
-    # We're keeping this simple for the example
-    user = User.query.filter_by(email=email).first()
+    # Import cognito authentication
+    from cognito import authenticate_user
 
-    if user and password == "user123":  # Hardcoded password check for simplicity
+    # Try Cognito authentication first
+    success, cognito_response = authenticate_user(email, password)
+    print('\ncognito:', success, cognito_response)
+    if success:
+        # Cognito authentication successful, check if user exists in local DB
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "User authenticated but not found in system",
+                "error": "user_not_in_system"
+            }), 401
+
         # Check if this is an embedded request
         embedded = is_embedded_request()
 
@@ -161,16 +172,17 @@ def login():
         session['user_role'] = user.role
         session['is_embedded'] = embedded
 
+        # Include Cognito tokens in response
         return jsonify({
             "success": True,
             "role": user.role,
-            "is_embedded": embedded
+            "is_embedded": embedded,
+            "cognito": cognito_response
         })
-
-    if not user:
-        return jsonify({"success": False, "message": "Unknown User"}), 401
-
-    return jsonify({"success": False, "message": "Credenciales inválidas"}), 401
+    else:
+        # Return Cognito error message if available
+        error_message = cognito_response.get("error", "Credenciales inválidas")
+        return jsonify({"success": False, "message": error_message}), 401
 
 @app.route('/api/logout', methods=['POST'])
 def logout():

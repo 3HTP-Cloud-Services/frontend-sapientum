@@ -112,7 +112,8 @@
         "user": "Usuario",
         "event_type": "Tipo de evento",
         "activity": "Actividad",
-        "message": "Mensaje"
+        "message": "Mensaje",
+        "loading": "Cargando"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -227,6 +228,7 @@
         "user": "User",
         "event_type": "Event Type",
         "activity": "Activity",
-        "message": "Message"
+        "message": "Message",
+        "loading": "Loading"
     }
 }
