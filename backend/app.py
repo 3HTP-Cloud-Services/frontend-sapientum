@@ -12,6 +12,7 @@ from werkzeug.local import LocalProxy
 from chat import generate_ai_response
 from activity import create_activity_chat_log
 from urllib.parse import quote
+from auth_decorator import token_required, admin_required, chat_access_required
 
 from catalog import get_all_catalogs
 
@@ -166,45 +167,45 @@ def login():
                 "error": "no_chat_access"
             }), 403
 
-        session['logged_in'] = True
-        session['user_email'] = email
-        session['user_id'] = user.id
-        session['user_role'] = user.role
-        session['is_embedded'] = embedded
-
-        # Include Cognito tokens in response
+        # Return JWT token for authentication
         return jsonify({
             "success": True,
             "role": user.role,
             "is_embedded": embedded,
+            "token": cognito_response.get("idToken"),
             "cognito": cognito_response
         })
     else:
-        # Return Cognito error message if available
+        # Cognito authentication failed
         error_message = cognito_response.get("error", "Credenciales inválidas")
         return jsonify({"success": False, "message": error_message}), 401
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    session.pop('logged_in', None)
-    session.pop('user_email', None)
-    session.pop('user_role', None)
-    session.pop('is_embedded', None)
-    return jsonify({"success": True})
+    # JWT tokens are stateless, so logout is handled client-side
+    # The frontend should delete the token from storage
+    return jsonify({"success": True, "message": "Logged out successfully"})
 
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
-    if session.get('logged_in'):
-        # Get embedded status from session or check current request
-        embedded = session.get('is_embedded', is_embedded_request())
-
-        return jsonify({
-            "authenticated": True,
-            "email": session.get('user_email'),
-            "role": session.get('user_role'),
-            "is_embedded": embedded
-        })
-    return jsonify({"authenticated": False}), 401
+    from auth_decorator import token_required
+    from cognito import get_user_from_token
+    
+    success, user_data = get_user_from_token()
+    
+    if not success:
+        return jsonify({"authenticated": False, "error": user_data.get("error")}), 401
+    
+    # Token authentication successful
+    embedded = is_embedded_request()
+    return jsonify({
+        "authenticated": True,
+        "email": user_data.get("email"),
+        "role": user_data.get("role"),
+        "is_embedded": embedded,
+        "is_admin": user_data.get("is_admin"),
+        "chat_access": user_data.get("chat_access")
+    })
 
 @app.route('/api/embed/status', methods=['GET', 'OPTIONS'])
 def embed_status():
@@ -250,14 +251,8 @@ def check_chat_access():
     })
 
 @app.route('/api/allowed-domains', methods=['PUT'])
-def allowed_domains():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+@admin_required
+def allowed_domains(current_user=None, token_user_data=None, **kwargs):
 
     data = request.json
     print('allowed_domains', data)
@@ -289,14 +284,8 @@ def allowed_domains():
         return jsonify({"error": "Error al guardar dominios en la base de datos"}), 500
 
 @app.route('/api/allowed-domains/<int:domain_id>', methods=['DELETE'])
-def delete_domain(domain_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+@admin_required
+def delete_domain(domain_id, current_user=None, token_user_data=None, **kwargs):
 
     try:
         domain = Domain.query.get(domain_id)
@@ -342,17 +331,14 @@ def get_translations():
     return jsonify(TRANSLATIONS)
 
 @app.route('/api/catalogs', methods=['GET'])
-def get_catalogs():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
+@token_required
+def get_catalogs(current_user=None, token_user_data=None, **kwargs):
     catalogs = get_all_catalogs()
     return jsonify(catalogs)
 
 @app.route('/api/catalogs', methods=['POST'])
-def create_catalog():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
+@token_required
+def create_catalog(current_user=None, token_user_data=None, **kwargs):
     data = request.json
     if not data or not data.get('catalog_name'):
         return jsonify({"error": "Catalog name is required"}), 400
@@ -373,10 +359,8 @@ def create_catalog():
         return jsonify({"error": "Failed to create catalog"}), 500
 
 @app.route('/api/catalog-types', methods=['GET'])
-def get_types():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
+@token_required
+def get_types(current_user=None, token_user_data=None, **kwargs):
     from catalog import get_catalog_types
     catalog_types = get_catalog_types()
     return jsonify(catalog_types)
@@ -821,11 +805,9 @@ def download_file(file_id):
         return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
 @app.route('/api/conversations/<int:catalog_id>', methods=['GET'])
-def get_conversation_messages(catalog_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    user_id = session.get('user_id')
+@token_required
+def get_conversation_messages(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    user_id = current_user.id
 
     try:
         from models import Conversation, Message
@@ -862,23 +844,17 @@ def get_conversation_messages(catalog_id):
 
 
 @app.route('/api/chat', methods=['POST'])
-def chat():
-    print('helo chat: ', session.get('user_id'))
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-
-
+@chat_access_required
+def chat(current_user=None, token_user_data=None, **kwargs):
     data = request.json
     user_message = data.get('message', '')
     catalog = data.get('catalogId', '')
-    print('data: ', user_message, catalog)
+    
     if not user_message:
         return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
-    user_id = session.get('user_id')
+    user_id = current_user.id
     ai_response, message_id = generate_ai_response(user_message, catalog, user_id)
-
     create_activity_chat_log(EventType.CHAT_INTERACTION, user_id, catalog, message_id, 'spoke to the ai')
 
     return jsonify({
@@ -917,15 +893,8 @@ def delete_user(user_id):
     return delete_existing_user(user_id)
 
 @app.route('/api/activity-logs', methods=['GET'])
-def get_activity_logs():
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    # Check if user is admin
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
+@admin_required
+def get_activity_logs(current_user=None, token_user_data=None, **kwargs):
 
     try:
         # Get pagination parameters

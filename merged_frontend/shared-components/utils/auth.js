@@ -5,22 +5,66 @@ export const isAuthenticated = writable(false);
 export const userRole = writable(null);
 export const userEmail = writable(null);
 export const isEmbedded = writable(false);
+export const authToken = writable(null);
+
+// Token management functions
+export const setAuthToken = (token) => {
+  if (token) {
+    localStorage.setItem('authToken', token);
+    authToken.set(token);
+  } else {
+    localStorage.removeItem('authToken');
+    authToken.set(null);
+  }
+};
+
+export const getAuthToken = () => {
+  return localStorage.getItem('authToken');
+};
+
+export const clearAuthToken = () => {
+  localStorage.removeItem('authToken');
+  authToken.set(null);
+};
+
+// Initialize auth token from localStorage on app start
+export const initAuth = () => {
+  const token = getAuthToken();
+  if (token) {
+    authToken.set(token);
+  }
+};
 
 export const checkAuth = async () => {
   try {
-    const response = await httpCall('/api/check-auth', {
-      credentials: 'include'
-    });
+    const token = getAuthToken();
+    if (!token) {
+      isAuthenticated.set(false);
+      userRole.set(null);
+      userEmail.set(null);
+      isEmbedded.set(false);
+      return false;
+    }
 
+    const response = await httpCall('/api/check-auth', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    console.log('auth.js checking with JWT token');
     if (response.ok) {
       const data = await response.json();
       isAuthenticated.set(data.authenticated);
 
       if (data.authenticated) {
+        console.log('auth.js', 'if', data.authenticated, data.role, data);
         userRole.set(data.role);
         userEmail.set(data.email);
         isEmbedded.set(data.is_embedded || false);
       } else {
+        console.log('auth.js', 'else');
+        clearAuthToken();
         userRole.set(null);
         userEmail.set(null);
         isEmbedded.set(false);
@@ -28,6 +72,8 @@ export const checkAuth = async () => {
 
       return data.authenticated;
     } else {
+      console.log('auth.js', 'response not ok', response.ok, response.status);
+      clearAuthToken();
       isAuthenticated.set(false);
       userRole.set(null);
       userEmail.set(null);
@@ -35,7 +81,8 @@ export const checkAuth = async () => {
       return false;
     }
   } catch (error) {
-    console.error('Auth check error:', error);
+    console.error('auth.js', 'Auth check error:', error);
+    clearAuthToken();
     isAuthenticated.set(false);
     userRole.set(null);
     userEmail.set(null);
@@ -51,13 +98,17 @@ export const login = async (username, password) => {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, password }),
-      credentials: 'include'
+      body: JSON.stringify({ username, password })
     });
 
     const data = await response.json();
 
     if (response.ok && data.success) {
+      // Store the JWT token
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      
       isAuthenticated.set(true);
       userRole.set(data.role);
       userEmail.set(username);
@@ -85,23 +136,44 @@ export const login = async (username, password) => {
 
 export const logout = async () => {
   try {
-    await httpCall('/api/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
+    const token = getAuthToken();
+    if (token) {
+      await httpCall('/api/logout', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+    }
+    
+    // Clear token and reset state
+    clearAuthToken();
     isAuthenticated.set(false);
     userRole.set(null);
     userEmail.set(null);
     isEmbedded.set(false);
   } catch (error) {
     console.error('Logout error:', error);
+    // Still clear local state even if API call fails
+    clearAuthToken();
+    isAuthenticated.set(false);
+    userRole.set(null);
+    userEmail.set(null);
+    isEmbedded.set(false);
   }
 };
 
 export const checkChatAccess = async () => {
   try {
+    const token = getAuthToken();
+    if (!token) {
+      return false;
+    }
+
     const response = await httpCall('/api/check-chat-access', {
-      credentials: 'include'
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (response.ok) {

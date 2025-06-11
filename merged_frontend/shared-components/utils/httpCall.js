@@ -26,17 +26,28 @@ export async function httpCall(url, options = {}) {
     
     xhr.open(method, url);
     
-    // Set headers
-    if (options.headers) {
-      Object.keys(options.headers).forEach(key => {
-        xhr.setRequestHeader(key, options.headers[key]);
-      });
+    // Prepare headers
+    const headers = { ...options.headers };
+    
+    // Auto-add Authorization header for API calls if not already present and token exists
+    const isApiCall = typeof url === 'string' && (url.includes('/api/') || url.includes('/catalogs') || url.includes('/chat') || url.includes('/users'));
+    if (isApiCall && !headers['Authorization']) {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log('Auto-adding Authorization header for API call');
+      }
     }
     
-    // Handle credentials
-    if (options.credentials === 'include') {
-      xhr.withCredentials = true;
-    }
+    // Set headers
+    Object.keys(headers).forEach(key => {
+      xhr.setRequestHeader(key, headers[key]);
+    });
+    
+    // Remove credentials handling since we're using JWT tokens now
+    // if (options.credentials === 'include') {
+    //   xhr.withCredentials = true;
+    // }
     
     xhr.onload = () => {
       const response = {
