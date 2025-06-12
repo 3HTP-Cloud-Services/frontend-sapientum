@@ -65,13 +65,17 @@ def get_s3_folders():
         traceback.print_exc()
         return []
 
-def get_all_catalogs():
+def get_all_catalogs(user=None):
     try:
-        from flask import session
-
-        # Get current user
-        user_email = session.get('user_email')
-        user = User.query.filter_by(email=user_email).first()
+        # If no user is provided, try to get from JWT token
+        if not user:
+            from cognito import get_user_from_token
+            success, user_data = get_user_from_token()
+            if success:
+                user_email = user_data.get("email")
+                user = User.query.filter_by(email=user_email).first()
+        
+        print('get all catalogs: user:', user.email if user else 'None')
 
         if not user:
             return []

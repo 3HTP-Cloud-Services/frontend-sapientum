@@ -333,7 +333,7 @@ def get_translations():
 @app.route('/api/catalogs', methods=['GET'])
 @token_required
 def get_catalogs(current_user=None, token_user_data=None, **kwargs):
-    catalogs = get_all_catalogs()
+    catalogs = get_all_catalogs(user=current_user)
     return jsonify(catalogs)
 
 @app.route('/api/catalogs', methods=['POST'])
@@ -863,34 +863,40 @@ def chat(current_user=None, token_user_data=None, **kwargs):
     })
 
 @app.route('/api/users', methods=['GET'])
-def get_users():
+@admin_required
+def get_users(current_user=None, token_user_data=None, **kwargs):
     from users import get_users as get_all_users
-    return get_all_users()
+    return get_all_users(current_user=current_user)
 
 @app.route('/api/users/<int:user_id>', methods=['GET'])
-def get_user(user_id):
+@admin_required
+def get_user(user_id, current_user=None, token_user_data=None, **kwargs):
     from users import get_user as get_single_user
-    return get_single_user(user_id)
+    return get_single_user(user_id, current_user=current_user)
 
 @app.route('/api/users', methods=['POST'])
-def create_user():
+@admin_required
+def create_user(current_user=None, token_user_data=None, **kwargs):
     from users import create_user as create_new_user
-    return create_new_user(request.json)
+    return create_new_user(request.json, current_user=current_user)
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
-def update_user(user_id):
+@admin_required
+def update_user(user_id, current_user=None, token_user_data=None, **kwargs):
     from users import update_user as update_existing_user
-    return update_existing_user(user_id, request.json)
+    return update_existing_user(user_id, request.json, current_user=current_user)
 
 @app.route('/api/users/<int:user_id>/toggle/<string:property>', methods=['PUT'])
-def toggle_user_property(user_id, property):
+@admin_required
+def toggle_user_property(user_id, property, current_user=None, token_user_data=None, **kwargs):
     from users import toggle_user_property as toggle_property
-    return toggle_property(user_id, property)
+    return toggle_property(user_id, property, current_user=current_user)
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
-def delete_user(user_id):
+@admin_required
+def delete_user(user_id, current_user=None, token_user_data=None, **kwargs):
     from users import delete_user as delete_existing_user
-    return delete_existing_user(user_id)
+    return delete_existing_user(user_id, current_user=current_user)
 
 @app.route('/api/activity-logs', methods=['GET'])
 @admin_required

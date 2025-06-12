@@ -4,14 +4,20 @@ from activity import create_activity_user_log
 from models import db, User, Domain, EventType
 
 
-def get_users():
-    if not session.get('logged_in'):
+def get_users(current_user=None):
+    # If no user is provided, try to get from JWT token
+    if not current_user:
+        from cognito import get_user_from_token
+        success, user_data = get_user_from_token()
+        if success:
+            user_email = user_data.get("email")
+            current_user = User.query.filter_by(email=user_email).first()
+    
+    if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
     # Check if user is admin
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
+    if not current_user.is_admin:
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     users = User.query.all()
@@ -22,14 +28,20 @@ def get_users():
         'domains': [domain.to_dict() for domain in domains]
     })
 
-def get_user(user_id):
-    if not session.get('logged_in'):
+def get_user(user_id, current_user=None):
+    # If no user is provided, try to get from JWT token
+    if not current_user:
+        from cognito import get_user_from_token
+        success, user_data = get_user_from_token()
+        if success:
+            user_email = user_data.get("email")
+            current_user = User.query.filter_by(email=user_email).first()
+    
+    if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
     # Check if user is admin
-    user_email = session.get('user_email')
-    current_user = User.query.filter_by(email=user_email).first()
-    if not current_user or not current_user.is_admin:
+    if not current_user.is_admin:
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     user = User.query.get(user_id)
@@ -38,15 +50,21 @@ def get_user(user_id):
 
     return jsonify({"error": "Usuario no encontrado"}), 404
 
-def create_user(data):
-    if not session.get('logged_in'):
+def create_user(data, current_user=None):
+    # If no user is provided, try to get from JWT token
+    if not current_user:
+        from cognito import get_user_from_token
+        success, user_data = get_user_from_token()
+        if success:
+            user_email = user_data.get("email")
+            current_user = User.query.filter_by(email=user_email).first()
+    
+    if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
     # Check if user is admin
-    user_email = session.get('user_email')
-    current_user = User.query.filter_by(email=user_email).first()
-    if not current_user or not current_user.is_admin:
-        create_activity_user_log(EventType.PERMISSION_VIOLATION, session.get['user_id'], None, message='User ' + session['user_email'] + ' has no permission to create another user!')
+    if not current_user.is_admin:
+        create_activity_user_log(EventType.PERMISSION_VIOLATION, current_user.id, None, message='User ' + current_user.email + ' has no permission to create another user!')
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     if not data or not data.get('email'):
@@ -88,21 +106,27 @@ def create_user(data):
     try:
         db.session.add(new_user)
         db.session.commit()
-        create_activity_user_log(EventType.USER_CREATION, session['user_id'], new_user.id, 'User ' + session['user_email'] + ' created the user ' + email)
+        create_activity_user_log(EventType.USER_CREATION, current_user.id, new_user.id, 'User ' + current_user.email + ' created the user ' + email)
         return jsonify(new_user.to_dict()), 201
     except Exception as e:
         db.session.rollback()
         print(f"Error creating user: {e}")
         return jsonify({"error": "Error al crear usuario en la base de datos"}), 500
 
-def update_user(user_id, data):
-    if not session.get('logged_in'):
+def update_user(user_id, data, current_user=None):
+    # If no user is provided, try to get from JWT token
+    if not current_user:
+        from cognito import get_user_from_token
+        success, user_data = get_user_from_token()
+        if success:
+            user_email = user_data.get("email")
+            current_user = User.query.filter_by(email=user_email).first()
+    
+    if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
     # Check if user is admin
-    user_email = session.get('user_email')
-    current_user = User.query.filter_by(email=user_email).first()
-    if not current_user or not current_user.is_admin:
+    if not current_user.is_admin:
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     if not data:
@@ -130,21 +154,27 @@ def update_user(user_id, data):
 
     try:
         db.session.commit()
-        create_activity_user_log(EventType.USER_EDITION, session.get['user_id'], user.id, 'User ' + session['user_email'] + ' edited the user ' + user.email + str(user))
+        create_activity_user_log(EventType.USER_EDITION, current_user.id, user.id, 'User ' + current_user.email + ' edited the user ' + user.email + str(user))
         return jsonify(user.to_dict())
     except Exception as e:
         db.session.rollback()
         print(f"Error updating user: {e}")
         return jsonify({"error": "Error al actualizar usuario en la base de datos"}), 500
 
-def toggle_user_property(user_id, property):
-    if not session.get('logged_in'):
+def toggle_user_property(user_id, property, current_user=None):
+    # If no user is provided, try to get from JWT token
+    if not current_user:
+        from cognito import get_user_from_token
+        success, user_data = get_user_from_token()
+        if success:
+            user_email = user_data.get("email")
+            current_user = User.query.filter_by(email=user_email).first()
+    
+    if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
     # Check if user is admin
-    user_email = session.get('user_email')
-    current_user = User.query.filter_by(email=user_email).first()
-    if not current_user or not current_user.is_admin:
+    if not current_user.is_admin:
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     user = User.query.get(user_id)
@@ -174,7 +204,7 @@ def toggle_user_property(user_id, property):
 
     try:
         db.session.commit()
-        create_activity_user_log(EventType.USER_EDITION, session['user_id'], None, 'User ' + session['user_email'] +
+        create_activity_user_log(EventType.USER_EDITION, current_user.id, None, 'User ' + current_user.email +
              ' edited the user ' + str(user.id) + ' property ' + property)
         return jsonify(user.to_dict())
     except Exception as e:
@@ -182,15 +212,21 @@ def toggle_user_property(user_id, property):
         print(f"Error toggling user property: {e}")
         return jsonify({"error": f"Error al cambiar propiedad de usuario: {str(e)}"}), 500
 
-def delete_user(user_id):
-    if not session.get('logged_in'):
+def delete_user(user_id, current_user=None):
+    # If no user is provided, try to get from JWT token
+    if not current_user:
+        from cognito import get_user_from_token
+        success, user_data = get_user_from_token()
+        if success:
+            user_email = user_data.get("email")
+            current_user = User.query.filter_by(email=user_email).first()
+    
+    if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
     # Check if user is admin
-    user_email = session.get('user_email')
-    current_user = User.query.filter_by(email=user_email).first()
-    if not current_user or not current_user.is_admin:
-        create_activity_user_log(EventType.USER_PERMISSION, session['user_id'], user_id, 'User ' + session['user_email'] +
+    if not current_user.is_admin:
+        create_activity_user_log(EventType.USER_PERMISSION, current_user.id, user_id, 'User ' + current_user.email +
                                  ' tried to delete the user ' + str(user_id))
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
@@ -202,7 +238,7 @@ def delete_user(user_id):
         deleted_user = user.to_dict()
         db.session.delete(user)
         db.session.commit()
-        create_activity_user_log(EventType.USER_DELETION, session['user_id'], user_id, 'User ' + session['user_email'] +
+        create_activity_user_log(EventType.USER_DELETION, current_user.id, user_id, 'User ' + current_user.email +
              ' deleted the user ' + str(user.id))
         return jsonify({"success": True, "eliminado": deleted_user})
     except Exception as e:
