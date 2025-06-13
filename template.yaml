@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Flask en AWS Lambda
 
@@ -6,22 +6,25 @@ Resources:
   FlaskFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: .
-      Handler: backend/lambda_handler.lambda_handler
+      CodeUri: backend/
+      Handler: lambda_handler.lambda_handler
       Runtime: python3.11
       Architectures:
-      - arm64
+        - arm64
       MemorySize: 1024
       Timeout: 30
       Environment:
         Variables:
-          STATIC_MODE: 'true'
+          STATIC_MODE: "true"
+          COGNITO_USER_POOL_ID: "us-east-1_1pPT6lSMc"
+          COGNITO_CLIENT_ID: "4ed15at0palqflefuvlu536mme"
+          COGNITO_REGION: "us-east-1"
       Policies:
-        - Version: '2012-10-17'
+        - Version: "2012-10-17"
           Statement:
             - Effect: Allow
-              Action: 'secretsmanager:GetSecretValue'
-              Resource: 'arn:aws:secretsmanager:us-east-1:369595298303:secret:sapientum_connection-I7Q8Mc'
+              Action: "secretsmanager:GetSecretValue"
+              Resource: "arn:aws:secretsmanager:us-east-1:369595298303:secret:sapientum_connection-I7Q8Mc"
       Events:
         Api:
           Type: Api

@@ -12,7 +12,7 @@ if parent_dir not in sys.path:
 # Importar la aplicación Flask
 from app import app
 from models import db
-import backend.db as db_utils
+import db as db_utils
 
 # Usar un adaptador WSGI alternativo
 try:
