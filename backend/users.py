@@ -1,4 +1,4 @@
-from flask import session, request, jsonify
+from flask import jsonify
 
 from activity import create_activity_user_log
 from models import db, User, Domain, EventType
@@ -12,7 +12,7 @@ def get_users(current_user=None):
         if success:
             user_email = user_data.get("email")
             current_user = User.query.filter_by(email=user_email).first()
-    
+
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
@@ -36,7 +36,7 @@ def get_user(user_id, current_user=None):
         if success:
             user_email = user_data.get("email")
             current_user = User.query.filter_by(email=user_email).first()
-    
+
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
@@ -58,7 +58,7 @@ def create_user(data, current_user=None):
         if success:
             user_email = user_data.get("email")
             current_user = User.query.filter_by(email=user_email).first()
-    
+
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
@@ -121,7 +121,7 @@ def update_user(user_id, data, current_user=None):
         if success:
             user_email = user_data.get("email")
             current_user = User.query.filter_by(email=user_email).first()
-    
+
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
@@ -169,7 +169,7 @@ def toggle_user_property(user_id, property, current_user=None):
         if success:
             user_email = user_data.get("email")
             current_user = User.query.filter_by(email=user_email).first()
-    
+
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
@@ -220,7 +220,7 @@ def delete_user(user_id, current_user=None):
         if success:
             user_email = user_data.get("email")
             current_user = User.query.filter_by(email=user_email).first()
-    
+
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 

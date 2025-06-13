@@ -39,9 +39,11 @@ export async function httpCall(url, options = {}) {
       }
     }
     
-    // Set headers
+    // Set headers (but not Content-Type for FormData - browser will set it automatically)
     Object.keys(headers).forEach(key => {
-      xhr.setRequestHeader(key, headers[key]);
+      if (!(options.body instanceof FormData && key.toLowerCase() === 'content-type')) {
+        xhr.setRequestHeader(key, headers[key]);
+      }
     });
     
     // Remove credentials handling since we're using JWT tokens now
@@ -80,6 +82,9 @@ export async function httpCall(url, options = {}) {
     // Send request
     if (options.body) {
       if (typeof options.body === 'string') {
+        xhr.send(options.body);
+      } else if (options.body instanceof FormData) {
+        // Send FormData directly without stringifying
         xhr.send(options.body);
       } else {
         xhr.send(JSON.stringify(options.body));

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, send_from_directory, send_file, Response
+from flask import Flask, request, jsonify, send_from_directory, send_file, Response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -20,7 +20,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
-app.secret_key = os.urandom(24)
 
 def get_config():
     """Get app configuration from config.json"""
@@ -224,29 +223,15 @@ def embed_status():
     })
 
 @app.route('/api/check-chat-access', methods=['GET'])
-def check_chat_access():
-    if not session.get('logged_in'):
-        return jsonify({
-            "has_access": False,
-            "error": "Not authenticated"
-        }), 401
-
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-
-    if not user:
-        return jsonify({
-            "has_access": False,
-            "error": "User not found"
-        }), 404
-
+@token_required
+def check_chat_access(current_user=None, token_user_data=None, **kwargs):
     # Check if this is an embedded request
     embedded = is_embedded_request()
 
     return jsonify({
-        "has_access": user.chat_access,
-        "is_admin": user.is_admin,
-        "user_email": user.email,
+        "has_access": current_user.chat_access,
+        "is_admin": current_user.is_admin,
+        "user_email": current_user.email,
         "is_embedded": embedded
     })
 
@@ -370,10 +355,9 @@ def get_documents():
     return get_catalogs()
 
 @app.route('/api/catalogs/<int:catalog_id>', methods=['GET'])
-def get_catalog(catalog_id):
+@token_required
+def get_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     print('catalog_id:', catalog_id)
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
 
     catalog = Catalog.query.get(catalog_id)
     if catalog:
@@ -386,47 +370,24 @@ def get_document(doc_id):
     return get_catalog(doc_id)
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['GET'])
-def get_users_for_catalog(catalog_id):
+@admin_required
+def get_users_for_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     print('get_users_for_catalog:', catalog_id)
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    # Check if user is admin
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     from catalog import get_catalog_users
     users = get_catalog_users(catalog_id)
     return jsonify(users)
 
 @app.route('/api/catalogs/<string:catalog_id>/available-users', methods=['GET'])
-def get_available_users_for_catalog(catalog_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    # Check if user is admin
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
-
+@admin_required
+def get_available_users_for_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     from catalog import get_available_users_for_catalog as get_available_users
     available_users = get_available_users(catalog_id)
     return jsonify(available_users)
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['POST'])
-def add_user_to_catalog(catalog_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    # Check if user is admin
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
-
+@admin_required
+def add_user_to_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     data = request.json
     if not data or 'user_id' not in data or 'permission' not in data:
         return jsonify({"error": "Se requiere user_id y permission"}), 400
@@ -444,16 +405,8 @@ def add_user_to_catalog(catalog_id):
     return jsonify(result)
 
 @app.route('/api/catalogs/<string:catalog_id>/users/<int:user_id>', methods=['DELETE'])
-def remove_user_from_catalog(catalog_id, user_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
-    # Check if user is admin
-    user_email = session.get('user_email')
-    user = User.query.filter_by(email=user_email).first()
-    if not user or not user.is_admin:
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
-
+@admin_required
+def remove_user_from_catalog(catalog_id, user_id, current_user=None, token_user_data=None, **kwargs):
     from catalog import remove_user_from_catalog as remove_user
     result = remove_user(catalog_id, user_id)
 
@@ -464,24 +417,19 @@ def remove_user_from_catalog(catalog_id, user_id):
     return jsonify(result)
 
 @app.route('/api/catalogs/<string:catalog_id>/files', methods=['GET'])
-def get_files_for_catalog(catalog_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
-
+@token_required
+def get_files_for_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     from catalog import get_catalog_files
     files = get_catalog_files(catalog_id)
     return jsonify(files)
 
 
 @app.route('/api/catalogs/<string:catalog_id>/upload', methods=['POST'])
-def upload_file_to_catalog(catalog_id):
+@token_required
+def upload_file_to_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     print(f"[DEBUG] Starting upload to catalog {catalog_id}")
 
-    if not session.get('logged_in'):
-        print(f"[DEBUG] Auth failed - not logged in")
-        return jsonify({"error": "No autorizado"}), 401
-
-    print(f"[DEBUG] User authenticated: {session.get('user_id')}")
+    print(f"[DEBUG] User authenticated: {current_user.id}")
     print(f"[DEBUG] Request files: {request.files}")
     print(f"[DEBUG] Request form data: {request.form}")
 
@@ -554,12 +502,9 @@ def upload_file_to_catalog(catalog_id):
         }), 500
 
 @app.route('/api/files/<int:file_id>/version', methods=['POST'])
-def upload_new_version(file_id):
+@token_required
+def upload_new_version(file_id, current_user=None, token_user_data=None, **kwargs):
     print("Starting upload_new_version function")
-
-    if not session.get('logged_in'):
-        print("User is not logged in")
-        return jsonify({"error": "No autorizado"}), 401
 
     try:
         print(f"Fetching file with id {file_id}")
@@ -645,10 +590,8 @@ def upload_new_version(file_id):
             print(f"Error moving old version to versions folder: {e}")
             return jsonify({"error": f"Error moving old version to versions folder: {str(e)}"}), 500
 
-        user_email = session.get('user_email')
-        print(f"Fetching user by email: {user_email}")
-        user = User.query.filter_by(email=user_email).first()
-        user_id = user.id if user else None
+        print(f"Using current user: {current_user.email}")
+        user_id = current_user.id
 
         file_extension = ""
         if '.' in file_obj.filename:
@@ -719,9 +662,8 @@ def upload_new_version(file_id):
 
 
 @app.route('/api/files/<int:file_id>', methods=['PUT'])
-def update_file(file_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
+@token_required
+def update_file(file_id, current_user=None, token_user_data=None, **kwargs):
 
     try:
         file = File.query.get(file_id)
@@ -755,9 +697,8 @@ def update_file(file_id):
         return jsonify({"error": f"Error updating file: {str(e)}"}), 500
 
 @app.route('/api/files/<int:file_id>/download', methods=['GET'])
-def download_file(file_id):
-    if not session.get('logged_in'):
-        return jsonify({"error": "No autorizado"}), 401
+@token_required
+def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
 
     try:
         file = File.query.get(file_id)

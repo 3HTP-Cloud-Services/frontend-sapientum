@@ -8,7 +8,6 @@ from aws_utils import (
 from activity import create_activity_catalog_log
 from db import get_bucket_name
 from models import db, Catalog, User, File, Version, Conversation, CatalogPermission, PermissionType, EventType
-from flask import session
 import traceback
 from datetime import datetime
 import random
@@ -74,7 +73,7 @@ def get_all_catalogs(user=None):
             if success:
                 user_email = user_data.get("email")
                 user = User.query.filter_by(email=user_email).first()
-        
+
         print('get all catalogs: user:', user.email if user else 'None')
 
         if not user:
@@ -397,8 +396,12 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 
         # Create a database entry for the catalog
         try:
-            # Get user ID from session
-            user_email = session.get('user_email')
+            from cognito import get_user_from_token
+            success, user_data = get_user_from_token()
+            if success:
+                user_email = user_data.get("email")
+
+            # Get user from JWT token
             user = User.query.filter_by(email=user_email).first()
             user_id = user.id if user else None
 
@@ -416,7 +419,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             )
             db.session.add(new_catalog)
             db.session.commit()
-            create_activity_catalog_log(EventType.CATALOG_CREATION, session.get['user_id'], new_catalog.id, 'User ' + session['user_email'] + ' created the catalog ' + catalog_name)
+            create_activity_catalog_log(EventType.CATALOG_CREATION, user_id, new_catalog.id, 'User ' + user_email + ' created the catalog ' + catalog_name)
 
             return new_catalog.to_dict()
         except Exception as db_error:
@@ -446,8 +449,12 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
             if not bucket_name:
                 return None
 
-            # Get user ID from session
-            user_email = session.get('user_email')
+            from cognito import get_user_from_token
+            success, user_data = get_user_from_token()
+            if success:
+                user_email = user_data.get("email")
+
+            # Get user from JWT token
             user = User.query.filter_by(email=user_email).first()
             user_id = user.id if user else None
 
@@ -524,7 +531,7 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                     # Commit the transaction
                     db.session.commit()
 
-                    create_activity_catalog_log(EventType.FILE_UPLOAD, session.get['user_id'], new_file.id, 'User ' + session['user_email'] + ' uploaded the file ' + file_obj.filename)
+                    create_activity_catalog_log(EventType.FILE_UPLOAD, user_id, new_file.id, 'User ' + user_email + ' uploaded the file ' + file_obj.filename)
 
                     # Return the file dictionary
                     file_dict = new_file.to_dict()
