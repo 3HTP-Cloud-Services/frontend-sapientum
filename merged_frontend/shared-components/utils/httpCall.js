@@ -26,6 +26,11 @@ export async function httpCall(url, options = {}) {
     
     xhr.open(method, url);
     
+    // Set response type to arraybuffer for binary data (downloads)
+    if (url.includes('/download')) {
+      xhr.responseType = 'arraybuffer';
+    }
+    
     // Prepare headers
     const headers = { ...options.headers };
     
@@ -57,7 +62,8 @@ export async function httpCall(url, options = {}) {
         status: xhr.status,
         statusText: xhr.statusText,
         headers: {
-          get: (name) => xhr.getResponseHeader(name)
+          get: (name) => xhr.getResponseHeader(name),
+          getAllResponseHeaders: () => xhr.getAllResponseHeaders()
         },
         text: () => Promise.resolve(xhr.responseText),
         json: () => {
@@ -66,7 +72,8 @@ export async function httpCall(url, options = {}) {
           } catch (e) {
             return Promise.reject(e);
           }
-        }
+        },
+        blob: () => Promise.resolve(new Blob([xhr.response]))
       };
       resolve(response);
     };

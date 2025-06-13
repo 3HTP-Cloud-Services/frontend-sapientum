@@ -88,6 +88,7 @@ if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') is None:
             "/*": {
                 "origins": "*",
                 "allow_headers": ["Content-Type", "Authorization", "Accept"],
+                "expose_headers": ["Content-Disposition"],
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
             }
         }

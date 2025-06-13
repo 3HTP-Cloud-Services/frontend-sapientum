@@ -162,12 +162,59 @@
   async function downloadFile(fileId) {
     try {
       const downloadUrl = `/api/files/${fileId}/download`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', '');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      
+      // Use httpCall to include JWT authentication
+      const response = await httpCall(downloadUrl, {
+        method: 'GET'
+      });
+      
+      if (response.ok) {
+        // Get the file as a blob
+        const blob = await response.blob();
+        
+        // Get filename from Content-Disposition header or use default
+        const contentDisposition = response.headers.get('Content-Disposition');
+        console.log('Full response headers:', response.headers);
+        console.log('Content-Disposition header:', contentDisposition);
+        
+        let filename = 'download';
+        if (contentDisposition) {
+          console.log('Raw Content-Disposition:', JSON.stringify(contentDisposition));
+          // Try multiple patterns to extract filename
+          let filenameMatch = contentDisposition.match(/filename\*?="?([^"]+)"?/);
+          console.log('First match attempt:', filenameMatch);
+          if (!filenameMatch) {
+            filenameMatch = contentDisposition.match(/filename\*?=([^;\s]+)/);
+            console.log('Second match attempt:', filenameMatch);
+          }
+          if (filenameMatch) {
+            const rawFilename = filenameMatch[1].replace(/"/g, '');
+            console.log('Raw filename before decode:', rawFilename);
+            filename = decodeURIComponent(rawFilename);
+            console.log('Final decoded filename:', filename);
+          } else {
+            console.log('No filename pattern matched');
+          }
+        } else {
+          console.log('No Content-Disposition header found');
+          // Let's see all available headers using getAllResponseHeaders
+          console.log('All headers available:');
+          console.log('Raw headers:', response.headers.getAllResponseHeaders());
+        }
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        console.error("Download failed:", response.status, response.statusText);
+        alert("Error downloading file. Please try again.");
+      }
     } catch (error) {
       console.error("Download error:", error);
       alert("Error downloading file. Please try again.");
@@ -262,7 +309,6 @@
             <thead>
             <tr>
               <th>{$i18nStore.t('document_name')}</th>
-              <th>{$i18nStore.t('document_description')}</th>
               <th>{$i18nStore.t('document_upload_date')}</th>
               <th>{$i18nStore.t('document_status')}</th>
               <th>{$i18nStore.t('document_version')}</th>
@@ -274,8 +320,12 @@
             <tbody>
             {#each $catalogFilesStore as file}
               <tr>
-                <td>{file.name || ''}</td>
-                <td class="description-cell">{file.summary || file.description || ''}</td>
+                <td class="file-info-cell">
+                  <div class="file-name">{file.name || ''}</div>
+                  {#if file.summary || file.description}
+                    <div class="file-description">{file.summary || file.description || ''}</div>
+                  {/if}
+                </td>
                 <td>
                   {#if file.uploadDate}
                     {(() => {
@@ -612,6 +662,25 @@
   .upload-icon {
     width: 24px;
     height: 24px;
+  }
+
+  .file-info-cell {
+    min-width: 200px;
+    max-width: 300px;
+  }
+
+  .file-name {
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 4px;
+    word-wrap: break-word;
+  }
+
+  .file-description {
+    font-size: 0.875rem;
+    color: #718096;
+    line-height: 1.4;
+    word-wrap: break-word;
   }
 
 </style>
