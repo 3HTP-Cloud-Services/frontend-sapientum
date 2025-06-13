@@ -190,21 +190,36 @@ def logout():
 def check_auth():
     from auth_decorator import token_required
     from cognito import get_user_from_token
+    from models import User
     
     success, user_data = get_user_from_token()
     
     if not success:
         return jsonify({"authenticated": False, "error": user_data.get("error")}), 401
     
-    # Token authentication successful
+    # Get user from database to ensure consistent role/permission data
+    user_email = user_data.get("email")
+    user = User.query.filter_by(email=user_email).first()
+    
+    # Use database as source of truth for roles and permissions
+    if user:
+        role = "admin" if user.is_admin else "user"
+        is_admin = user.is_admin
+        chat_access = user.chat_access
+    else:
+        # Fallback to token data if user not found in database
+        role = user_data.get("role")
+        is_admin = user_data.get("is_admin")
+        chat_access = user_data.get("chat_access")
+    
     embedded = is_embedded_request()
     return jsonify({
         "authenticated": True,
-        "email": user_data.get("email"),
-        "role": user_data.get("role"),
+        "email": user_email,
+        "role": role,
         "is_embedded": embedded,
-        "is_admin": user_data.get("is_admin"),
-        "chat_access": user_data.get("chat_access")
+        "is_admin": is_admin,
+        "chat_access": chat_access
     })
 
 @app.route('/api/embed/status', methods=['GET', 'OPTIONS'])

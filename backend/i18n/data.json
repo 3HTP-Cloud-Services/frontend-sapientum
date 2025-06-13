@@ -113,7 +113,8 @@
         "event_type": "Tipo de evento",
         "activity": "Actividad",
         "message": "Mensaje",
-        "loading": "Cargando"
+        "loading": "Cargando",
+        "create_new_domain_button": "Crear Nuevo Dominio"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -229,6 +230,7 @@
         "event_type": "Event Type",
         "activity": "Activity",
         "message": "Message",
-        "loading": "Loading"
+        "loading": "Loading",
+        "create_new_domain_button": "Create New Domain"
     }
 }

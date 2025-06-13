@@ -17,6 +17,9 @@
   export let allowedDomains = [{ 'id': -1, 'name': '' }];
   export let domainsError = '';
 
+  // Track which domains are being edited
+  let editingDomains = {};
+
   // Track which toggles are currently being processed
   let togglesInFlight = {};
 
@@ -235,7 +238,26 @@
 
   function addDomain() {
     console.log('adding domain');
-    allowedDomains = [...allowedDomains, {name: '', id: -1}];
+    const newDomain = {name: '', id: -1};
+    allowedDomains = [...allowedDomains, newDomain];
+    // Start editing the new domain immediately
+    editingDomains = {...editingDomains, [allowedDomains.length - 1]: true};
+  }
+
+  function createNewDomain() {
+    console.log('creating new domain');
+    const newDomain = {name: '', id: -1};
+    allowedDomains = [...allowedDomains, newDomain];
+    // Start editing the new domain immediately
+    editingDomains = {...editingDomains, [allowedDomains.length - 1]: true};
+  }
+
+  function editDomainToggle(index) {
+    editingDomains = {...editingDomains, [index]: !editingDomains[index]};
+  }
+
+  function saveDomain(index) {
+    editingDomains = {...editingDomains, [index]: false};
   }
 
   async function removeDomain(i) {
@@ -430,20 +452,33 @@
     <p class="error">{domainsError}</p>
   {/if}
   <div class="domains-container">
-    <table style="width:300px">
+    <table style="width:400px">
     {#each allowedDomains as domain, i}
       <tr>
         <td class="domain_td">
           <div class="domain-item">
-            <input class="domain_input"
-              type="text"
-              value={domain.name}
-              placeholder={$i18nStore.t('domain_placeholder')}
-              on:input={(e) => editDomain(i, e.target.value)}
-            />
+            {#if editingDomains[i]}
+              <input class="domain_input"
+                type="text"
+                value={domain.name}
+                placeholder={$i18nStore.t('domain_placeholder')}
+                on:input={(e) => editDomain(i, e.target.value)}
+              />
+            {:else}
+              <span class="domain-label">{domain.name || $i18nStore.t('domain_placeholder')}</span>
+            {/if}
           </div>
         </td><td class="domain_td">
-          <button class="sap_button remove_button" on:click={() => removeDomain(i)}>{$i18nStore.t('remove_domain_button')}</button>
+          <div class="button-group">
+            {#if editingDomains[i]}
+              <!-- Show save button when editing -->
+              <button class="sap_button save_button" on:click={() => saveDomain(i)} disabled={!domain.name.trim()}>{$i18nStore.t('save_button') || 'Save'}</button>
+            {:else if domain.id > 0}
+              <!-- Show edit button only for existing domains -->
+              <button class="sap_button edit_button" on:click={() => editDomainToggle(i)}>{$i18nStore.t('edit_button') || 'Edit'}</button>
+            {/if}
+            <button class="sap_button remove_button" on:click={() => removeDomain(i)}>{$i18nStore.t('remove_domain_button')}</button>
+          </div>
         </td>
       </tr>
     {/each}
@@ -451,7 +486,6 @@
   </div>
   <div class="domains-actions">
     <button class="sap_button add_button" on:click={addDomain}>{$i18nStore.t('add_domain_button')}</button>
-    <button class="sap_button save_button" on:click={saveDomains}>{$i18nStore.t('save_domains_button')}</button>
     <button class="sap_button reload_button" on:click={saveDomains}>
         <span class="reload_icon">⟳</span>{$i18nStore.t('reload_domains_button')}
     </button>
@@ -692,6 +726,40 @@
     border: 1px solid green !important;
     background-color: #faffec;
     width: 250px !important;
+  }
+
+  .domain-label {
+    padding: 0.5rem;
+    background-color: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    display: inline-block;
+    min-width: 200px;
+    color: #4a5568;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .edit_button {
+    padding: 0.5rem 1rem;
+    background-color: #4299e1;
+    color: white;
+  }
+
+  .create_button {
+    padding: 0.5rem 1rem;
+    background-color: #38a169;
+    color: white;
+  }
+
+  .save_button:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
+    opacity: 0.6;
   }
   .domain_td {
     vertical-align: top;
