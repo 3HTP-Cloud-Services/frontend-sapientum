@@ -145,6 +145,17 @@ def login():
     # Try Cognito authentication first
     success, cognito_response = authenticate_user(email, password)
     print('\ncognito:', success, cognito_response)
+    
+    # Handle NEW_PASSWORD_REQUIRED challenge
+    if not success and cognito_response.get("error") == "new_password_required":
+        return jsonify({
+            "success": False,
+            "challenge": "new_password_required",
+            "session": cognito_response.get("session"),
+            "message": "New password required for first login",
+            "error": "new_password_required"
+        }), 200  # Use 200 status code for challenges, not errors
+    
     if success:
         # Cognito authentication successful, check if user exists in local DB
         user = User.query.filter_by(email=email).first()
@@ -185,6 +196,67 @@ def logout():
     # JWT tokens are stateless, so logout is handled client-side
     # The frontend should delete the token from storage
     return jsonify({"success": True, "message": "Logged out successfully"})
+
+@app.route('/api/set-password', methods=['POST'])
+def set_password():
+    """Handle NEW_PASSWORD_REQUIRED challenge from Cognito"""
+    print(f"[DEBUG] /api/set-password endpoint called")
+    
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    username = data.get('username')
+    new_password = data.get('newPassword')
+    session = data.get('session')
+    
+    print(f"[DEBUG] Set password request for user: {username}")
+    
+    if not username or not new_password or not session:
+        return jsonify({"error": "Username, new password, and session are required"}), 400
+    
+    # Import cognito challenge response function
+    from cognito import respond_to_auth_challenge
+    
+    # Respond to the challenge
+    success, cognito_response = respond_to_auth_challenge(username, new_password, session)
+    print(f"[DEBUG] Challenge response result: success={success}")
+    
+    if success:
+        # Check if user exists in local DB
+        user = User.query.filter_by(email=username).first()
+        
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "User authenticated but not found in system",
+                "error": "user_not_in_system"
+            }), 401
+        
+        # Check if this is an embedded request
+        embedded = is_embedded_request()
+        
+        # Check if the user has chat access when in embedded mode
+        if embedded and not user.chat_access:
+            return jsonify({
+                "success": False,
+                "message": "You do not have access to chat functionality, which is required for embedded mode",
+                "error": "no_chat_access"
+            }), 403
+        
+        # Return successful login response
+        return jsonify({
+            "success": True,
+            "role": user.role,
+            "is_embedded": embedded,
+            "token": cognito_response.get("idToken"),
+            "message": "Password updated and login successful",
+            "cognito": cognito_response
+        })
+    else:
+        # Password challenge failed
+        error_message = cognito_response.get("error", "Failed to update password")
+        return jsonify({"success": False, "message": error_message}), 400
 
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
@@ -834,8 +906,14 @@ def get_user(user_id, current_user=None, token_user_data=None, **kwargs):
 @app.route('/api/users', methods=['POST'])
 @admin_required
 def create_user(current_user=None, token_user_data=None, **kwargs):
+    print(f"[DEBUG] /api/users POST endpoint called")
+    print(f"[DEBUG] Request data: {request.json}")
+    print(f"[DEBUG] Current user: {current_user.email if current_user else 'None'}")
+    
     from users import create_user as create_new_user
-    return create_new_user(request.json, current_user=current_user)
+    result = create_new_user(request.json, current_user=current_user)
+    print(f"[DEBUG] create_new_user result type: {type(result)}")
+    return result
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 @admin_required

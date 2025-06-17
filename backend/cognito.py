@@ -44,7 +44,21 @@ def authenticate_user(username, password):
         )
         print('cognito3', auth_response)
 
-        # Extract tokens
+        # Check if this is a challenge response (like NEW_PASSWORD_REQUIRED)
+        if 'ChallengeName' in auth_response:
+            challenge_name = auth_response['ChallengeName']
+            if challenge_name == 'NEW_PASSWORD_REQUIRED':
+                return False, {
+                    "error": "new_password_required",
+                    "challenge": challenge_name,
+                    "session": auth_response.get('Session', ''),
+                    "message": "New password required",
+                    "user_attributes": auth_response.get('ChallengeParameters', {}).get('userAttributes', '{}')
+                }
+            else:
+                return False, {"error": f"Unhandled challenge: {challenge_name}", "response": str(auth_response)}
+
+        # Extract tokens for successful authentication
         if 'AuthenticationResult' not in auth_response:
             return False, {"error": "Authentication failed", "response": str(auth_response)}
 
@@ -133,6 +147,207 @@ def verify_jwt_token(token):
     except Exception as e:
         print(f"Token verification error: {str(e)}")
         return False, {"error": f"Token verification failed: {str(e)}"}
+
+def create_cognito_user(email, temporary_password, user_attributes=None):
+    """
+    Create a new user in Cognito
+    Returns tuple: (success, response_data)
+    """
+    print(f"[DEBUG] create_cognito_user called for email: {email}")
+    
+    try:
+        print("[DEBUG] Getting Cognito client...")
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        print(f"[DEBUG] Cognito config - pool_id: {user_pool_id}, client_id: {client_id}")
+        
+        if not user_pool_id:
+            print("[ERROR] No user pool ID found in configuration")
+            return False, {"error": "Cognito configuration not found"}
+        
+        # Default user attributes
+        attributes = [
+            {
+                'Name': 'email',
+                'Value': email
+            },
+            {
+                'Name': 'email_verified',
+                'Value': 'true'
+            }
+        ]
+        print(f"[DEBUG] Base attributes: {attributes}")
+        
+        # Add custom attributes if provided
+        if user_attributes:
+            print(f"[DEBUG] Adding custom attributes: {user_attributes}")
+            for key, value in user_attributes.items():
+                if key.startswith('custom:'):
+                    attr_value = str(value).lower() if isinstance(value, bool) else str(value)
+                    attributes.append({
+                        'Name': key,
+                        'Value': attr_value
+                    })
+                    print(f"[DEBUG] Added custom attribute: {key} = {attr_value}")
+        
+        print(f"[DEBUG] Final attributes list: {attributes}")
+        print(f"[DEBUG] Calling admin_create_user with pool_id: {user_pool_id}")
+        
+        # Create user in Cognito
+        # MessageAction omitted - will use default configured message
+        response = client.admin_create_user(
+            UserPoolId=user_pool_id,
+            Username=email,
+            UserAttributes=attributes,
+            TemporaryPassword=temporary_password
+        )
+        
+        print(f"[DEBUG] Cognito user creation successful: {response.get('User', {}).get('Username', 'unknown')}")
+        return True, {
+            "message": "User created successfully in Cognito",
+            "user": response.get('User', {})
+        }
+        
+    except client.exceptions.UsernameExistsException as e:
+        print(f"[ERROR] Username already exists in Cognito: {str(e)}")
+        return False, {"error": "User already exists in Cognito"}
+    except client.exceptions.InvalidPasswordException as e:
+        print(f"[ERROR] Invalid password format: {str(e)}")
+        return False, {"error": "Invalid password format"}
+    except Exception as e:
+        print(f"[ERROR] Unexpected error creating Cognito user: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return False, {"error": f"Failed to create user in Cognito: {str(e)}"}
+
+def delete_cognito_user(email):
+    """
+    Delete a user from Cognito
+    Returns tuple: (success, response_data)
+    """
+    print(f"[DEBUG] delete_cognito_user called for email: {email}")
+    
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        print(f"[DEBUG] Cognito config - pool_id: {user_pool_id}, client_id: {client_id}")
+        
+        if not user_pool_id:
+            print("[ERROR] No user pool ID found in configuration")
+            return False, {"error": "Cognito configuration not found"}
+        
+        print(f"[DEBUG] Calling admin_delete_user with pool_id: {user_pool_id}")
+        
+        # Delete user from Cognito
+        client.admin_delete_user(
+            UserPoolId=user_pool_id,
+            Username=email
+        )
+        
+        print(f"[DEBUG] User {email} deleted successfully from Cognito")
+        return True, {"message": "User deleted successfully from Cognito"}
+        
+    except client.exceptions.UserNotFoundException as e:
+        print(f"[ERROR] User not found in Cognito: {str(e)}")
+        return False, {"error": "User not found in Cognito"}
+    except Exception as e:
+        print(f"[ERROR] Unexpected error deleting Cognito user: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return False, {"error": f"Failed to delete user from Cognito: {str(e)}"}
+
+def update_cognito_user_attributes(email, user_attributes):
+    """
+    Update user attributes in Cognito
+    Returns tuple: (success, response_data)
+    """
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        
+        if not user_pool_id:
+            return False, {"error": "Cognito configuration not found"}
+        
+        # Build attributes list
+        attributes = []
+        for key, value in user_attributes.items():
+            if key.startswith('custom:'):
+                attributes.append({
+                    'Name': key,
+                    'Value': str(value).lower() if isinstance(value, bool) else str(value)
+                })
+        
+        if attributes:
+            client.admin_update_user_attributes(
+                UserPoolId=user_pool_id,
+                Username=email,
+                UserAttributes=attributes
+            )
+        
+        return True, {"message": "User attributes updated successfully in Cognito"}
+        
+    except client.exceptions.UserNotFoundException:
+        return False, {"error": "User not found in Cognito"}
+    except Exception as e:
+        print(f"Error updating Cognito user attributes: {str(e)}")
+        return False, {"error": f"Failed to update user attributes in Cognito: {str(e)}"}
+
+def respond_to_auth_challenge(username, new_password, session):
+    """
+    Respond to NEW_PASSWORD_REQUIRED challenge
+    Returns tuple: (success, response_data)
+    """
+    print(f"[DEBUG] respond_to_auth_challenge called for user: {username}")
+    
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        
+        if not user_pool_id or not client_id:
+            print("[ERROR] No Cognito configuration found")
+            return False, {"error": "Cognito configuration not found"}
+        
+        print(f"[DEBUG] Responding to NEW_PASSWORD_REQUIRED challenge")
+        
+        response = client.admin_respond_to_auth_challenge(
+            UserPoolId=user_pool_id,
+            ClientId=client_id,
+            ChallengeName='NEW_PASSWORD_REQUIRED',
+            ChallengeResponses={
+                'USERNAME': username,
+                'NEW_PASSWORD': new_password
+            },
+            Session=session
+        )
+        
+        print(f"[DEBUG] Challenge response successful")
+        
+        # Extract tokens from successful response
+        auth_result = response.get('AuthenticationResult', {})
+        id_token = auth_result.get('IdToken', '')
+        access_token = auth_result.get('AccessToken', '')
+        refresh_token = auth_result.get('RefreshToken', '')
+        expires_in = auth_result.get('ExpiresIn', 0)
+        
+        return True, {
+            "message": "Password updated and login successful",
+            "idToken": id_token,
+            "accessToken": access_token,
+            "refreshToken": refresh_token,
+            "expiresIn": expires_in
+        }
+        
+    except client.exceptions.InvalidPasswordException as e:
+        print(f"[ERROR] Invalid password: {str(e)}")
+        return False, {"error": "Password does not meet policy requirements"}
+    except client.exceptions.NotAuthorizedException as e:
+        print(f"[ERROR] Not authorized: {str(e)}")
+        return False, {"error": "Invalid session or credentials"}
+    except Exception as e:
+        print(f"[ERROR] Unexpected error in challenge response: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return False, {"error": f"Failed to update password: {str(e)}"}
 
 def get_user_from_token():
     """

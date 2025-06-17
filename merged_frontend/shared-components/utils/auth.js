@@ -119,6 +119,18 @@ export const login = async (username, password) => {
         is_embedded: data.is_embedded || false
       };
     } else {
+      // Handle NEW_PASSWORD_REQUIRED challenge
+      if (data.error === 'new_password_required') {
+        return {
+          success: false,
+          challenge: 'new_password_required',
+          session: data.session,
+          username: username,
+          message: data.message || 'New password required',
+          error: 'new_password_required'
+        };
+      }
+      
       if (data.error === 'no_chat_access') {
         return {
           success: false,
@@ -130,6 +142,50 @@ export const login = async (username, password) => {
     }
   } catch (error) {
     console.error('Login error:', error);
+    return { success: false, message: 'Network error' };
+  }
+};
+
+export const setNewPassword = async (username, newPassword, session) => {
+  try {
+    const response = await httpCall('/api/set-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        username, 
+        newPassword, 
+        session 
+      })
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Store the JWT token
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      
+      isAuthenticated.set(true);
+      userRole.set(data.role);
+      userEmail.set(username);
+      isEmbedded.set(data.is_embedded || false);
+      return {
+        success: true,
+        role: data.role,
+        is_embedded: data.is_embedded || false,
+        message: data.message || 'Password updated successfully'
+      };
+    } else {
+      return { 
+        success: false, 
+        message: data.message || 'Failed to update password' 
+      };
+    }
+  } catch (error) {
+    console.error('Set password error:', error);
     return { success: false, message: 'Network error' };
   }
 };

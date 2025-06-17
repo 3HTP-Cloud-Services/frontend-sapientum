@@ -1,7 +1,8 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { login, isAuthenticated } from '../utils/auth.js';
+  import { login, setNewPassword, isAuthenticated } from '../utils/auth.js';
   import { i18nStore } from '../utils/i18n.js';
+  import PasswordChange from './PasswordChange.svelte';
 
   // Props to control behavior
   export let redirectTo = '/';
@@ -11,6 +12,11 @@
   let password = '';
   let error = '';
   let isLoading = false;
+  
+  // Password change state
+  let showPasswordChange = false;
+  let passwordChangeSession = '';
+  let passwordChangeUsername = '';
 
   function setLocale(locale) {
     if ($i18nStore) {
@@ -28,9 +34,43 @@
 
     if (result.success) {
       push(redirectTo);
+    } else if (result.error === 'new_password_required') {
+      // Show password change form
+      showPasswordChange = true;
+      passwordChangeSession = result.session;
+      passwordChangeUsername = result.username;
+      error = ''; // Clear error since this is expected flow
     } else {
       error = result.message || 'Login failed';
     }
+  }
+
+  async function handlePasswordChange(event) {
+    error = '';
+    isLoading = true;
+
+    const { username, newPassword, session } = event.detail;
+
+    const result = await setNewPassword(username, newPassword, session);
+
+    isLoading = false;
+
+    if (result.success) {
+      // Password updated successfully, redirect
+      showPasswordChange = false;
+      push(redirectTo);
+    } else {
+      error = result.message || 'Failed to update password';
+    }
+  }
+
+  function handlePasswordChangeCancel() {
+    // Go back to login form
+    showPasswordChange = false;
+    passwordChangeSession = '';
+    passwordChangeUsername = '';
+    error = '';
+    password = ''; // Clear the temporary password
   }
 
   // Redirect to destination if already authenticated
@@ -41,47 +81,60 @@
   }
 </script>
 
-<div class="login-container" class:embedded={isEmbedded}>
-  <div class="language-selector">
-    <button class={`locale-button ${$i18nStore?.locale === 'en' ? 'selected' : ''}`}
-            on:click={() => setLocale('en')}>English</button>
-    <button class={`locale-button ${$i18nStore?.locale === 'es' ? 'selected' : ''}`}
-            on:click={() => setLocale('es')}>Español</button>
+{#if showPasswordChange}
+  <!-- Password Change Form -->
+  <PasswordChange
+    username={passwordChangeUsername}
+    session={passwordChangeSession}
+    {isLoading}
+    errorMessage={error}
+    on:passwordChange={handlePasswordChange}
+    on:cancel={handlePasswordChangeCancel}
+  />
+{:else}
+  <!-- Regular Login Form -->
+  <div class="login-container" class:embedded={isEmbedded}>
+    <div class="language-selector">
+      <button class={`locale-button ${$i18nStore?.locale === 'en' ? 'selected' : ''}`}
+              on:click={() => setLocale('en')}>English</button>
+      <button class={`locale-button ${$i18nStore?.locale === 'es' ? 'selected' : ''}`}
+              on:click={() => setLocale('es')}>Español</button>
+    </div>
+    <h1>{$i18nStore?.t('login_title') || 'Login'}</h1>
+
+    <form on:submit|preventDefault={handleSubmit}>
+      {#if error}
+        <div class="error">{error}</div>
+      {/if}
+
+      <div class="form-group">
+        <label for="username">{$i18nStore?.t('username') || 'Username'}</label>
+        <input
+                type="text"
+                id="username"
+                bind:value={username}
+                required
+                disabled={isLoading}
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">{$i18nStore?.t('password') || 'Password'}</label>
+        <input
+                type="password"
+                id="password"
+                bind:value={password}
+                required
+                disabled={isLoading}
+        />
+      </div>
+
+      <button class="login-button" type="submit" disabled={isLoading}>
+        {isLoading ? $i18nStore?.t('logging_in') || 'Logging in...' : $i18nStore?.t('login_button') || 'Login'}
+      </button>
+    </form>
   </div>
-  <h1>{$i18nStore?.t('login_title') || 'Login'}</h1>
-
-  <form on:submit|preventDefault={handleSubmit}>
-    {#if error}
-      <div class="error">{error}</div>
-    {/if}
-
-    <div class="form-group">
-      <label for="username">{$i18nStore?.t('username') || 'Username'}</label>
-      <input
-              type="text"
-              id="username"
-              bind:value={username}
-              required
-              disabled={isLoading}
-      />
-    </div>
-
-    <div class="form-group">
-      <label for="password">{$i18nStore?.t('password') || 'Password'}</label>
-      <input
-              type="password"
-              id="password"
-              bind:value={password}
-              required
-              disabled={isLoading}
-      />
-    </div>
-
-    <button class="login-button" type="submit" disabled={isLoading}>
-      {isLoading ? $i18nStore?.t('logging_in') || 'Logging in...' : $i18nStore?.t('login_button') || 'Login'}
-    </button>
-  </form>
-</div>
+{/if}
 
 <style>
   .login-container {
