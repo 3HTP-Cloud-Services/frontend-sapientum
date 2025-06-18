@@ -47,7 +47,7 @@ def get_agent_alias_id():
 
 def refresh_credentials():
     """
-    Refreshes temporary credentials.
+    Refreshes temporary credentials with single retry.
     If running on EC2, uses instance profile credentials.
     If running locally, assumes the configured role.
     This is the ONLY function that should call assume_role.
@@ -61,57 +61,62 @@ def refresh_credentials():
         print("Throttling token refresh attempts")
         return False
 
-    try:
-        _last_refresh_attempt = current_time
+    for attempt in range(2):  # Try twice: initial attempt + 1 retry
+        try:
+            _last_refresh_attempt = current_time
 
-        # Check if EC2_ROLE environment variable is set to indicate we're on EC2
-        is_ec2 = os.environ.get('EC2_ROLE', 'false').lower() == 'true'
+            # Check if EC2_ROLE environment variable is set to indicate we're on EC2
+            is_ec2 = os.environ.get('EC2_ROLE', 'false').lower() == 'true'
 
-        if is_ec2:
-            print("Running on EC2, using instance profile credentials")
-            _using_instance_profile = True
+            if is_ec2:
+                print("Running on EC2, using instance profile credentials")
+                _using_instance_profile = True
 
-            # When using instance profile, we don't need to store credentials
-            # as boto3 will automatically use the instance profile
-            _credentials = {}
-            _credentials_expiry = current_time + 3600  # Set a dummy expiry time
+                # When using instance profile, we don't need to store credentials
+                # as boto3 will automatically use the instance profile
+                _credentials = {}
+                _credentials_expiry = current_time + 3600  # Set a dummy expiry time
+                return True
+            else:
+                # Running locally, assume a role
+                _using_instance_profile = False
+
+                # Get the AWS role ARN from config
+                role_arn = get_aws_role_arn()
+                if not role_arn:
+                    print("Error: AWS Role ARN not found in config")
+                    return False
+
+                print(f"Creating a fresh STS client... (attempt {attempt + 1})")
+                # Create a fresh STS client - do not reuse any existing client
+                sts_client = boto3.client('sts', region_name='us-east-1')
+
+                print(f"Attempting to assume role: {role_arn}")
+                # This is the only place where assume_role should be called
+                assumed_role = sts_client.assume_role(
+                    RoleArn=role_arn,
+                    RoleSessionName=f'AssumeRoleSession-{int(current_time)}',
+                    DurationSeconds=3600
+                )
+
+                _credentials = assumed_role['Credentials']
+                _credentials_expiry = time.mktime(_credentials['Expiration'].timetuple())
+
+            expiry_time = datetime.fromtimestamp(_credentials_expiry)
+            current_time_dt = datetime.now()
+            duration = expiry_time - current_time_dt
+
+            print(
+                f"Successfully assumed role, credentials valid for {duration.seconds // 60} minutes until {expiry_time}")
             return True
-        else:
-            # Running locally, assume a role
-            _using_instance_profile = False
-
-            # Get the AWS role ARN from config
-            role_arn = get_aws_role_arn()
-            if not role_arn:
-                print("Error: AWS Role ARN not found in config")
-                return False
-
-            print("Creating a fresh STS client...")
-            # Create a fresh STS client - do not reuse any existing client
-            sts_client = boto3.client('sts', region_name='us-east-1')
-
-            print(f"Attempting to assume role: {role_arn}")
-            # This is the only place where assume_role should be called
-            assumed_role = sts_client.assume_role(
-                RoleArn=role_arn,
-                RoleSessionName=f'AssumeRoleSession-{int(current_time)}',
-                DurationSeconds=3600
-            )
-
-            _credentials = assumed_role['Credentials']
-            _credentials_expiry = time.mktime(_credentials['Expiration'].timetuple())
-
-        expiry_time = datetime.fromtimestamp(_credentials_expiry)
-        current_time_dt = datetime.now()
-        duration = expiry_time - current_time_dt
-
-        print(
-            f"Successfully assumed role, credentials valid for {duration.seconds // 60} minutes until {expiry_time}")
-        return True
-    except Exception as e:
-        print(f"Error assuming role: {e}")
-        traceback.print_exc()
-        return False
+        except Exception as e:
+            print(f"Error assuming role (attempt {attempt + 1}): {e}")
+            if attempt == 0:  # Only print retry message on first failure
+                print("Retrying credential refresh...")
+            else:
+                traceback.print_exc()
+    
+    return False
 
 
 def get_client_with_assumed_role(service_name, region_name='us-east-1'):
@@ -119,21 +124,26 @@ def get_client_with_assumed_role(service_name, region_name='us-east-1'):
     Create a boto3 client for the specified service using:
     - Instance profile credentials when on EC2
     - Assumed role credentials when running locally
-    Each call creates a fresh client with the current credentials.
+    Only refreshes credentials if they don't exist or are expired.
     """
     global _credentials, _credentials_expiry, _using_instance_profile
 
-    # Check if credentials are still valid
+    # Check if we need to initialize credentials
     current_time = time.time()
-    time_until_expiry = _credentials_expiry - current_time if _credentials_expiry else -1
+    credentials_expired = False
+    
+    if _credentials is None:
+        print("No credentials cached, need to get initial credentials")
+        credentials_expired = True
+    elif _credentials_expiry and current_time >= _credentials_expiry:
+        print(f"Credentials expired (expired at {datetime.fromtimestamp(_credentials_expiry)}), need to refresh")
+        credentials_expired = True
+    elif _credentials_expiry:
+        time_until_expiry = _credentials_expiry - current_time
+        print(f"Using cached credentials, valid for {time_until_expiry:.0f} more seconds")
 
-    # If we have no credentials or they're expired or about to expire, refresh
-    if _credentials is None or time_until_expiry <= 300:
-        # If credentials are about to expire, log it
-        if _credentials is not None and time_until_expiry <= 300 and time_until_expiry > 0:
-            print(f"Token expiring soon (in {time_until_expiry:.0f} seconds), refreshing...")
-
-        # Force refresh credentials
+    # Only refresh if credentials are missing or expired
+    if credentials_expired:
         if not refresh_credentials():
             print("FAILED to refresh credentials!")
             raise Exception("Failed to get credentials, cannot proceed with AWS operations")

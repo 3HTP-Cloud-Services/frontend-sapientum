@@ -13,6 +13,7 @@ from chat import generate_ai_response
 from activity import create_activity_chat_log
 from urllib.parse import quote
 from auth_decorator import token_required, admin_required, chat_access_required
+from botocore.exceptions import ClientError
 
 from catalog import get_all_catalogs
 
@@ -20,6 +21,15 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
+
+@app.after_request
+def set_logo_no_cache(response):
+    """Ensure logo endpoint is never cached"""
+    if request.endpoint == 'get_logo':
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
 
 def get_config():
     """Get app configuration from config.json"""
@@ -145,7 +155,7 @@ def login():
     # Try Cognito authentication first
     success, cognito_response = authenticate_user(email, password)
     print('\ncognito:', success, cognito_response)
-    
+
     # Handle NEW_PASSWORD_REQUIRED challenge
     if not success and cognito_response.get("error") == "new_password_required":
         return jsonify({
@@ -155,7 +165,7 @@ def login():
             "message": "New password required for first login",
             "error": "new_password_required"
         }), 200  # Use 200 status code for challenges, not errors
-    
+
     if success:
         # Cognito authentication successful, check if user exists in local DB
         user = User.query.filter_by(email=email).first()
@@ -201,41 +211,41 @@ def logout():
 def set_password():
     """Handle NEW_PASSWORD_REQUIRED challenge from Cognito"""
     print(f"[DEBUG] /api/set-password endpoint called")
-    
+
     data = request.json
     if not data:
         return jsonify({"error": "No data provided"}), 400
-    
+
     username = data.get('username')
     new_password = data.get('newPassword')
     session = data.get('session')
-    
+
     print(f"[DEBUG] Set password request for user: {username}")
-    
+
     if not username or not new_password or not session:
         return jsonify({"error": "Username, new password, and session are required"}), 400
-    
+
     # Import cognito challenge response function
     from cognito import respond_to_auth_challenge
-    
+
     # Respond to the challenge
     success, cognito_response = respond_to_auth_challenge(username, new_password, session)
     print(f"[DEBUG] Challenge response result: success={success}")
-    
+
     if success:
         # Check if user exists in local DB
         user = User.query.filter_by(email=username).first()
-        
+
         if not user:
             return jsonify({
                 "success": False,
                 "message": "User authenticated but not found in system",
                 "error": "user_not_in_system"
             }), 401
-        
+
         # Check if this is an embedded request
         embedded = is_embedded_request()
-        
+
         # Check if the user has chat access when in embedded mode
         if embedded and not user.chat_access:
             return jsonify({
@@ -243,7 +253,7 @@ def set_password():
                 "message": "You do not have access to chat functionality, which is required for embedded mode",
                 "error": "no_chat_access"
             }), 403
-        
+
         # Return successful login response
         return jsonify({
             "success": True,
@@ -263,16 +273,16 @@ def check_auth():
     from auth_decorator import token_required
     from cognito import get_user_from_token
     from models import User
-    
+
     success, user_data = get_user_from_token()
-    
+
     if not success:
         return jsonify({"authenticated": False, "error": user_data.get("error")}), 401
-    
+
     # Get user from database to ensure consistent role/permission data
     user_email = user_data.get("email")
     user = User.query.filter_by(email=user_email).first()
-    
+
     # Use database as source of truth for roles and permissions
     if user:
         role = "admin" if user.is_admin else "user"
@@ -283,7 +293,7 @@ def check_auth():
         role = user_data.get("role")
         is_admin = user_data.get("is_admin")
         chat_access = user_data.get("chat_access")
-    
+
     embedded = is_embedded_request()
     return jsonify({
         "authenticated": True,
@@ -878,7 +888,7 @@ def chat(current_user=None, token_user_data=None, **kwargs):
     data = request.json
     user_message = data.get('message', '')
     catalog = data.get('catalogId', '')
-    
+
     if not user_message:
         return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
@@ -909,7 +919,7 @@ def create_user(current_user=None, token_user_data=None, **kwargs):
     print(f"[DEBUG] /api/users POST endpoint called")
     print(f"[DEBUG] Request data: {request.json}")
     print(f"[DEBUG] Current user: {current_user.email if current_user else 'None'}")
-    
+
     from users import create_user as create_new_user
     result = create_new_user(request.json, current_user=current_user)
     print(f"[DEBUG] create_new_user result type: {type(result)}")
@@ -932,6 +942,158 @@ def toggle_user_property(user_id, property, current_user=None, token_user_data=N
 def delete_user(user_id, current_user=None, token_user_data=None, **kwargs):
     from users import delete_user as delete_existing_user
     return delete_existing_user(user_id, current_user=current_user)
+
+@app.route('/api/logo/upload', methods=['POST'])
+@admin_required
+def upload_logo(current_user=None, token_user_data=None, **kwargs):
+    """Upload and resize company logo"""
+    try:
+        if 'logo' not in request.files:
+            return jsonify({"error": "No logo file provided"}), 400
+
+        logo_file = request.files['logo']
+        if logo_file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+
+        # Read file content
+        file_content = logo_file.read()
+
+        # Validate it's an image
+        try:
+            from PIL import Image
+            import io
+
+            # Open and validate image
+            image = Image.open(io.BytesIO(file_content))
+
+            # Convert to RGB if necessary (handles RGBA, P mode, etc.)
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+
+            # Resize image maintaining aspect ratio, max 128px on larger side
+            width, height = image.size
+            max_size = 128
+
+            if width > height:
+                new_width = max_size
+                new_height = int((height * max_size) / width)
+            else:
+                new_height = max_size
+                new_width = int((width * max_size) / height)
+
+            # Resize image
+            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+            # Convert back to bytes
+            output_buffer = io.BytesIO()
+            image.save(output_buffer, format='PNG', optimize=True)
+            resized_content = output_buffer.getvalue()
+
+        except Exception as e:
+            return jsonify({"error": f"Invalid image file: {str(e)}"}), 400
+
+        # Upload to S3 root
+        from aws_utils import get_client_with_assumed_role
+        from db import get_bucket_name
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return jsonify({"error": "S3 bucket configuration not found"}), 500
+
+        s3_client = get_client_with_assumed_role('s3')
+
+        try:
+            # Upload logo to root of bucket as logo.png
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key='logo.png',
+                Body=resized_content,
+                ContentType='image/png'
+            )
+
+            return jsonify({
+                "success": True,
+                "message": "Logo uploaded successfully",
+                "size": f"{new_width}x{new_height}"
+            })
+
+        except Exception as e:
+            return jsonify({"error": f"Failed to upload logo to S3: {str(e)}"}), 500
+
+    except Exception as e:
+        print(f"Error uploading logo: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error uploading logo: {str(e)}"}), 500
+
+@app.route('/api/logo', methods=['GET'])
+def get_logo():
+    """Retrieve company logo"""
+    try:
+        from aws_utils import get_client_with_assumed_role
+        from db import get_bucket_name
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return jsonify({"error": "S3 bucket configuration not found"}), 500
+
+        # Try to get logo from S3 with retry logic
+        for attempt in range(2):  # Try twice: initial attempt + 1 retry
+            try:
+                s3_client = get_client_with_assumed_role('s3')
+                print('s3 client:', s3_client)
+                response = s3_client.get_object(
+                    Bucket=bucket_name,
+                    Key='logo.png'
+                )
+
+                logo_content = response['Body'].read()
+                print('logo content:',  len(logo_content))
+                response_obj = Response(
+                    logo_content,
+                    mimetype='image/png'
+                )
+
+                # Force no caching - set headers explicitly after response creation
+                response_obj.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                response_obj.headers['Pragma'] = 'no-cache'
+                response_obj.headers['Expires'] = '0'
+                print ('returning logo!')
+                return response_obj
+
+            except ClientError as e:
+                print('client error!:', e)
+                error_code = e.response.get('Error', {}).get('Code')
+                if error_code == 'NoSuchKey':
+                    # Logo doesn't exist, return 404
+                    print('error if')
+                    return jsonify({"error": "Logo not found"}), 404
+                elif error_code in ['InvalidAccessKeyId', 'SignatureDoesNotMatch', 'TokenRefreshRequired', 'ExpiredToken'] and attempt == 0:
+                    print('error elif')
+                    # Credential-related error on first attempt, force refresh and retry
+                    print(f"Credential error on logo retrieval: {error_code}, forcing credential refresh")
+                    import aws_utils
+                    aws_utils._credentials = None  # Force refresh
+                    aws_utils._credentials_expiry = 0
+                    if not aws_utils.refresh_credentials():
+                        return jsonify({"error": "Failed to refresh AWS credentials"}), 500
+                    continue  # Retry with new credentials
+                else:
+                    print('error else')
+                return jsonify({"error": f"Error retrieving logo: {str(e)}"}), 500
+            except Exception as e:
+                print('exception ')
+                if attempt == 0:
+                    print('attempt 0')
+                    print(f"Unexpected error on logo retrieval: {str(e)}, retrying once")
+                    continue
+                else:
+                    print('attempt 1')
+                    return jsonify({"error": f"Error retrieving logo: {str(e)}"}), 500
+
+    except Exception as e:
+        print(f"Error retrieving logo: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error retrieving logo: {str(e)}"}), 500
 
 @app.route('/api/activity-logs', methods=['GET'])
 @admin_required

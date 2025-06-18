@@ -9,7 +9,7 @@ const getApiBaseUrl = () => {
 // HTTP call function using XMLHttpRequest instead of fetch
 export async function httpCall(url, options = {}) {
   console.log('httpCall', url, options);
-  
+
   // If URL starts with /api, prepend the base URL
   if (typeof url === 'string' && url.startsWith('/api')) {
     console.log('\n\nhttpCall intercepting API call\n\n');
@@ -23,17 +23,18 @@ export async function httpCall(url, options = {}) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const method = options.method || 'GET';
-    
+
     xhr.open(method, url);
-    
-    // Set response type to arraybuffer for binary data (downloads)
-    if (url.includes('/download')) {
+
+    // Set response type to arraybuffer for binary data (downloads and logo GET requests)
+    // Only set arraybuffer for GET requests to logo endpoint, not POST requests
+    if (url.includes('/download') || (url.includes('/logo') && method === 'GET')) {
       xhr.responseType = 'arraybuffer';
     }
-    
+
     // Prepare headers
     const headers = { ...options.headers };
-    
+
     // Auto-add Authorization header for API calls if not already present and token exists
     const isApiCall = typeof url === 'string' && (url.includes('/api/') || url.includes('/catalogs') || url.includes('/chat') || url.includes('/users'));
     if (isApiCall && !headers['Authorization']) {
@@ -41,21 +42,23 @@ export async function httpCall(url, options = {}) {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
         console.log('Auto-adding Authorization header for API call');
+      } else {
+        console.log('No auth token found for API call');
       }
     }
-    
+
     // Set headers (but not Content-Type for FormData - browser will set it automatically)
     Object.keys(headers).forEach(key => {
       if (!(options.body instanceof FormData && key.toLowerCase() === 'content-type')) {
         xhr.setRequestHeader(key, headers[key]);
       }
     });
-    
+
     // Remove credentials handling since we're using JWT tokens now
     // if (options.credentials === 'include') {
     //   xhr.withCredentials = true;
     // }
-    
+
     xhr.onload = () => {
       const response = {
         ok: xhr.status >= 200 && xhr.status < 300,
@@ -77,15 +80,15 @@ export async function httpCall(url, options = {}) {
       };
       resolve(response);
     };
-    
+
     xhr.onerror = () => {
       reject(new Error('Network error'));
     };
-    
+
     xhr.ontimeout = () => {
       reject(new Error('Request timeout'));
     };
-    
+
     // Send request
     if (options.body) {
       if (typeof options.body === 'string') {

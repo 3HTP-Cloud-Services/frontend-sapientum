@@ -1,10 +1,11 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { onMount } from 'svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
   import UserModal from './UserModal.svelte';
   import { httpCall } from '../../../shared-components/utils/httpCall.js';
+  import { loadLogo, clearLogoCache } from '../../../shared-components/utils/logo.js';
 
   export let users = [];
   export let domains = [];
@@ -23,8 +24,18 @@
   // Track which toggles are currently being processed
   let togglesInFlight = {};
 
+  // Logo upload state
+  let logoFile = null;
+  let logoUploading = false;
+  let logoError = '';
+  let logoSuccess = '';
+  let logoPreview = null;
+  let currentLogo = null;
+
   // Get current user from auth store to check if switching own admin flag
   import { userEmail } from '../../../shared-components/utils/auth.js';
+
+  const dispatch = createEventDispatcher();
 
   export async function fetchUsers() {
     try {
@@ -354,11 +365,91 @@
     }
   }
 
+  // Logo functions
+  async function loadCurrentLogo() {
+    currentLogo = await loadLogo();
+  }
+
+  function handleLogoSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+      logoFile = file;
+      logoError = '';
+      logoSuccess = '';
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        logoPreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function uploadLogo() {
+    if (!logoFile) {
+      logoError = 'Please select a logo file';
+      return;
+    }
+
+    logoUploading = true;
+    logoError = '';
+    logoSuccess = '';
+
+    try {
+      const formData = new FormData();
+      formData.append('logo', logoFile);
+
+      const response = await httpCall('/api/logo/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        logoSuccess = `Logo uploaded successfully (${result.size})`;
+        logoFile = null;
+        logoPreview = null;
+
+        // Clear logo cache to force refresh across all components
+        clearLogoCache();
+        
+        // Reload current logo
+        await loadCurrentLogo();
+        
+        // Dispatch event to notify parent that logo was uploaded
+        dispatch('logoUploaded');
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          logoSuccess = '';
+        }, 3000);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        logoError = errorData.error || `Error uploading logo (${response.status})`;
+      }
+    } catch (err) {
+      console.error('Error uploading logo:', err);
+      logoError = `Connection error while uploading logo: ${err.message}`;
+    } finally {
+      logoUploading = false;
+    }
+  }
+
+  function cancelLogoUpload() {
+    logoFile = null;
+    logoPreview = null;
+    logoError = '';
+    logoSuccess = '';
+  }
+
   $: if ($activeSectionStore === 'permissions') {
     console.log("Permissions section is now active");
     users = [];
     loadingUsers = true;
     fetchUsers();
+    loadCurrentLogo();
   }
 </script>
 
@@ -489,6 +580,74 @@
     <button class="sap_button reload_button" on:click={saveDomains}>
         <span class="reload_icon">⟳</span>{$i18nStore.t('reload_domains_button')}
     </button>
+  </div>
+</div>
+
+<div class="logo-section">
+  <h3>Company Logo</h3>
+  <p class="logo-description">Upload your company logo to display on the login page. Images will be automatically resized to 128px on the larger side.</p>
+
+  {#if logoError}
+    <div class="error-message">{logoError}</div>
+  {/if}
+
+  {#if logoSuccess}
+    <div class="success-message" transition:fade={{ duration: 150 }}>
+      {logoSuccess}
+    </div>
+  {/if}
+
+  <div class="logo-container">
+    <div class="current-logo">
+      <h4>Current Logo</h4>
+      {#if currentLogo}
+        <img src={currentLogo} alt="Current company logo" class="logo-preview" />
+      {:else}
+        <div class="no-logo">No logo uploaded</div>
+      {/if}
+    </div>
+
+    <div class="logo-upload">
+      <h4>Upload New Logo</h4>
+      <div class="upload-area">
+        <input
+          type="file"
+          id="logo-upload"
+          accept="image/*"
+          on:change={handleLogoSelect}
+          class="file-input"
+        />
+        <label for="logo-upload" class="file-label">
+          Choose Image File
+        </label>
+
+        {#if logoPreview}
+          <div class="preview-container">
+            <img src={logoPreview} alt="Logo preview" class="logo-preview" />
+            <p class="preview-text">Preview (will be resized to max 128px)</p>
+          </div>
+        {/if}
+
+        <div class="upload-actions">
+          {#if logoFile}
+            <button
+              class="sap_button upload-button"
+              on:click={uploadLogo}
+              disabled={logoUploading}
+            >
+              {logoUploading ? 'Uploading...' : 'Upload Logo'}
+            </button>
+            <button
+              class="sap_button cancel-button"
+              on:click={cancelLogoUpload}
+              disabled={logoUploading}
+            >
+              Cancel
+            </button>
+          {/if}
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -839,5 +998,149 @@
   .toggle-switch.disabled .toggle-slider {
     cursor: not-allowed;
     background-color: #d1d5db;
+  }
+
+  /* Logo section */
+  .logo-section {
+    margin-top: 2rem;
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .logo-section h3 {
+    margin-top: 0;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+  }
+
+  .logo-description {
+    color: #718096;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .logo-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .current-logo h4,
+  .logo-upload h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #4a5568;
+    font-size: 1rem;
+  }
+
+  .logo-preview {
+    max-width: 128px;
+    max-height: 128px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.5rem;
+    background-color: #f7fafc;
+  }
+
+  .no-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 128px;
+    height: 128px;
+    border: 2px dashed #cbd5e0;
+    border-radius: 8px;
+    color: #a0aec0;
+    font-style: italic;
+    background-color: #f7fafc;
+  }
+
+  .upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .file-input {
+    display: none;
+  }
+
+  .file-label {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: #4299e1;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    max-width: 200px;
+  }
+
+  .file-label:hover {
+    background-color: #3182ce;
+  }
+
+  .preview-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .preview-text {
+    font-size: 0.75rem;
+    color: #718096;
+    margin: 0;
+  }
+
+  .upload-actions {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .upload-button {
+    background-color: #48bb78;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+  }
+
+  .upload-button:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
+  }
+
+  .cancel-button {
+    background-color: #e2e8f0;
+    color: #4a5568;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+  }
+
+  .cancel-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .error-message {
+    color: #e53e3e;
+    background-color: #fed7d7;
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+  }
+
+  @media (max-width: 768px) {
+    .logo-container {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
   }
 </style>

@@ -1,13 +1,37 @@
 <script>
   import { i18nStore, setLocale, currentLocale } from '../utils/i18n.js';
+  import { loadLogo } from '../utils/logo.js';
+  import { onMount } from 'svelte';
 
   export let handleLogout;
   export let title = 'Sapientum AI';
+  
+  let logoUrl = null;
+
+  async function loadCompanyLogo() {
+    logoUrl = await loadLogo();
+  }
+
+  onMount(() => {
+    loadCompanyLogo();
+  });
+
+  // Public function to refresh logo (called from parent when logo is uploaded)
+  export function refreshLogo() {
+    loadCompanyLogo();
+  }
 </script>
 
 <header class="header">
   <div class="header-content">
-    <h1 class="header-title">{title}</h1>
+    <div class="header-left">
+      <div class="logo-placeholder">
+        {#if logoUrl}
+          <img src={logoUrl} alt="Company Logo" class="header-logo" />
+        {/if}
+      </div>
+      <h1 class="header-title">{title}</h1>
+    </div>
 
     <div class="header-actions">
       <div class="language-selector">
@@ -47,6 +71,30 @@
     justify-content: space-between;
     align-items: center;
     height: 100%;
+    padding: 0 1rem;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .logo-placeholder {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .header-logo {
+    max-height: 40px;
+    max-width: 40px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
   }
 
   .header-title {

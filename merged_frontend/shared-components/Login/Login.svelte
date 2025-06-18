@@ -2,7 +2,9 @@
   import { push } from 'svelte-spa-router';
   import { login, setNewPassword, isAuthenticated } from '../utils/auth.js';
   import { i18nStore } from '../utils/i18n.js';
+  import { loadLogo } from '../utils/logo.js';
   import PasswordChange from './PasswordChange.svelte';
+  import { onMount } from 'svelte';
 
   // Props to control behavior
   export let redirectTo = '/';
@@ -12,17 +14,28 @@
   let password = '';
   let error = '';
   let isLoading = false;
-  
+
   // Password change state
   let showPasswordChange = false;
   let passwordChangeSession = '';
   let passwordChangeUsername = '';
+
+  // Logo state
+  let logoUrl = null;
 
   function setLocale(locale) {
     if ($i18nStore) {
       $i18nStore.locale = locale;
     }
   }
+
+  async function loadCompanyLogo() {
+    logoUrl = await loadLogo();
+  }
+
+  onMount(() => {
+    loadCompanyLogo();
+  });
 
   async function handleSubmit() {
     error = '';
@@ -100,6 +113,15 @@
       <button class={`locale-button ${$i18nStore?.locale === 'es' ? 'selected' : ''}`}
               on:click={() => setLocale('es')}>Español</button>
     </div>
+
+    <div class="logo-container">
+      <div class="logo-placeholder">
+        {#if logoUrl}
+          <img src={logoUrl} alt="Company Logo" class="company-logo" />
+        {/if}
+      </div>
+    </div>
+
     <h1>{$i18nStore?.t('login_title') || 'Login'}</h1>
 
     <form on:submit|preventDefault={handleSubmit}>
@@ -221,5 +243,27 @@
   h1 {
     text-align: center;
     margin-bottom: 1.5rem;
+  }
+
+  .logo-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .logo-placeholder {
+    width: 128px;
+    height: 128px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .company-logo {
+    max-width: 128px;
+    max-height: 128px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
   }
 </style>

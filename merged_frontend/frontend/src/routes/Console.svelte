@@ -9,6 +9,8 @@
 
   // Import shared components
   import Header from '../../../shared-components/Header/Header.svelte'
+  
+  let headerComponent;
 
   // Store for passing catalog ID between components
   const currentCatalogIdStore = writable(null);
@@ -106,6 +108,13 @@
     $activeSectionStore = section;
   }
 
+  function handleLogoUploaded() {
+    // Refresh the header logo when logo is uploaded in permissions
+    if (headerComponent) {
+      headerComponent.refreshLogo();
+    }
+  }
+
   let catalogComponent;
   let catalogPermissionsComponent;
   let permissionsComponent;
@@ -166,7 +175,7 @@
     <Header
       title={$i18nStore.t('title')}
       handleLogout={handleLogout}
-      showAdminControls={$userRole === 'admin'}
+      bind:this={headerComponent}
     />
 
   <div class="console-container" class:embedded-mode={isEmbedded}>
@@ -255,6 +264,7 @@
                 {showUserModal}
                 bind:this={permissionsComponent}
                 {activeSectionStore}
+                on:logoUploaded={handleLogoUploaded}
               />
             {:else}
               <div class="unauthorized-section">
