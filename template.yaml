@@ -2,6 +2,21 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Flask en AWS Lambda
 
+Globals:
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
+      AllowOrigin: "'http://sapientum-app.3htp.cloud'"
+      AllowCredentials: true
+    BinaryMediaTypes:
+      - "*/*" # This allows all binary types
+      # Or be more specific:
+      # - "image/*"
+      # - "application/pdf"
+      # - "application/octet-stream"
+      # - "multipart/form-data"
+
 Resources:
   FlaskFunction:
     Type: AWS::Serverless::Function
@@ -25,6 +40,14 @@ Resources:
             - Effect: Allow
               Action: "secretsmanager:GetSecretValue"
               Resource: "arn:aws:secretsmanager:us-east-1:369595298303:secret:sapientum_connection-I7Q8Mc"
+            - Effect: Allow
+              Action:
+                - "s3:ListBucket"
+                - "s3:GetObject"
+                - "s3:PutObject"
+              Resource:
+                - "arn:aws:s3:::s3-3htp-sapientum-ai"
+                - "arn:aws:s3:::s3-3htp-sapientum-ai/*"
       Events:
         Api:
           Type: Api

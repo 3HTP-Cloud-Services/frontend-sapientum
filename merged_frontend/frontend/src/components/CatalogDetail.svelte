@@ -159,54 +159,54 @@
     }
   }
 
-  async function downloadFile(fileId) {
+  async function downloadFile(fileId, fallbackFilename = 'download') {
     try {
       const downloadUrl = `/api/files/${fileId}/download`;
-      
+
       // Use httpCall to include JWT authentication
       const response = await httpCall(downloadUrl, {
         method: 'GET'
       });
-      
+
       if (response.ok) {
         // Get the file as a blob
         const blob = await response.blob();
-        
-        // Get filename from Content-Disposition header or use default
-        const contentDisposition = response.headers.get('Content-Disposition');
-        console.log('Full response headers:', response.headers);
+
+        // Get filename from headers (check both cases due to AWS Lambda normalization)
+        let contentDisposition = response.headers.get('Content-Disposition') || response.headers.get('content-disposition');
         console.log('Content-Disposition header:', contentDisposition);
-        
-        let filename = 'download';
+
+        let filename = fallbackFilename;
         if (contentDisposition) {
           console.log('Raw Content-Disposition:', JSON.stringify(contentDisposition));
           // Try multiple patterns to extract filename
           let filenameMatch = contentDisposition.match(/filename\*?="?([^"]+)"?/);
-          console.log('First match attempt:', filenameMatch);
           if (!filenameMatch) {
             filenameMatch = contentDisposition.match(/filename\*?=([^;\s]+)/);
-            console.log('Second match attempt:', filenameMatch);
           }
           if (filenameMatch) {
             const rawFilename = filenameMatch[1].replace(/"/g, '');
-            console.log('Raw filename before decode:', rawFilename);
             filename = decodeURIComponent(rawFilename);
-            console.log('Final decoded filename:', filename);
-          } else {
-            console.log('No filename pattern matched');
+            console.log('Extracted filename from header:', filename);
           }
-        } else {
-          console.log('No Content-Disposition header found');
-          // Let's see all available headers using getAllResponseHeaders
-          console.log('All headers available:');
-          console.log('Raw headers:', response.headers.getAllResponseHeaders());
         }
         
+        // Also check for X-Suggested-Filename header as fallback
+        if (filename === fallbackFilename) {
+          const suggestedFilename = response.headers.get('X-Suggested-Filename') || response.headers.get('x-suggested-filename');
+          if (suggestedFilename) {
+            filename = suggestedFilename;
+            console.log('Using X-Suggested-Filename:', filename);
+          }
+        }
+
         // Create download link
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
+        console.log('filename:', filename);
         link.download = filename;
+        console.log('link:', link);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -368,7 +368,7 @@
                   </button>
                 </td>
                 <td>
-                  <button class="icon-button download-button" on:click={() => downloadFile(file.id)} title={$i18nStore.t('download_file') || 'Download file'}>
+                  <button class="icon-button download-button" on:click={() => downloadFile(file.id, file.name)} title={$i18nStore.t('download_file') || 'Download file'}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                       <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>

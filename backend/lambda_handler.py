@@ -14,14 +14,14 @@ from app import app
 from models import db
 import db as db_utils
 
-# Usar un adaptador WSGI alternativo
+# Use Mangum for ASGI/Lambda integration
 try:
-    from awsgi import response
+    from mangum import Mangum
 except ImportError:
-    print("Error: awsgi no está instalado. Instalando...")
+    print("Error: mangum no está instalado. Instalando...")
     import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "aws-wsgi"])
-    from awsgi import response
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "mangum"])
+    from mangum import Mangum
 
 def normalize_event(event):
     """Convert Function URL (API Gateway v2) events to API Gateway v1 format for awsgi."""
@@ -133,8 +133,50 @@ def lambda_handler(event, context):
                 print(f"Error al verificar la base de datos: {db_error}")
                 print(traceback.format_exc())
 
-        # Usar awsgi para manejar la solicitud con el evento normalizado
-        return response(app, normalized_event, context)
+        # Use Mangum for ASGI/Lambda integration
+        print("[LAMBDA DEBUG] About to call Mangum handler")
+        try:
+            # Wrap Flask WSGI app for ASGI compatibility
+            from asgiref.wsgi import WsgiToAsgi
+            asgi_app = WsgiToAsgi(app)
+            
+            # Create mangum handler with ASGI app
+            handler = Mangum(asgi_app, lifespan="off")
+            
+            # Mangum can handle the original event format directly
+            result = handler(event, context)
+            print(f"[LAMBDA DEBUG] Mangum response successful, type: {type(result)}")
+            print(f"[LAMBDA DEBUG] Response keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
+            if isinstance(result, dict):
+                if 'statusCode' in result:
+                    print(f"[LAMBDA DEBUG] Status code: {result['statusCode']}")
+                if 'headers' in result:
+                    print(f"[LAMBDA DEBUG] Response headers: {result['headers']}")
+                    # Check for Content-Disposition header specifically
+                    headers = result['headers']
+                    for header_key, header_value in headers.items():
+                        if header_key.lower() == 'content-disposition':
+                            print(f"[LAMBDA DEBUG] Found Content-Disposition header: '{header_key}' = '{header_value}'")
+                if 'body' in result:
+                    body = result['body']
+                    if isinstance(body, bytes):
+                        print(f"[LAMBDA DEBUG] Body is bytes, length: {len(body)}")
+                        print(f"[LAMBDA DEBUG] First few bytes: {body[:10] if len(body) >= 10 else body}")
+                    elif isinstance(body, str):
+                        print(f"[LAMBDA DEBUG] Body is string, length: {len(body)}")
+                        print(f"[LAMBDA DEBUG] First 100 chars: {body[:100]}")
+                    else:
+                        print(f"[LAMBDA DEBUG] Body type: {type(body)}")
+                if 'isBase64Encoded' in result:
+                    print(f"[LAMBDA DEBUG] isBase64Encoded: {result['isBase64Encoded']}")
+            print("[LAMBDA DEBUG] Returning Mangum result")
+            return result
+        except Exception as mangum_error:
+            print(f"[LAMBDA DEBUG] Mangum error: {mangum_error}")
+            print(f"[LAMBDA DEBUG] Mangum error type: {type(mangum_error).__name__}")
+            import traceback
+            print(f"[LAMBDA DEBUG] Mangum traceback: {traceback.format_exc()}")
+            raise
     except Exception as e:
         error_msg = str(e)
         stack_trace = traceback.format_exc()

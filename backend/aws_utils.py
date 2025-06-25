@@ -65,15 +65,15 @@ def refresh_credentials():
         try:
             _last_refresh_attempt = current_time
 
-            # Check if EC2_ROLE environment variable is set to indicate we're on EC2
-            is_ec2 = os.environ.get('EC2_ROLE', 'false').lower() == 'true'
+            # Check if running on AWS Lambda
+            is_lambda = os.environ.get('AWS_LAMBDA_FUNCTION_NAME') is not None
 
-            if is_ec2:
-                print("Running on EC2, using instance profile credentials")
+            if is_lambda:
+                print("Running on AWS Lambda, using Lambda execution role credentials")
                 _using_instance_profile = True
 
-                # When using instance profile, we don't need to store credentials
-                # as boto3 will automatically use the instance profile
+                # When using Lambda execution role, we don't need to store credentials
+                # as boto3 will automatically use the Lambda execution role
                 _credentials = {}
                 _credentials_expiry = current_time + 3600  # Set a dummy expiry time
                 return True
@@ -148,9 +148,9 @@ def get_client_with_assumed_role(service_name, region_name='us-east-1'):
             print("FAILED to refresh credentials!")
             raise Exception("Failed to get credentials, cannot proceed with AWS operations")
 
-    # If using instance profile, just create client without explicit credentials
+    # If using Lambda execution role, just create client without explicit credentials
     if _using_instance_profile:
-        print(f"Creating {service_name} client with instance profile credentials")
+        print(f"Creating {service_name} client with Lambda execution role credentials")
         return boto3.client(
             service_name,
             region_name=region_name

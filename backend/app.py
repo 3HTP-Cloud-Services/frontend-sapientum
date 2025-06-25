@@ -22,14 +22,6 @@ static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
 
-@app.after_request
-def set_logo_no_cache(response):
-    """Ensure logo endpoint is never cached"""
-    if request.endpoint == 'get_logo':
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
-    return response
 
 def get_config():
     """Get app configuration from config.json"""
@@ -90,6 +82,7 @@ def print_origin():
 # Enhanced CORS configuration - only for local development
 # Lambda Function URL handles CORS in production
 if os.environ.get('AWS_LAMBDA_FUNCTION_NAME') is None:
+    print('cors!')
     # Running locally, enable Flask CORS
     cors = CORS(
         app,
@@ -817,7 +810,6 @@ def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
 
         s3_key = active_version.s3Id
         filename = active_version.filename
-        encoded_filename = quote(filename.encode('utf-8'))
         s3_client = get_client_with_assumed_role('s3')
 
         try:
@@ -828,13 +820,28 @@ def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
 
             file_content = s3_response['Body'].read()
 
-            return Response(
-                file_content,
+            # Use BytesIO and send_file for proper binary handling with Mangum
+            from io import BytesIO
+            file_io = BytesIO(file_content)
+            file_io.seek(0)
+
+            from flask import send_file
+            response = send_file(
+                file_io,
                 mimetype=s3_response.get('ContentType', 'application/octet-stream'),
-                headers={
-                    "Content-Disposition": f"attachment; filename={encoded_filename}"
-                }
+                as_attachment=True,
+                download_name=filename
             )
+
+            # Set Content-Disposition header explicitly
+            content_disposition = f'attachment; filename="{filename}"'
+            response.headers['Content-Disposition'] = content_disposition
+
+            print(f"[DOWNLOAD DEBUG] Original filename: {filename}")
+            print(f"[DOWNLOAD DEBUG] Content-Disposition set to: {content_disposition}")
+            print(f"[DOWNLOAD DEBUG] Response headers: {dict(response.headers)}")
+
+            return response
         except Exception as e:
             traceback.print_exc()
             return jsonify({"error": f"Error retrieving file from S3: {str(e)}"}), 500
@@ -1029,71 +1036,101 @@ def upload_logo(current_user=None, token_user_data=None, **kwargs):
 def get_logo():
     """Retrieve company logo"""
     try:
+        print(f"[LOGO DEBUG] v1 Starting logo retrieval")
         from aws_utils import get_client_with_assumed_role
         from db import get_bucket_name
 
         bucket_name = get_bucket_name()
+        print(f"[LOGO DEBUG] Got bucket name: {bucket_name}")
         if not bucket_name:
-            return jsonify({"error": "S3 bucket configuration not found"}), 500
+            return jsonify({"error": "S3 bucket configuration not found", "location": "get_logo:bucket_check"}), 500
 
         # Try to get logo from S3 with retry logic
         for attempt in range(2):  # Try twice: initial attempt + 1 retry
             try:
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Getting S3 client")
                 s3_client = get_client_with_assumed_role('s3')
-                print('s3 client:', s3_client)
+
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Calling S3 get_object")
                 response = s3_client.get_object(
                     Bucket=bucket_name,
                     Key='logo.png'
                 )
 
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Reading S3 response body")
                 logo_content = response['Body'].read()
-                print('logo content:',  len(logo_content))
-                response_obj = Response(
-                    logo_content,
-                    mimetype='image/png'
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Read {len(logo_content)} bytes")
+
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Creating BytesIO object for send_file")
+                from io import BytesIO
+                logo_io = BytesIO(logo_content)
+                logo_io.seek(0)
+
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Using send_file for binary response")
+                from flask import send_file
+
+                response_obj = send_file(
+                    logo_io,
+                    mimetype='image/png',
+                    as_attachment=False,
+                    download_name='logo.png'
                 )
 
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Setting cache headers on send_file response")
                 # Force no caching - set headers explicitly after response creation
                 response_obj.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
                 response_obj.headers['Pragma'] = 'no-cache'
                 response_obj.headers['Expires'] = '0'
-                print ('returning logo!')
+
+                print(f"[LOGO DEBUG] Attempt {attempt + 1}: Returning send_file response object")
                 return response_obj
 
             except ClientError as e:
-                print('client error!:', e)
+                print(f"[LOGO DEBUG] client error except Attempt {attempt + 1}: ClientError occurred")
                 error_code = e.response.get('Error', {}).get('Code')
                 if error_code == 'NoSuchKey':
                     # Logo doesn't exist, return 404
-                    print('error if')
-                    return jsonify({"error": "Logo not found"}), 404
+                    print(f"[LOGO DEBUG] Logo not found in S3")
+                    return jsonify({"error": "Logo not found", "location": f"get_logo:s3_not_found:attempt_{attempt+1}"}), 404
                 elif error_code in ['InvalidAccessKeyId', 'SignatureDoesNotMatch', 'TokenRefreshRequired', 'ExpiredToken'] and attempt == 0:
-                    print('error elif')
                     # Credential-related error on first attempt, force refresh and retry
-                    print(f"Credential error on logo retrieval: {error_code}, forcing credential refresh")
+                    print(f"[LOGO DEBUG] Credential error on logo retrieval: {error_code}, forcing credential refresh")
                     import aws_utils
                     aws_utils._credentials = None  # Force refresh
                     aws_utils._credentials_expiry = 0
                     if not aws_utils.refresh_credentials():
-                        return jsonify({"error": "Failed to refresh AWS credentials"}), 500
+                        return jsonify({"error": "Failed to refresh AWS credentials", "location": f"get_logo:credential_refresh_failed:attempt_{attempt+1}"}), 500
                     continue  # Retry with new credentials
                 else:
-                    print('error else')
-                return jsonify({"error": f"Error retrieving logo: {str(e)}"}), 500
+                    print(f"[LOGO DEBUG] Other ClientError: {str(e)}")
+                    return jsonify({"error": f"Error retrieving logo: {str(e)}", "location": f"get_logo:client_error:attempt_{attempt+1}", "error_code": error_code}), 500
             except Exception as e:
-                print('exception ')
+                print(f"[LOGO DEBUG] gral except! Attempt {attempt + 1}: General Exception: {str(e)}")
+                print(f"[LOGO DEBUG] gral except! Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 if attempt == 0:
-                    print('attempt 0')
-                    print(f"Unexpected error on logo retrieval: {str(e)}, retrying once")
+                    print(f"[LOGO DEBUG] Retrying after unexpected error: {str(e)}")
                     continue
                 else:
-                    print('attempt 1')
-                    return jsonify({"error": f"Error retrieving logo: {str(e)}"}), 500
+                    return jsonify({
+                        "error": f"Error retrieving logo: {str(e)}",
+                        "location": f"get_logo:general_exception:attempt_{attempt+1}",
+                        "exception_type": type(e).__name__,
+                        "traceback": traceback.format_exc()
+                    }), 500
 
     except Exception as e:
-        print(f"Error retrieving logo: {e}")
+        print(f"[LOGO DEBUG] Outer exception: {e}")
+        print(f"[LOGO DEBUG] Outer exception type: {type(e).__name__}")
+        import traceback
         traceback.print_exc()
-        return jsonify({"error": f"Error retrieving logo: {str(e)}"}), 500
+        return jsonify({
+            "error": f"Error retrieving logo: {str(e)}",
+            "location": "get_logo:outer_exception",
+            "exception_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }), 500
 
 @app.route('/api/activity-logs', methods=['GET'])
 @admin_required
