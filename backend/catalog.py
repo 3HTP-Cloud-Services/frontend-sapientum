@@ -419,6 +419,17 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             )
             db.session.add(new_catalog)
             db.session.commit()
+            
+            # Grant FULL permission to the catalog creator
+            from models import CatalogPermission, PermissionType
+            catalog_permission = CatalogPermission(
+                catalog_id=new_catalog.id,
+                user_id=user_id,
+                permission=PermissionType.FULL
+            )
+            db.session.add(catalog_permission)
+            db.session.commit()
+            
             create_activity_catalog_log(EventType.CATALOG_CREATION, user_id, new_catalog.id, 'User ' + user_email + ' created the catalog ' + catalog_name)
 
             return new_catalog.to_dict()

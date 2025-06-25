@@ -1,4 +1,4 @@
-backend/migrations/versions/e444b5bc7dd7_activity_log.py"""activity log
+"""activity log
 
 Revision ID: e444b5bc7dd7
 Revises: 08209423186a

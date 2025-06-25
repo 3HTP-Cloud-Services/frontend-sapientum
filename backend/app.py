@@ -12,7 +12,7 @@ from werkzeug.local import LocalProxy
 from chat import generate_ai_response
 from activity import create_activity_chat_log
 from urllib.parse import quote
-from auth_decorator import token_required, admin_required, chat_access_required
+from auth_decorator import token_required, admin_required, chat_access_required, catalog_admin_required
 from botocore.exceptions import ClientError
 
 from catalog import get_all_catalogs
@@ -461,7 +461,7 @@ def get_document(doc_id):
     return get_catalog(doc_id)
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['GET'])
-@admin_required
+@catalog_admin_required
 def get_users_for_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     print('get_users_for_catalog:', catalog_id)
 
@@ -470,14 +470,14 @@ def get_users_for_catalog(catalog_id, current_user=None, token_user_data=None, *
     return jsonify(users)
 
 @app.route('/api/catalogs/<string:catalog_id>/available-users', methods=['GET'])
-@admin_required
+@catalog_admin_required
 def get_available_users_for_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     from catalog import get_available_users_for_catalog as get_available_users
     available_users = get_available_users(catalog_id)
     return jsonify(available_users)
 
 @app.route('/api/catalogs/<string:catalog_id>/users', methods=['POST'])
-@admin_required
+@catalog_admin_required
 def add_user_to_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     data = request.json
     if not data or 'user_id' not in data or 'permission' not in data:
@@ -496,7 +496,7 @@ def add_user_to_catalog(catalog_id, current_user=None, token_user_data=None, **k
     return jsonify(result)
 
 @app.route('/api/catalogs/<string:catalog_id>/users/<int:user_id>', methods=['DELETE'])
-@admin_required
+@catalog_admin_required
 def remove_user_from_catalog(catalog_id, user_id, current_user=None, token_user_data=None, **kwargs):
     from catalog import remove_user_from_catalog as remove_user
     result = remove_user(catalog_id, user_id)
@@ -506,6 +506,110 @@ def remove_user_from_catalog(catalog_id, user_id, current_user=None, token_user_
         return jsonify(result[0]), result[1]
 
     return jsonify(result)
+
+@app.route('/api/catalogs/<string:catalog_id>/can-manage-permissions', methods=['GET'])
+@token_required
+def can_manage_catalog_permissions(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    """Check if current user can manage permissions for this catalog (admin or FULL permission)"""
+    from models import CatalogPermission, PermissionType
+    
+    # Admin users can always manage permissions
+    if current_user.is_admin:
+        return jsonify({"can_manage": True, "reason": "admin"})
+    
+    # Check if user has FULL permission on this catalog
+    catalog_permission = CatalogPermission.query.filter_by(
+        catalog_id=catalog_id,
+        user_id=current_user.id
+    ).first()
+    
+    if catalog_permission and catalog_permission.permission == PermissionType.FULL:
+        return jsonify({"can_manage": True, "reason": "full_permission"})
+    
+    return jsonify({"can_manage": False, "reason": "insufficient_permissions"})
+
+@app.route('/api/catalogs/<string:catalog_id>/my-permission', methods=['GET'])
+@token_required
+def get_my_catalog_permission(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    """Get current user's permission for this catalog - for debugging purposes"""
+    from models import CatalogPermission, PermissionType
+    from sqlalchemy import text
+    
+    print(f"[DEBUG] get_my_catalog_permission called with:")
+    print(f"[DEBUG]   catalog_id: {catalog_id} (type: {type(catalog_id)})")
+    print(f"[DEBUG]   current_user.id: {current_user.id} (type: {type(current_user.id)})")
+    print(f"[DEBUG]   current_user.email: {current_user.email}")
+    print(f"[DEBUG] LOOKING FOR: catalog_id={catalog_id} AND user_id={current_user.id}")
+    
+    # Show the actual SQL query that will be executed
+    query = CatalogPermission.query.filter_by(
+        catalog_id=catalog_id,
+        user_id=current_user.id
+    )
+    print(f"[DEBUG] SQL Query: {query}")
+    
+    catalog_permission = query.first()
+    
+    # Also check if there are any rows for this catalog at all
+    all_permissions_for_catalog = CatalogPermission.query.filter_by(catalog_id=catalog_id).all()
+    print(f"[DEBUG] Total permissions found for catalog {catalog_id}: {len(all_permissions_for_catalog)}")
+    for perm in all_permissions_for_catalog:
+        print(f"[DEBUG]   - User ID: {perm.user_id} (type: {type(perm.user_id)}), Permission: {perm.permission.value}")
+        print(f"[DEBUG]   - COMPARISON: perm.user_id == current_user.id? {perm.user_id} == {current_user.id} = {perm.user_id == current_user.id}")
+    
+    # Check if there are any rows for this user at all
+    all_permissions_for_user = CatalogPermission.query.filter_by(user_id=current_user.id).all()
+    print(f"[DEBUG] Total permissions found for user {current_user.id}: {len(all_permissions_for_user)}")
+    for perm in all_permissions_for_user:
+        print(f"[DEBUG]   - Catalog ID: {perm.catalog_id} (type: {type(perm.catalog_id)}), Permission: {perm.permission.value}")
+        print(f"[DEBUG]   - COMPARISON: perm.catalog_id == catalog_id? {perm.catalog_id} == {catalog_id} = {perm.catalog_id == catalog_id}")
+    
+    # Let's also try a manual direct query to see what's happening
+    from sqlalchemy import and_
+    manual_query = CatalogPermission.query.filter(
+        and_(
+            CatalogPermission.catalog_id == catalog_id,
+            CatalogPermission.user_id == current_user.id
+        )
+    ).first()
+    print(f"[DEBUG] Manual query result: {manual_query}")
+    
+    # And try with explicit type conversion
+    try:
+        catalog_id_int = int(catalog_id)
+        int_query = CatalogPermission.query.filter_by(
+            catalog_id=catalog_id_int,
+            user_id=current_user.id
+        ).first()
+        print(f"[DEBUG] Query with int catalog_id ({catalog_id_int}): {int_query}")
+    except ValueError:
+        print(f"[DEBUG] Could not convert catalog_id '{catalog_id}' to int")
+    
+    if catalog_permission:
+        print(f"[DEBUG] Query result: Found CatalogPermission")
+        print(f"[DEBUG]   - catalog_id: {catalog_permission.catalog_id}")
+        print(f"[DEBUG]   - user_id: {catalog_permission.user_id}")
+        print(f"[DEBUG]   - permission: {catalog_permission.permission.value}")
+        return jsonify({
+            "has_permission_row": True,
+            "permission": catalog_permission.permission.value,
+            "catalog_id": catalog_permission.catalog_id,
+            "user_id": catalog_permission.user_id,
+            "user_email": current_user.email,
+            "user_is_admin": current_user.is_admin
+        })
+    else:
+        print(f"[DEBUG] Query result: None (no permission found)")
+        print(f"[DEBUG] No permission found for catalog_id={catalog_id}, user_id={current_user.id}")
+        return jsonify({
+            "has_permission_row": False,
+            "permission": None,
+            "catalog_id": catalog_id,
+            "user_id": current_user.id,
+            "user_email": current_user.email,
+            "user_is_admin": current_user.is_admin,
+            "message": "NO ROW"
+        })
 
 @app.route('/api/catalogs/<string:catalog_id>/files', methods=['GET'])
 @token_required
@@ -901,7 +1005,7 @@ def chat(current_user=None, token_user_data=None, **kwargs):
 
     user_id = current_user.id
     ai_response, message_id = generate_ai_response(user_message, catalog, user_id)
-    create_activity_chat_log(EventType.CHAT_INTERACTION, user_id, catalog, message_id, 'spoke to the ai')
+    create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
 
     return jsonify({
         "response": ai_response,

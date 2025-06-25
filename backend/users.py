@@ -74,7 +74,7 @@ def create_user(data, current_user=None):
     # Check if user is admin
     if not current_user.is_admin:
         print("[DEBUG] User is not admin, returning 403")
-        create_activity_user_log(EventType.PERMISSION_VIOLATION, current_user.id, None, message='User ' + current_user.email + ' has no permission to create another user!')
+        create_activity_user_log(EventType.PERMISSION_VIOLATION, current_user.email, None, 'User ' + current_user.email + ' has no permission to create another user!')
         return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     if not data or not data.get('email'):
@@ -179,7 +179,7 @@ def create_user(data, current_user=None):
         db.session.commit()
         print(f"[DEBUG] User {email} successfully created in database with ID: {new_user.id}")
         
-        create_activity_user_log(EventType.USER_CREATION, current_user.id, new_user.id, 'User ' + current_user.email + ' created the user ' + email)
+        create_activity_user_log(EventType.USER_CREATION, current_user.email, new_user.email, 'User ' + current_user.email + ' created the user ' + email)
         
         # Return user data with temporary password for admin to share
         user_response = new_user.to_dict()
@@ -258,7 +258,7 @@ def update_user(user_id, data, current_user=None):
 
     try:
         db.session.commit()
-        create_activity_user_log(EventType.USER_EDITION, current_user.id, user.id, 'User ' + current_user.email + ' edited the user ' + user.email + str(user))
+        create_activity_user_log(EventType.USER_EDITION, current_user.email, user.email, 'User ' + current_user.email + ' edited the user ' + user.email + str(user))
         return jsonify(user.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -323,8 +323,8 @@ def toggle_user_property(user_id, property, current_user=None):
 
     try:
         db.session.commit()
-        create_activity_user_log(EventType.USER_EDITION, current_user.id, None, 'User ' + current_user.email +
-             ' edited the user ' + str(user.id) + ' property ' + property)
+        create_activity_user_log(EventType.USER_EDITION, current_user.email, user.email, 'User ' + current_user.email +
+             ' edited the user ' + user.email + ' property ' + property)
         return jsonify(user.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -345,15 +345,15 @@ def delete_user(user_id, current_user=None):
     if not current_user:
         return jsonify({"error": "No autorizado"}), 401
 
-    # Check if user is admin
-    if not current_user.is_admin:
-        create_activity_user_log(EventType.USER_PERMISSION, current_user.id, user_id, 'User ' + current_user.email +
-                                 ' tried to delete the user ' + str(user_id))
-        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
-
     user = User.query.get(user_id)
     if not user:
         return jsonify({"error": "Usuario no encontrado"}), 404
+
+    # Check if user is admin
+    if not current_user.is_admin:
+        create_activity_user_log(EventType.USER_PERMISSION, current_user.email, user.email, 'User ' + current_user.email +
+                                 ' tried to delete the user ' + user.email)
+        return jsonify({"error": "Acceso denegado. Se requieren permisos de administrador."}), 403
 
     # Delete user from Cognito first
     from cognito import delete_cognito_user
@@ -368,10 +368,14 @@ def delete_user(user_id, current_user=None):
 
     try:
         deleted_user = user.to_dict()
+        current_user_email = current_user.email  # Store email before session operations
+        deleted_user_email = user.email  # Store email before deletion
+        
         db.session.delete(user)
         db.session.commit()
-        create_activity_user_log(EventType.USER_DELETION, current_user.id, user_id, 'User ' + current_user.email +
-             ' deleted the user ' + str(user.id))
+        
+        create_activity_user_log(EventType.USER_DELETION, current_user_email, deleted_user_email, 'User ' + current_user_email +
+             ' deleted the user ' + deleted_user_email)
         return jsonify({"success": True, "eliminado": deleted_user})
     except Exception as e:
         db.session.rollback()

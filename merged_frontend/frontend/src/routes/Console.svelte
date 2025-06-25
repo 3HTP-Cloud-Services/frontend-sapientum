@@ -6,6 +6,7 @@
   import { i18nStore, setLocale } from '../../../shared-components/utils/i18n.js';
   import { writable } from 'svelte/store';
   import { fade, fly } from 'svelte/transition';
+  import { httpCall } from '../../../shared-components/utils/httpCall.js';
 
   // Import shared components
   import Header from '../../../shared-components/Header/Header.svelte'
@@ -38,6 +39,10 @@
 
   // Flag to track if user has explicitly selected a section
   let userSelectedSection = false;
+  
+  // For checking catalog-specific permissions
+  let canManageCatalogPermissions = false;
+  let checkingCatalogPermissions = false;
 
   // Update showCatalogMenu when catalogs are loaded
   $: {
@@ -50,6 +55,29 @@
         activeSection = 'catalogs';
         $activeSectionStore = 'catalogs';
       }
+    }
+  }
+  
+  // Check catalog permissions when catalog ID changes
+  $: if ($currentCatalogIdStore) {
+    checkCatalogPermissions($currentCatalogIdStore);
+  }
+  
+  async function checkCatalogPermissions(catalogId) {
+    checkingCatalogPermissions = true;
+    try {
+      const response = await httpCall(`/api/catalogs/${catalogId}/can-manage-permissions`, 'GET');
+      const data = await response.json();
+      if (data && data.can_manage) {
+        canManageCatalogPermissions = true;
+      } else {
+        canManageCatalogPermissions = false;
+      }
+    } catch (error) {
+      console.error('Error checking catalog permissions:', error);
+      canManageCatalogPermissions = false;
+    } finally {
+      checkingCatalogPermissions = false;
     }
   }
 
@@ -235,7 +263,11 @@
               activeSectionStore={activeSectionStore}
             />
           {:else if activeSection === 'catalog-permissions'}
-            {#if $userRole === 'admin'}
+            {#if checkingCatalogPermissions}
+              <div class="loading-section">
+                <p>{$i18nStore.t('checking_permissions') || 'Checking permissions...'}</p>
+              </div>
+            {:else if canManageCatalogPermissions}
               <Catalog_Permissions
                 switchSection={switchSection}
                 activeSectionStore={activeSectionStore}
@@ -248,7 +280,7 @@
             {:else}
               <div class="unauthorized-section">
                 <h2>{$i18nStore.t('access_denied') || 'Access Denied'}</h2>
-                <p>{$i18nStore.t('admin_rights_required') || 'You need administrator rights to access this section.'}</p>
+                <p>{$i18nStore.t('catalog_permissions_required') || 'You need administrator rights or full access to this catalog to manage its permissions.'}</p>
                 <button class="back-button" on:click={() => switchSection('catalog-detail')}>
                   {$i18nStore.t('back_to_catalog_details') || 'Back to Catalog Details'}
                 </button>

@@ -1,52 +1,53 @@
 from models import db, ActivityLog, EventType
 from datetime import datetime
 
-def create_activity_user_log(event, user_id, other_user_id, activity):
+def create_activity_user_log(event, user_email, other_user_email, activity):
     try:
         activity_log = ActivityLog(
             activity=activity,
             event=event,
-            user_id=user_id,
-            other_user_id=other_user_id,
+            user_email=user_email,
+            other_user_email=other_user_email,
             created_at=datetime.now()
         )
         db.session.add(activity_log)
         db.session.commit()
-        print(f"Activity log created: Event {event}, User {user_id} edited user {other_user_id}: {activity}")
+        print(f"Activity log created: Event {event}, User {user_email} edited user {other_user_email}: {activity}")
         return True
     except Exception as e:
         print(f"Error creating activity log: {e}")
         return False
 
-def create_activity_catalog_log(event, user_id, catalog_id, activity):
+def create_activity_catalog_log(event, user_email, catalog_id, activity):
     try:
         activity_log = ActivityLog(
             activity=activity,
             event=event,
+            user_email=user_email,
             catalog_id=catalog_id,
             created_at=datetime.now()
         )
         db.session.add(activity_log)
         db.session.commit()
-        print(f"Activity log created: Event {event}, User {user_id} edited catalog {catalog_id}: {activity}")
+        print(f"Activity log created: Event {event}, User {user_email} edited catalog {catalog_id}: {activity}")
         return True
     except Exception as e:
         print(f"Error creating activity log: {e}")
         return False
 
-def create_activity_chat_log(event, user_id, catalog_id, message_id, activity):
+def create_activity_chat_log(event, user_email, catalog_id, message_id, activity):
     try:
         activity_log = ActivityLog(
             activity=activity,
             event=event,
-            user_id=user_id,
+            user_email=user_email,
             catalog_id=catalog_id,
             message_id=message_id,
             created_at=datetime.now()
         )
         db.session.add(activity_log)
         db.session.commit()
-        print(f"Activity log created: Event {event}, User {user_id} spoke on catalog {catalog_id}: {activity}")
+        print(f"Activity log created: Event {event}, User {user_email} spoke on catalog {catalog_id}: {activity}")
         return True
     except Exception as e:
         print(f"Error creating activity log: {e}")

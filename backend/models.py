@@ -131,7 +131,7 @@ class CatalogPermission(db.Model):
     permission = db.Column(db.Enum(PermissionType), default=PermissionType.NOT_ALLOWED)
 
     def __repr__(self):
-        return f'<CatalogPermission {self.user.username} - {self.catalog.name} - {self.permission.value}>'
+        return f'<CatalogPermission {self.user.email if self.user else "No User"} - {self.catalog.name if self.catalog else "No Catalog"} - {self.permission.value}>'
 
     def to_dict(self):
         return {
@@ -222,8 +222,8 @@ class ActivityLog(db.Model):
     activity = db.Column(db.String(1024), default='', nullable=False)
     message = db.Column(db.Text, default='', nullable=True)
     event = db.Column(db.Enum(EventType), nullable=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    other_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    user_email = db.Column(db.String(255), nullable=False)
+    other_user_email = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
     catalog_id = db.Column(db.Integer, db.ForeignKey('catalogs.id'), nullable=True)
     file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)

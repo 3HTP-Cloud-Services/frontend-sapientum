@@ -24,6 +24,11 @@
   // Track which toggles are currently being processed
   let togglesInFlight = {};
 
+  // Delete user modal state
+  let showDeleteModal = false;
+  let userToDelete = null;
+  let isDeleting = false;
+
   // Logo upload state
   let logoFile = null;
   let logoUploading = false;
@@ -157,19 +162,34 @@
     }
   }
 
-  export async function deleteUser(userId) {
-    if (!confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
-      return;
-    }
+  function showDeleteConfirmation(userId) {
+    userToDelete = users.find(u => u.id === userId);
+    showDeleteModal = true;
+    isDeleting = false;
+  }
+
+  function cancelDelete() {
+    showDeleteModal = false;
+    userToDelete = null;
+    isDeleting = false;
+  }
+
+  export async function deleteUser() {
+    if (!userToDelete) return;
+
+    isDeleting = true;
+    usersError = '';
 
     try {
-      const response = await httpCall(`/api/users/${userId}`, {
+      const response = await httpCall(`/api/users/${userToDelete.id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
 
       if (response.ok) {
-        users = users.filter(u => u.id !== userId);
+        users = users.filter(u => u.id !== userToDelete.id);
+        showDeleteModal = false;
+        userToDelete = null;
       } else {
         console.error('Error deleting user:', response.status);
         usersError = 'Error al eliminar usuario';
@@ -177,6 +197,8 @@
     } catch (err) {
       console.error('Error deleting user:', err);
       usersError = 'Error de conexión al eliminar usuario';
+    } finally {
+      isDeleting = false;
     }
   }
 
@@ -523,7 +545,7 @@
               </td>
               <td>
                 <!-- button class="edit-button" on:click={() => editUser(user)}>{$i18nStore.t('edit_button') || 'Edit'}</button -->
-                <button class="delete-button" on:click={() => deleteUser(user.id)}>{$i18nStore.t('delete_button') || 'Delete'}</button>
+                <button class="delete-button" on:click={() => showDeleteConfirmation(user.id)}>{$i18nStore.t('delete_button') || 'Delete'}</button>
               </td>
             </tr>
           {/each}
@@ -659,6 +681,56 @@
   on:close={closeUserModal}
   on:save={handleSave}
 />
+
+<!-- Delete User Confirmation Modal -->
+{#if showDeleteModal}
+  <div class="modal-overlay" on:click={cancelDelete}>
+    <div class="modal-content delete-modal" on:click|stopPropagation>
+      <div class="modal-header">
+        <h3>{$i18nStore.t('confirm_delete') || 'Confirm Deletion'}</h3>
+      </div>
+      
+      <div class="modal-body">
+        <p>
+          {$i18nStore.t('delete_user_confirmation') || '¿Estás seguro de que quieres eliminar este usuario?'}
+        </p>
+        {#if userToDelete}
+          <div class="user-info">
+            <strong>{userToDelete.email}</strong>
+          </div>
+        {/if}
+        
+        {#if usersError}
+          <div class="error-message">
+            {usersError}
+          </div>
+        {/if}
+      </div>
+      
+      <div class="modal-footer">
+        <button 
+          class="cancel-button" 
+          on:click={cancelDelete}
+          disabled={isDeleting}
+        >
+          {$i18nStore.t('cancel') || 'Cancel'}
+        </button>
+        
+        <button 
+          class="delete-button confirm-delete" 
+          on:click={deleteUser}
+          disabled={isDeleting}
+        >
+          {#if isDeleting}
+            {$i18nStore.t('deleting') || 'Deleting...'}
+          {:else}
+            {$i18nStore.t('delete') || 'Delete'}
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* Permissions section */
@@ -1142,5 +1214,111 @@
       grid-template-columns: 1fr;
       gap: 1.5rem;
     }
+  }
+
+  /* Delete Confirmation Modal */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal-content {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-width: 400px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .delete-modal {
+    border-top: 4px solid #e53e3e;
+  }
+
+  .modal-header {
+    padding: 1.5rem 1.5rem 0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .modal-header h3 {
+    margin: 0 0 1rem 0;
+    color: #e53e3e;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+  }
+
+  .modal-body p {
+    margin: 0 0 1rem 0;
+    color: #4a5568;
+    line-height: 1.5;
+  }
+
+  .user-info {
+    background-color: #f7fafc;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin: 1rem 0;
+    border-left: 4px solid #4299e1;
+  }
+
+  .error-message {
+    background-color: #fed7d7;
+    color: #c53030;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin: 1rem 0;
+    border-left: 4px solid #e53e3e;
+  }
+
+  .modal-footer {
+    padding: 0 1.5rem 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  .modal-footer button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.2s ease;
+  }
+
+  .modal-footer button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .cancel-button {
+    background-color: #e2e8f0;
+    color: #4a5568;
+  }
+
+  .cancel-button:hover:not(:disabled) {
+    background-color: #cbd5e0;
+  }
+
+  .confirm-delete {
+    background-color: #e53e3e;
+    color: white;
+  }
+
+  .confirm-delete:hover:not(:disabled) {
+    background-color: #c53030;
   }
 </style>

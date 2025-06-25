@@ -140,7 +140,14 @@
         "password_req_number": "Un número",
         "password_req_special": "Un carácter especial",
         "updating_password": "Actualizando Contraseña...",
-        "update_password_button": "Actualizar Contraseña"
+        "update_password_button": "Actualizar Contraseña",
+        "delete_user_confirmation": "Confirme que vamos a borrar al usuario",
+        "confirm_delete": "Borrando usuario",
+        "cancel": "Cancelar",
+        "delete": "Borrar",
+        "deleting": "Borrando",
+        "catalog_permissions_required": "Permisos al catálogo requeridos",
+        "checking_permissions": "Chequeando permisos..."
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -283,6 +290,13 @@
         "password_req_number": "One number",
         "password_req_special": "One special character",
         "updating_password": "Updating Password...",
-        "update_password_button": "Update Password"
+        "update_password_button": "Update Password",
+        "delete_user_confirmation": "Confirm the user deletion",
+        "confirm_delete": "Deleting User",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "deleting": "Deleting",
+        "catalog_permissions_required": "Full Catalog Permissions Required",
+        "checking_permissions": "Checking permissions"
     }
 }

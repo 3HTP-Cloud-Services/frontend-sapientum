@@ -18,7 +18,7 @@ def authenticate_user(email, password):
         stored_password = 'user123'
 
         if stored_password == password:
-            create_activity_user_log(EventType.USER_LOGIN, user.id, None, 'User ' + email + ' logged in')
+            create_activity_user_log(EventType.USER_LOGIN, user.email, None, 'User ' + email + ' logged in')
             return user.to_dict(), None
         else:
             return None, "Invalid credentials"
