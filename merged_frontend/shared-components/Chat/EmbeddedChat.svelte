@@ -280,7 +280,7 @@
 
     try {
       // Load catalogs and conversations asynchronously
-      const catalogsResponse = await httpCall('/api/catalogs', {
+      const catalogsResponse = await httpCall('/api/catalogs?for_chat=true', {
         credentials: 'include'
       });
 

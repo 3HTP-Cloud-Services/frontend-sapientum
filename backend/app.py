@@ -261,6 +261,60 @@ def set_password():
         error_message = cognito_response.get("error", "Failed to update password")
         return jsonify({"success": False, "message": error_message}), 400
 
+@app.route('/api/forgot-password', methods=['POST'])
+def forgot_password_endpoint():
+    """Initiate forgot password flow"""
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    username = data.get('username')
+    if not username:
+        return jsonify({"error": "Username/email is required"}), 400
+
+    from cognito import forgot_password
+    success, response = forgot_password(username)
+
+    if success:
+        return jsonify({
+            "success": True,
+            "message": response["message"],
+            "destination": response.get("destination", "")
+        }), 200
+    else:
+        return jsonify({
+            "success": False,
+            "error": response["error"]
+        }), 400
+
+@app.route('/api/confirm-forgot-password', methods=['POST'])
+def confirm_forgot_password_endpoint():
+    """Confirm forgot password with verification code"""
+    data = request.json
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    username = data.get('username')
+    verification_code = data.get('verificationCode')
+    new_password = data.get('newPassword')
+
+    if not username or not verification_code or not new_password:
+        return jsonify({"error": "Username, verification code, and new password are required"}), 400
+
+    from cognito import confirm_forgot_password
+    success, response = confirm_forgot_password(username, verification_code, new_password)
+
+    if success:
+        return jsonify({
+            "success": True,
+            "message": response["message"]
+        }), 200
+    else:
+        return jsonify({
+            "success": False,
+            "error": response["error"]
+        }), 400
+
 @app.route('/api/check-auth', methods=['GET'])
 def check_auth():
     from auth_decorator import token_required
@@ -409,7 +463,8 @@ def get_translations():
 @app.route('/api/catalogs', methods=['GET'])
 @token_required
 def get_catalogs(current_user=None, token_user_data=None, **kwargs):
-    catalogs = get_all_catalogs(user=current_user)
+    for_chat = request.args.get('for_chat', 'false').lower() == 'true'
+    catalogs = get_all_catalogs(user=current_user, for_chat=for_chat)
     return jsonify(catalogs)
 
 @app.route('/api/catalogs', methods=['POST'])

@@ -22,7 +22,7 @@ export async function fetchCatalogs() {
     loadingStore.set(true);
     errorStore.set('');
 
-    const response = await httpCall('/api/catalogs', {
+    const response = await httpCall('/api/catalogs?for_chat=true', {
       credentials: 'include'
     });
 

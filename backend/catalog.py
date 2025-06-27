@@ -64,7 +64,7 @@ def get_s3_folders():
         traceback.print_exc()
         return []
 
-def get_all_catalogs(user=None):
+def get_all_catalogs(user=None, for_chat=False):
     try:
         # If no user is provided, try to get from JWT token
         if not user:
@@ -85,10 +85,16 @@ def get_all_catalogs(user=None):
         else:
             # For regular users with chat_access, only return catalogs they have permissions for
             if user.chat_access:
-                # Get catalog IDs where user has permissions
+                # Get catalog IDs based on context (chat vs admin)
                 user_permissions = CatalogPermission.query.filter_by(user_id=user.id).all()
-                catalog_ids = [perm.catalog_id for perm in user_permissions
-                              if perm.permission in [PermissionType.CHAT_ONLY, PermissionType.READ_ONLY, PermissionType.FULL]]
+                if for_chat:
+                    # For chat interface: include CHAT_ONLY, READ_ONLY, and FULL permissions
+                    catalog_ids = [perm.catalog_id for perm in user_permissions
+                                  if perm.permission in [PermissionType.CHAT_ONLY, PermissionType.READ_ONLY, PermissionType.FULL]]
+                else:
+                    # For admin interface: only READ_ONLY and FULL permissions
+                    catalog_ids = [perm.catalog_id for perm in user_permissions
+                                  if perm.permission in [PermissionType.READ_ONLY, PermissionType.FULL]]
 
                 if not catalog_ids:
                     return []  # User has no catalog permissions

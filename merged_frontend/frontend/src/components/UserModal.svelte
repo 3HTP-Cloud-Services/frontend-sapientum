@@ -146,7 +146,7 @@
                   <input type="radio" name="permission" value="READ_ONLY" bind:group={user.permission} class="radio-input">
                 </td>
                 <td on:click={() => user.permission = 'READ_ONLY'}>
-                  <span class="radio-text">{$i18nStore.t('permission-read-only')} eeee</span>
+                  <span class="radio-text">{$i18nStore.t('permission-read-only')}</span>
                 </td>
               </tr>
               <tr>

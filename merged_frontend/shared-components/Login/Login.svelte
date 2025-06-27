@@ -4,6 +4,7 @@
   import { i18nStore } from '../utils/i18n.js';
   import { loadLogo } from '../utils/logo.js';
   import PasswordChange from './PasswordChange.svelte';
+  import ForgotPassword from './ForgotPassword.svelte';
   import { onMount } from 'svelte';
 
   // Props to control behavior
@@ -19,6 +20,9 @@
   let showPasswordChange = false;
   let passwordChangeSession = '';
   let passwordChangeUsername = '';
+
+  // Forgot password state
+  let showForgotPassword = false;
 
   // Logo state
   let logoUrl = null;
@@ -86,6 +90,24 @@
     password = ''; // Clear the temporary password
   }
 
+  function showForgotPasswordForm() {
+    showForgotPassword = true;
+    error = '';
+  }
+
+  function handleForgotPasswordCancel() {
+    showForgotPassword = false;
+    error = '';
+  }
+
+  function handlePasswordReset(event) {
+    // Password was reset successfully
+    showForgotPassword = false;
+    error = '';
+    // Show success message and return to login
+    alert(event.detail.message || 'Password reset successfully. Please log in with your new password.');
+  }
+
   // Redirect to destination if already authenticated
   $: {
     if ($isAuthenticated) {
@@ -103,6 +125,14 @@
     errorMessage={error}
     on:passwordChange={handlePasswordChange}
     on:cancel={handlePasswordChangeCancel}
+  />
+{:else if showForgotPassword}
+  <!-- Forgot Password Form -->
+  <ForgotPassword
+    {isLoading}
+    errorMessage={error}
+    on:passwordReset={handlePasswordReset}
+    on:cancel={handleForgotPasswordCancel}
   />
 {:else}
   <!-- Regular Login Form -->
@@ -155,6 +185,12 @@
         {isLoading ? $i18nStore?.t('logging_in') || 'Logging in...' : $i18nStore?.t('login_button') || 'Login'}
       </button>
     </form>
+
+    <div class="forgot-password-link">
+      <button type="button" class="link-button" on:click={showForgotPasswordForm} disabled={isLoading}>
+        {$i18nStore?.t('forgot_password_link') || 'Forgot Password?'}
+      </button>
+    </div>
   </div>
 {/if}
 
@@ -265,5 +301,30 @@
     width: auto;
     height: auto;
     object-fit: contain;
+  }
+
+  .forgot-password-link {
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  .link-button {
+    background: none;
+    border: none;
+    color: #4299e1;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: 0.9rem;
+    padding: 0.5rem;
+  }
+
+  .link-button:hover {
+    color: #3182ce;
+  }
+
+  .link-button:disabled {
+    color: #a0aec0;
+    cursor: not-allowed;
+    text-decoration: none;
   }
 </style>

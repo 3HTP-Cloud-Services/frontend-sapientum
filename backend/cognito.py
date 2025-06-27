@@ -380,3 +380,143 @@ def get_user_from_token():
     }
     
     return True, user_info
+
+def forgot_password(username):
+    """
+    Initiate forgot password flow in Cognito
+    Sends verification code to user's email
+    Returns tuple: (success, response_data)
+    """
+    print(f"[DEBUG] forgot_password called for username: {username}")
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        
+        if not user_pool_id or not client_id:
+            return False, {"error": "Cognito configuration not found"}
+        
+        print(f"[DEBUG] Using user_pool_id: {user_pool_id}, client_id: {client_id}")
+        
+        # Check user status first
+        success, user_data = get_user_status(username)
+        if success:
+            user_status = user_data.get('status')
+            print(f"[DEBUG] User status before forgot password: {user_status}")
+            
+            # Check if user is in a state that prevents password reset
+            if user_status == 'FORCE_CHANGE_PASSWORD':
+                return False, {
+                    "error": "You have a temporary password that must be changed. Please log in with your temporary password and set a new password."
+                }
+            elif user_status == 'EXTERNAL_PROVIDER':
+                return False, {
+                    "error": "Your account uses social login. Please use your social login provider to access your account."
+                }
+            elif user_status == 'UNCONFIRMED':
+                return False, {
+                    "error": "Your account is not confirmed. Please check your email for a confirmation link or contact support."
+                }
+        
+        # Initiate forgot password
+        print(f"[DEBUG] Calling client.forgot_password for username: {username}")
+        response = client.forgot_password(
+            ClientId=client_id,
+            Username=username
+        )
+        
+        return True, {
+            "message": "Password reset code sent to your email",
+            "destination": response.get('CodeDeliveryDetails', {}).get('Destination', '')
+        }
+        
+    except client.exceptions.UserNotFoundException:
+        return False, {"error": "User not found"}
+    except client.exceptions.InvalidParameterException:
+        return False, {"error": "Invalid parameter"}
+    except client.exceptions.NotAuthorizedException as e:
+        print(f"[ERROR] NotAuthorizedException in forgot_password: {e}")
+        print(f"[ERROR] Full exception response: {e.response}")
+        return False, {"error": f"User is not authorized: {str(e)}"}
+    except client.exceptions.LimitExceededException:
+        return False, {"error": "Too many requests. Please wait and try again"}
+    except Exception as e:
+        print(f"Error in forgot_password: {str(e)}")
+        return False, {"error": f"Failed to send reset code: {str(e)}"}
+
+def confirm_forgot_password(username, confirmation_code, new_password):
+    """
+    Confirm forgot password with verification code and set new password
+    Returns tuple: (success, response_data)
+    """
+    print(f"[DEBUG] confirm_forgot_password called for username: {username}")
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        
+        if not user_pool_id or not client_id:
+            return False, {"error": "Cognito configuration not found"}
+        
+        # Confirm forgot password
+        client.confirm_forgot_password(
+            ClientId=client_id,
+            Username=username,
+            ConfirmationCode=confirmation_code,
+            Password=new_password
+        )
+        
+        return True, {"message": "Password reset successfully"}
+        
+    except client.exceptions.CodeMismatchException:
+        return False, {"error": "Invalid verification code"}
+    except client.exceptions.ExpiredCodeException:
+        return False, {"error": "Verification code has expired"}
+    except client.exceptions.InvalidPasswordException:
+        return False, {"error": "Password does not meet policy requirements"}
+    except client.exceptions.UserNotFoundException:
+        return False, {"error": "User not found"}
+    except client.exceptions.NotAuthorizedException as e:
+        print(f"[ERROR] NotAuthorizedException in confirm_forgot_password: {e}")
+        print(f"[ERROR] Full exception response: {e.response}")
+        return False, {"error": f"User is not authorized: {str(e)}"}
+    except client.exceptions.LimitExceededException:
+        return False, {"error": "Too many attempts. Please wait and try again"}
+    except Exception as e:
+        print(f"Error in confirm_forgot_password: {str(e)}")
+        return False, {"error": f"Failed to reset password: {str(e)}"}
+
+def get_user_status(username):
+    """
+    Get user status from Cognito for debugging
+    Returns tuple: (success, user_data)
+    """
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        
+        if not user_pool_id:
+            return False, {"error": "Cognito configuration not found"}
+        
+        response = client.admin_get_user(
+            UserPoolId=user_pool_id,
+            Username=username
+        )
+        
+        user_status = response.get('UserStatus')
+        user_attributes = response.get('UserAttributes', [])
+        enabled = response.get('Enabled', False)
+        
+        print(f"[DEBUG] User {username} status: {user_status}")
+        print(f"[DEBUG] User enabled: {enabled}")
+        print(f"[DEBUG] User attributes: {user_attributes}")
+        
+        return True, {
+            "status": user_status,
+            "enabled": enabled,
+            "attributes": user_attributes
+        }
+        
+    except client.exceptions.UserNotFoundException:
+        return False, {"error": "User not found"}
+    except Exception as e:
+        print(f"Error getting user status: {str(e)}")
+        return False, {"error": f"Failed to get user status: {str(e)}"}

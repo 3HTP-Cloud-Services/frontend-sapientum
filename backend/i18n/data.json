@@ -152,7 +152,20 @@
         "FULL": "Todo",
         "READ_ONLY": "Solo lectura",
         "CHAT_ONLY": "Solo Chat",
-        "NOT_ALLOWED": "No permitido"
+        "NOT_ALLOWED": "No permitido",
+        "forgot_password_link": "Presione aqui si olvidó su clave",
+        "forgot_password_title": "Restablecer Contraseña",
+        "forgot_password_instructions": "Ingrese su dirección de email y le enviaremos un código de verificación para restablecer su contraseña.",
+        "send_code_button": "Enviar Código",
+        "enter_code_instructions": "Ingrese el código de verificación enviado a su email y su nueva contraseña.",
+        "verification_code": "Código de Verificación",
+        "new_password": "Nueva Contraseña",
+        "confirm_password": "Confirmar Contraseña",
+        "back_button": "Atrás",
+        "reset_password_button": "Restablecer Contraseña",
+        "temp_password_error": "Tiene una contraseña temporal que debe cambiar. Por favor inicie sesión con su contraseña temporal y establezca una nueva contraseña.",
+        "social_login_error": "Su cuenta usa inicio de sesión social. Por favor use su proveedor de inicio de sesión social para acceder a su cuenta.",
+        "unconfirmed_account_error": "Su cuenta no está confirmada. Por favor revise su email para un enlace de confirmación o contacte soporte."
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -307,6 +320,19 @@
         "FULL": "Full",
         "READ_ONLY": "Read Only",
         "CHAT_ONLY": "Chat Only",
-        "NOT_ALLOWED": "Not allowed"
+        "NOT_ALLOWED": "Not allowed",
+        "forgot_password_link": "Press here if you forgot your password",
+        "forgot_password_title": "Reset Password",
+        "forgot_password_instructions": "Enter your email address and we'll send you a verification code to reset your password.",
+        "send_code_button": "Send Code",
+        "enter_code_instructions": "Enter the verification code sent to your email and your new password.",
+        "verification_code": "Verification Code",
+        "new_password": "New Password",
+        "confirm_password": "Confirm Password",
+        "back_button": "Back",
+        "reset_password_button": "Reset Password",
+        "temp_password_error": "You have a temporary password that must be changed. Please log in with your temporary password and set a new password.",
+        "social_login_error": "Your account uses social login. Please use your social login provider to access your account.",
+        "unconfirmed_account_error": "Your account is not confirmed. Please check your email for a confirmation link or contact support."
     }
 }
