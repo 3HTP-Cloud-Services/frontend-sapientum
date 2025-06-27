@@ -127,25 +127,33 @@
             <table class="radio-table">
               <tr>
                 <td>
-                  <input type="radio" name="permission" value="permission-not-allowed" bind:group={user.permission} class="radio-input">
+                  <input type="radio" name="permission" value="NOT_ALLOWED" bind:group={user.permission} class="radio-input">
                 </td>
-                <td on:click={() => user.permission = 'permission-not-allowed'}>
+                <td on:click={() => user.permission = 'NOT_ALLOWED'}>
                   <span>{$i18nStore.t('permission-not-allowed')}</span>
                 </td>
               </tr>
               <tr>
                 <td>
-                  <input type="radio" name="permission" value="permission-read-only" bind:group={user.permission} class="radio-input">
+                  <input type="radio" name="permission" value="CHAT_ONLY" bind:group={user.permission} class="radio-input">
                 </td>
-                <td on:click={() => user.permission = 'permission-read-only'}>
+                <td on:click={() => user.permission = 'CHAT_ONLY'}>
+                  <span>{$i18nStore.t('permission-chat-only')}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input type="radio" name="permission" value="READ_ONLY" bind:group={user.permission} class="radio-input">
+                </td>
+                <td on:click={() => user.permission = 'READ_ONLY'}>
                   <span class="radio-text">{$i18nStore.t('permission-read-only')} eeee</span>
                 </td>
               </tr>
               <tr>
                 <td>
-                  <input type="radio" name="permission" value="permission-full" bind:group={user.permission} class="radio-input">
+                  <input type="radio" name="permission" value="FULL" bind:group={user.permission} class="radio-input">
                 </td>
-                <td on:click={() => user.permission = 'permission-full'}>
+                <td on:click={() => user.permission = 'FULL'}>
                   <span>{$i18nStore.t('permission-full')}</span>
                 </td>
               </tr>
@@ -163,25 +171,33 @@
           <table class="radio-table">
             <tr>
               <td>
-                <input type="radio" name="permission-edit" value="permission-not-allowed" bind:group={user.permission} class="radio-input">
+                <input type="radio" name="permission-edit" value="NOT_ALLOWED" bind:group={user.permission} class="radio-input">
               </td>
-              <td on:click={() => user.permission = 'permission-not-allowed'}>
+              <td on:click={() => user.permission = 'NOT_ALLOWED'}>
                 <span>{$i18nStore.t('permission-not-allowed')}</span>
               </td>
             </tr>
             <tr>
               <td>
-                <input type="radio" name="permission-edit" value="permission-read-only" bind:group={user.permission} class="radio-input">
+                <input type="radio" name="permission-edit" value="CHAT_ONLY" bind:group={user.permission} class="radio-input">
               </td>
-              <td on:click={() => user.permission = 'permission-read-only'}>
+              <td on:click={() => user.permission = 'CHAT_ONLY'}>
+                <span>{$i18nStore.t('permission-chat-only')}</span>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <input type="radio" name="permission-edit" value="READ_ONLY" bind:group={user.permission} class="radio-input">
+              </td>
+              <td on:click={() => user.permission = 'READ_ONLY'}>
                 <span>{$i18nStore.t('permission-read-only')}</span>
               </td>
             </tr>
             <tr>
               <td>
-                <input type="radio" name="permission-edit" value="permission-full" bind:group={user.permission} class="radio-input">
+                <input type="radio" name="permission-edit" value="FULL" bind:group={user.permission} class="radio-input">
               </td>
-              <td on:click={() => user.permission = 'permission-full'}>
+              <td on:click={() => user.permission = 'FULL'}>
                 <span>{$i18nStore.t('permission-full')}</span>
               </td>
             </tr>

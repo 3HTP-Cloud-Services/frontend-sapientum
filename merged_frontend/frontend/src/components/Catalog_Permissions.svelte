@@ -59,7 +59,7 @@
       id: null,
       userId: null,
       email: '',
-      permission: 'permission-read-only'
+      permission: 'READ_ONLY'
     };
     showUserModal = true;
   }

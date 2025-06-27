@@ -147,7 +147,12 @@
         "delete": "Borrar",
         "deleting": "Borrando",
         "catalog_permissions_required": "Permisos al catálogo requeridos",
-        "checking_permissions": "Chequeando permisos..."
+        "checking_permissions": "Chequeando permisos...",
+        "permission-chat-only": "Solo Chat",
+        "FULL": "Todo",
+        "READ_ONLY": "Solo lectura",
+        "CHAT_ONLY": "Solo Chat",
+        "NOT_ALLOWED": "No permitido"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -297,6 +302,11 @@
         "delete": "Delete",
         "deleting": "Deleting",
         "catalog_permissions_required": "Full Catalog Permissions Required",
-        "checking_permissions": "Checking permissions"
+        "checking_permissions": "Checking permissions",
+        "permission-chat-only": "Chat only",
+        "FULL": "Full",
+        "READ_ONLY": "Read Only",
+        "CHAT_ONLY": "Chat Only",
+        "NOT_ALLOWED": "Not allowed"
     }
 }

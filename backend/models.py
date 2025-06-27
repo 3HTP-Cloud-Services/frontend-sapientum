@@ -118,9 +118,10 @@ class File(db.Model):
         return f"{size_bytes:.2f} {size_names[i]}"
 
 class PermissionType(enum.Enum):
-    NOT_ALLOWED = "permission-not-allowed"
-    READ_ONLY = "permission-read-only"
-    FULL = "permission-full"
+    NOT_ALLOWED = "NOT_ALLOWED"
+    CHAT_ONLY = "CHAT_ONLY"
+    READ_ONLY = "READ_ONLY"
+    FULL = "FULL"
 
 class CatalogPermission(db.Model):
     __tablename__ = 'catalog_users'

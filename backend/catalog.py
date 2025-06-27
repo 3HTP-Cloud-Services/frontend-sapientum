@@ -88,7 +88,7 @@ def get_all_catalogs(user=None):
                 # Get catalog IDs where user has permissions
                 user_permissions = CatalogPermission.query.filter_by(user_id=user.id).all()
                 catalog_ids = [perm.catalog_id for perm in user_permissions
-                              if perm.permission != PermissionType.NOT_ALLOWED]
+                              if perm.permission in [PermissionType.CHAT_ONLY, PermissionType.READ_ONLY, PermissionType.FULL]]
 
                 if not catalog_ids:
                     return []  # User has no catalog permissions
