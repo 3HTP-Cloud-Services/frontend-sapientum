@@ -165,7 +165,14 @@
         "reset_password_button": "Restablecer Contraseña",
         "temp_password_error": "Tiene una contraseña temporal que debe cambiar. Por favor inicie sesión con su contraseña temporal y establezca una nueva contraseña.",
         "social_login_error": "Su cuenta usa inicio de sesión social. Por favor use su proveedor de inicio de sesión social para acceder a su cuenta.",
-        "unconfirmed_account_error": "Su cuenta no está confirmada. Por favor revise su email para un enlace de confirmación o contacte soporte."
+        "unconfirmed_account_error": "Su cuenta no está confirmada. Por favor revise su email para un enlace de confirmación o contacte soporte.",
+        "download_conversation": "Descargar Conversación",
+        "downloading_from": "Descargando conversación de",
+        "number_of_messages": "Número de mensajes a incluir",
+        "download_help_text": "Ingrese el número de mensajes recientes a incluir en el PDF (predeterminado: 20)",
+        "download_error_positive": "Por favor ingrese un número positivo",
+        "downloading": "Descargando...",
+        "download": "Descargar PDF"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -333,6 +340,13 @@
         "reset_password_button": "Reset Password",
         "temp_password_error": "You have a temporary password that must be changed. Please log in with your temporary password and set a new password.",
         "social_login_error": "Your account uses social login. Please use your social login provider to access your account.",
-        "unconfirmed_account_error": "Your account is not confirmed. Please check your email for a confirmation link or contact support."
+        "unconfirmed_account_error": "Your account is not confirmed. Please check your email for a confirmation link or contact support.",
+        "download_conversation": "Download Conversation",
+        "downloading_from": "Downloading conversation from",
+        "number_of_messages": "Number of messages to include",
+        "download_help_text": "Enter the number of recent messages to include in the PDF (default: 20)",
+        "download_error_positive": "Please enter a positive number",
+        "downloading": "Downloading...",
+        "download": "Download PDF"
     }
 }

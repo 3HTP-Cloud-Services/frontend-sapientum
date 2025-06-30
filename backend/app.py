@@ -1102,6 +1102,164 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
         return jsonify({"error": "Error al cargar mensajes"}), 500
 
 
+@app.route('/api/conversations/<int:catalog_id>/download-pdf', methods=['POST'])
+@token_required
+def download_conversation_pdf(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    user_id = current_user.id
+
+    try:
+        data = request.json
+        message_count = data.get('message_count', 20)
+        
+        # Validate message count
+        if not isinstance(message_count, int) or message_count <= 0:
+            return jsonify({"error": "Invalid message count"}), 400
+
+        from models import Conversation, Message, Catalog
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.units import inch
+        from io import BytesIO
+        import textwrap
+
+        # Find the conversation for this user and catalog
+        conversation = Conversation.query.filter_by(
+            speaker_id=user_id,
+            catalog_id=catalog_id
+        ).first()
+
+        if not conversation:
+            return jsonify({"error": "No conversation found"}), 404
+
+        # Get catalog info
+        catalog = Catalog.query.get(catalog_id)
+        if not catalog:
+            return jsonify({"error": "Catalog not found"}), 404
+
+        # Get the last N messages for this conversation, ordered by creation time
+        messages = Message.query.filter_by(
+            conversation_id=conversation.id
+        ).order_by(Message.created_at.desc()).limit(message_count).all()
+        
+        # Reverse to get chronological order
+        messages = list(reversed(messages))
+
+        if not messages:
+            return jsonify({"error": "No messages found in conversation"}), 404
+
+        # Create PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                              rightMargin=72, leftMargin=72, 
+                              topMargin=72, bottomMargin=18)
+        
+        # Container for the 'Flowable' objects
+        story = []
+        
+        # Define styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            spaceAfter=30,
+            alignment=1  # Center alignment
+        )
+        
+        user_style = ParagraphStyle(
+            'UserMessage',
+            parent=styles['Normal'],
+            fontSize=10,
+            leftIndent=20,
+            rightIndent=20,
+            spaceAfter=12,
+            backColor='#E3F2FD'
+        )
+        
+        system_style = ParagraphStyle(
+            'SystemMessage',
+            parent=styles['Normal'],
+            fontSize=10,
+            leftIndent=20,
+            rightIndent=20,
+            spaceAfter=12,
+            backColor='#F5F5F5'
+        )
+        
+        header_style = ParagraphStyle(
+            'MessageHeader',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor='#666666',
+            spaceAfter=6,
+            leftIndent=20
+        )
+
+        # Add title
+        title_text = f"Conversation: {catalog.name}"
+        story.append(Paragraph(title_text, title_style))
+        
+        # Add metadata
+        metadata_text = f"User: {current_user.email}<br/>Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br/>Messages: {len(messages)}"
+        story.append(Paragraph(metadata_text, styles['Normal']))
+        story.append(Spacer(1, 20))
+
+        # Add messages
+        for msg in messages:
+            # Message header with timestamp
+            timestamp = msg.created_at.strftime('%Y-%m-%d %H:%M:%S') if msg.created_at else 'Unknown time'
+            message_type = "You" if msg.is_request else "AI Assistant"
+            header_text = f"{message_type} - {timestamp}"
+            story.append(Paragraph(header_text, header_style))
+            
+            # Message content
+            content = msg.message.replace('\n', '<br/>')
+            # Escape HTML characters
+            content = content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            content = content.replace('&lt;br/&gt;', '<br/>')
+            
+            message_style = user_style if msg.is_request else system_style
+            story.append(Paragraph(content, message_style))
+            story.append(Spacer(1, 10))
+
+        # Build PDF
+        doc.build(story)
+        
+        # Get PDF data
+        pdf_data = buffer.getvalue()
+        buffer.close()
+
+        # Create filename
+        safe_catalog_name = sanitize_filename_for_header(catalog.name)
+        filename = f"conversation_{safe_catalog_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+        # Return PDF as downloadable file
+        from flask import send_file
+        pdf_io = BytesIO(pdf_data)
+        pdf_io.seek(0)
+
+        response = send_file(
+            pdf_io,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+
+        # Set Content-Disposition header with sanitized filename
+        sanitized_filename = sanitize_filename_for_header(filename)
+        content_disposition = f'attachment; filename="{sanitized_filename}"'
+        response.headers['Content-Disposition'] = content_disposition
+
+        return response
+
+    except Exception as e:
+        print(f"Error generating conversation PDF: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error generating PDF: {str(e)}"}), 500
+
+
 @app.route('/api/chat', methods=['POST'])
 @chat_access_required
 def chat(current_user=None, token_user_data=None, **kwargs):

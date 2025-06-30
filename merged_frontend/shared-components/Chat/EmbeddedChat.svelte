@@ -8,6 +8,7 @@
   import { httpCall } from '../utils/httpCall.js';
 
   import Header from '../Header/Header.svelte';
+  import DownloadDialog from './DownloadDialog.svelte';
 
   export let isEmbedded = true;
 
@@ -19,6 +20,8 @@
 
   let selectedCatalogId = null;
   let messagesContainer;
+  let downloadDialog;
+  let showDownloadDialog = false;
 
   async function loadConversationMessages(catalogId) {
     try {
@@ -28,7 +31,7 @@
 
       if (response.ok) {
         const messages = await response.json();
-        
+
         // Convert timestamps and add proper message structure
         const formattedMessages = messages.map(msg => ({
           id: msg.id,
@@ -113,7 +116,7 @@
   $: if ($catalogsStore.length && selectedCatalogId === null) {
     // Select the first catalog
     selectCatalog($catalogsStore[0]?.id);
-    
+
     // Preload conversation messages for all catalogs asynchronously
     $catalogsStore.forEach(catalog => {
       if (!$messagesByCatalog[catalog.id]) {
@@ -212,12 +215,12 @@
         });
 
         setTimeout(scrollToBottom, 0);
-        
+
         // Reload conversation to get real IDs from database
         setTimeout(() => {
           loadConversationMessages(selectedCatalogId);
         }, 100);
-        
+
       } else if (response.status === 401) {
         push('/embedded/login');
       } else {
@@ -275,6 +278,70 @@
     }
   }
 
+  function openDownloadDialog() {
+    if (!selectedCatalogId) return;
+    showDownloadDialog = true;
+  }
+
+  function closeDownloadDialog() {
+    showDownloadDialog = false;
+  }
+
+  async function handleDownload(event) {
+    const messageCount = event.detail.messageCount;
+
+    try {
+      const response = await httpCall(`/api/conversations/${selectedCatalogId}/download-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message_count: messageCount
+        }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        // Get the filename from Content-Disposition header
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'conversation.pdf';
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+
+        // Create blob and download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+
+        // Close dialog and reset download state
+        downloadDialog.setDownloading(false);
+        closeDownloadDialog();
+      } else {
+        const errorData = await response.json();
+        downloadDialog.setError(errorData.error || 'Failed to download conversation');
+      }
+    } catch (error) {
+      console.error('Error downloading conversation:', error);
+      downloadDialog.setError('Network error occurred while downloading');
+    }
+  }
+
+  // Get current catalog name for display
+  $: currentCatalogName = selectedCatalogId ?
+    ($catalogsStore.find(c => c.id === selectedCatalogId)?.name || 'Unknown Catalog') :
+    '';
+
   onMount(async () => {
     console.log('EmbeddedChat mounted');
 
@@ -287,7 +354,7 @@
       if (catalogsResponse.ok) {
         const catalogs = await catalogsResponse.json();
         catalogsStore.set(catalogs);
-        
+
         // The reactive statement will handle catalog selection and conversation loading
       } else {
         console.error('Error fetching catalogs:', catalogsResponse.status, catalogsResponse.statusText);
@@ -332,18 +399,34 @@
       {/if}
     </div>
     <div class="chat-input">
-      <textarea
-              placeholder={$i18nStore?.t('chat_placeholder') || 'Type your message...'}
-              bind:value={userInput}
-              on:keydown={handleKeydown}
-              disabled={!selectedCatalogId}
-      ></textarea>
-      <button class="send-button" on:click={sendMessage} disabled={!userInput.trim() || !selectedCatalogId}>
-        {$i18nStore?.t('send_button') || 'Send'}
-      </button>
+      <div class="input-row">
+        <textarea
+                placeholder={$i18nStore?.t('chat_placeholder') || 'Type your message...'}
+                bind:value={userInput}
+                on:keydown={handleKeydown}
+                disabled={!selectedCatalogId}
+        ></textarea>
+        <div class="button-column">
+          <button class="send-button" on:click={sendMessage} disabled={!userInput.trim() || !selectedCatalogId}>
+            {$i18nStore?.t('send_button') || 'Send'}
+          </button>
+          <button class="download-conversation-button" on:click={openDownloadDialog} disabled={!selectedCatalogId}>
+            📄 {$i18nStore?.t('download_conversation') || 'Download Conversation'}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+
+<!-- Download Dialog -->
+<DownloadDialog
+  bind:this={downloadDialog}
+  bind:isVisible={showDownloadDialog}
+  catalogName={currentCatalogName}
+  on:close={closeDownloadDialog}
+  on:download={handleDownload}
+/>
 
 <style>
 
@@ -437,9 +520,15 @@
 
   .chat-input {
     display: flex;
+    flex-direction: column;
     padding: 1rem;
     background-color: #edf2f7;
     border-top: 1px solid #e2e8f0;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 0.5rem;
   }
 
   .chat-input textarea {
@@ -452,9 +541,42 @@
     font-family: inherit;
   }
 
+  .button-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .download-conversation-button {
+    background-color: #2fd66f;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    text-decoration: none;
+    font-size: 0.75rem;
+    transition: background-color 0.2s ease;
+    gap: 0.25rem;
+    min-width: 80px;
+  }
+
+  .download-conversation-button:hover:not(:disabled) {
+    background-color: #48bb78;
+  }
+
+  .download-conversation-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   .send-button {
-    margin-left: 0.5rem;
-    background-color: #4299e1;
+    background-color: #112fff;
     color: white;
     border: none;
     padding: 0 1rem;
@@ -464,7 +586,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 40px;
+    height: 48px;
     text-decoration: none;
     min-width: 80px;
   }
