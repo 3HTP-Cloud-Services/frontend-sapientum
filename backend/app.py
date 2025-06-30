@@ -14,6 +14,8 @@ from activity import create_activity_chat_log
 from urllib.parse import quote
 from auth_decorator import token_required, admin_required, chat_access_required, catalog_admin_required
 from botocore.exceptions import ClientError
+import re
+import unicodedata
 
 from catalog import get_all_catalogs
 
@@ -21,6 +23,54 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
+
+def sanitize_filename_for_header(filename):
+    """
+    Sanitize filename for use in HTTP Content-Disposition header.
+    Ensures the filename can be safely encoded in Latin-1 and doesn't break HTTP parsing.
+    """
+    if not filename:
+        return "download"
+    
+    # Try to encode as Latin-1 first to catch any problematic characters
+    try:
+        # Test if it's already Latin-1 compatible
+        filename.encode('latin-1')
+        sanitized = filename
+    except UnicodeEncodeError:
+        # If not, we need to sanitize it
+        # Normalize Unicode characters (decompose accented characters)
+        normalized = unicodedata.normalize('NFKD', filename)
+        sanitized = normalized
+    
+    # Remove control characters (0x00-0x1F, 0x7F-0x9F)
+    sanitized = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', sanitized)
+    
+    # Replace characters that can't be encoded in Latin-1 (anything above 0xFF)
+    try:
+        sanitized.encode('latin-1')
+    except UnicodeEncodeError:
+        # Replace any character that can't be encoded in Latin-1 with underscore
+        sanitized = ''.join(c if ord(c) <= 255 else '_' for c in sanitized)
+    
+    # Replace characters that are problematic in HTTP headers or filenames
+    # Double quotes are especially problematic in Content-Disposition
+    sanitized = re.sub(r'[<>:"|?*\\]', '_', sanitized)
+    
+    # Remove leading/trailing whitespace and dots (Windows compatibility)
+    sanitized = sanitized.strip('. ')
+    
+    # Ensure the filename is not empty after sanitization
+    if not sanitized:
+        return "download"
+    
+    # Final safety check - ensure it can be encoded as Latin-1
+    try:
+        sanitized.encode('latin-1')
+        return sanitized
+    except UnicodeEncodeError:
+        # Fallback: keep only ASCII printable characters
+        return re.sub(r'[^\x20-\x7E]', '_', sanitized) or "download"
 
 
 def get_config():
@@ -567,20 +617,20 @@ def remove_user_from_catalog(catalog_id, user_id, current_user=None, token_user_
 def can_manage_catalog_permissions(catalog_id, current_user=None, token_user_data=None, **kwargs):
     """Check if current user can manage permissions for this catalog (admin or FULL permission)"""
     from models import CatalogPermission, PermissionType
-    
+
     # Admin users can always manage permissions
     if current_user.is_admin:
         return jsonify({"can_manage": True, "reason": "admin"})
-    
+
     # Check if user has FULL permission on this catalog
     catalog_permission = CatalogPermission.query.filter_by(
         catalog_id=catalog_id,
         user_id=current_user.id
     ).first()
-    
+
     if catalog_permission and catalog_permission.permission == PermissionType.FULL:
         return jsonify({"can_manage": True, "reason": "full_permission"})
-    
+
     return jsonify({"can_manage": False, "reason": "insufficient_permissions"})
 
 @app.route('/api/catalogs/<string:catalog_id>/my-permission', methods=['GET'])
@@ -589,36 +639,36 @@ def get_my_catalog_permission(catalog_id, current_user=None, token_user_data=Non
     """Get current user's permission for this catalog - for debugging purposes"""
     from models import CatalogPermission, PermissionType
     from sqlalchemy import text
-    
+
     print(f"[DEBUG] get_my_catalog_permission called with:")
     print(f"[DEBUG]   catalog_id: {catalog_id} (type: {type(catalog_id)})")
     print(f"[DEBUG]   current_user.id: {current_user.id} (type: {type(current_user.id)})")
     print(f"[DEBUG]   current_user.email: {current_user.email}")
     print(f"[DEBUG] LOOKING FOR: catalog_id={catalog_id} AND user_id={current_user.id}")
-    
+
     # Show the actual SQL query that will be executed
     query = CatalogPermission.query.filter_by(
         catalog_id=catalog_id,
         user_id=current_user.id
     )
     print(f"[DEBUG] SQL Query: {query}")
-    
+
     catalog_permission = query.first()
-    
+
     # Also check if there are any rows for this catalog at all
     all_permissions_for_catalog = CatalogPermission.query.filter_by(catalog_id=catalog_id).all()
     print(f"[DEBUG] Total permissions found for catalog {catalog_id}: {len(all_permissions_for_catalog)}")
     for perm in all_permissions_for_catalog:
         print(f"[DEBUG]   - User ID: {perm.user_id} (type: {type(perm.user_id)}), Permission: {perm.permission.value}")
         print(f"[DEBUG]   - COMPARISON: perm.user_id == current_user.id? {perm.user_id} == {current_user.id} = {perm.user_id == current_user.id}")
-    
+
     # Check if there are any rows for this user at all
     all_permissions_for_user = CatalogPermission.query.filter_by(user_id=current_user.id).all()
     print(f"[DEBUG] Total permissions found for user {current_user.id}: {len(all_permissions_for_user)}")
     for perm in all_permissions_for_user:
         print(f"[DEBUG]   - Catalog ID: {perm.catalog_id} (type: {type(perm.catalog_id)}), Permission: {perm.permission.value}")
         print(f"[DEBUG]   - COMPARISON: perm.catalog_id == catalog_id? {perm.catalog_id} == {catalog_id} = {perm.catalog_id == catalog_id}")
-    
+
     # Let's also try a manual direct query to see what's happening
     from sqlalchemy import and_
     manual_query = CatalogPermission.query.filter(
@@ -628,7 +678,7 @@ def get_my_catalog_permission(catalog_id, current_user=None, token_user_data=Non
         )
     ).first()
     print(f"[DEBUG] Manual query result: {manual_query}")
-    
+
     # And try with explicit type conversion
     try:
         catalog_id_int = int(catalog_id)
@@ -639,7 +689,7 @@ def get_my_catalog_permission(catalog_id, current_user=None, token_user_data=Non
         print(f"[DEBUG] Query with int catalog_id ({catalog_id_int}): {int_query}")
     except ValueError:
         print(f"[DEBUG] Could not convert catalog_id '{catalog_id}' to int")
-    
+
     if catalog_permission:
         print(f"[DEBUG] Query result: Found CatalogPermission")
         print(f"[DEBUG]   - catalog_id: {catalog_permission.catalog_id}")
@@ -992,11 +1042,13 @@ def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
                 download_name=filename
             )
 
-            # Set Content-Disposition header explicitly
-            content_disposition = f'attachment; filename="{filename}"'
+            # Sanitize filename for Content-Disposition header
+            sanitized_filename = sanitize_filename_for_header(filename)
+            content_disposition = f'attachment; filename="{sanitized_filename}"'
             response.headers['Content-Disposition'] = content_disposition
 
             print(f"[DOWNLOAD DEBUG] Original filename: {filename}")
+            print(f"[DOWNLOAD DEBUG] Sanitized filename: {sanitized_filename}")
             print(f"[DOWNLOAD DEBUG] Content-Disposition set to: {content_disposition}")
             print(f"[DOWNLOAD DEBUG] Response headers: {dict(response.headers)}")
 
@@ -1006,7 +1058,9 @@ def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
             return jsonify({"error": f"Error retrieving file from S3: {str(e)}"}), 500
 
     except Exception as e:
+        print(f"gral exception: {e}")
         traceback.print_exc()
+        print(f"gral exception: post trace")
         return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
 @app.route('/api/conversations/<int:catalog_id>', methods=['GET'])
