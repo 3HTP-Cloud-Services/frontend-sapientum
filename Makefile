@@ -1,4 +1,4 @@
-.PHONY: setup-backend setup-frontend setup build-backend build-frontend build run static clean serve-static kill-ports init-frontend
+.PHONY: setup-backend setup-frontend setup build-backend build-frontend build run static clean serve-static kill-ports init-frontend test-backend
 
 # Setup both backend and frontend
 setup: setup-backend setup-frontend
@@ -84,3 +84,9 @@ init-frontend:
 	@echo "Installing dependencies for merged frontend project..."
 	cd merged_frontend && npm install
 	@echo "Dependencies installed successfully."
+
+# Run backend unit tests
+test-backend:
+	@echo "Running backend unit tests..."
+	cd backend && python -m unittest discover -s . -p "test_*.py" -v
+	@echo "Unit tests completed."
