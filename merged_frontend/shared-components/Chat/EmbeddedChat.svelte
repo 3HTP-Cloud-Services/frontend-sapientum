@@ -388,7 +388,7 @@
       {#if selectedCatalogId && $messagesByCatalog[selectedCatalogId]}
         {#each $messagesByCatalog[selectedCatalogId] as message (message.id)}
           <div class={`message ${message.type}`}>
-            <div class="message-content">{message.content}</div>
+            <div class="message-content">{@html message.content}</div>
             <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
           </div>
         {/each}
@@ -516,6 +516,26 @@
     margin-top: 0.25rem;
     opacity: 0.7;
     text-align: right;
+  }
+
+  .message-content a {
+    color: #2b6cb0;
+    text-decoration: underline;
+    font-weight: 500;
+    transition: color 0.2s ease;
+  }
+
+  .message-content a:hover {
+    color: #1a365d;
+    text-decoration: none;
+  }
+
+  .message.user .message-content a {
+    color: #bee3f8;
+  }
+
+  .message.user .message-content a:hover {
+    color: #ffffff;
   }
 
   .chat-input {

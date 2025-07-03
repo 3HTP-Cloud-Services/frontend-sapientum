@@ -1063,6 +1063,45 @@ def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
         print(f"gral exception: post trace")
         return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
+@app.route('/api/download/<int:version_id>', methods=['GET'])
+@token_required
+def download_version(version_id, current_user=None, token_user_data=None, **kwargs):
+    try:
+        version = Version.query.get(version_id)
+        if not version:
+            return jsonify({"error": "Version not found"}), 404
+
+        from aws_utils import get_client_with_assumed_role
+        from db import get_bucket_name
+        import io
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return jsonify({"error": "S3 bucket configuration not found"}), 500
+
+        s3_client = get_client_with_assumed_role('s3')
+        if not s3_client:
+            return jsonify({"error": "S3 client not available"}), 500
+
+        s3_object = s3_client.get_object(Bucket=bucket_name, Key=version.s3Id)
+        file_content = s3_object['Body'].read()
+
+        filename = version.filename or f"file_{version.id}"
+        
+        response = send_file(
+            io.BytesIO(file_content),
+            as_attachment=True,
+            download_name=filename
+        )
+
+        return response
+
+    except Exception as e:
+        print(f"Error downloading version {version_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Error downloading version: {str(e)}"}), 500
+
 @app.route('/api/conversations/<int:catalog_id>', methods=['GET'])
 @token_required
 def get_conversation_messages(catalog_id, current_user=None, token_user_data=None, **kwargs):

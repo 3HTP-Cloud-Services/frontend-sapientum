@@ -1,7 +1,8 @@
 from datetime import datetime
 import json
+import re
 
-from models import db, Conversation, Message
+from models import db, Conversation, Message, Catalog, File, Version
 from aws_utils import invoke_lambda_with_sigv4, get_lambda_url, get_agent_id, get_agent_alias_id
 
 DOCUMENTS = [
@@ -21,6 +22,54 @@ DOCUMENTS = [
         "content": "Este documento proporciona casos de estudio de implementaciones exitosas de IA con análisis detallado de resultados y lecciones aprendidas. Cada caso de estudio examina los desafíos enfrentados, soluciones implementadas y resultados logrados. El documento concluye con patrones comunes y mejores prácticas derivadas de estos ejemplos del mundo real."
     }
 ]
+
+def parse_file_references(text):
+    """
+    Parse file references in format 33-44-55.<extension> and replace with download links
+    Returns the text with file references replaced by HTML links
+    """
+    file_pattern = r'\b(\d+)-(\d+)-(\d+)\.([a-zA-Z]{2,6})\b'
+    
+    def replace_file_reference(match):
+        catalog_id = int(match.group(1))
+        file_id = int(match.group(2))
+        version_id = int(match.group(3))
+        extension = match.group(4)
+        
+        file_info = get_file_info(catalog_id, file_id, version_id)
+        if file_info:
+            download_url = f"/api/download/{version_id}"
+            filename = file_info['filename']
+            return f'<a href="{download_url}" download="{filename}">{filename}</a>'
+        else:
+            return match.group(0)
+    
+    return re.sub(file_pattern, replace_file_reference, text)
+
+def get_file_info(catalog_id, file_id, version_id):
+    """
+    Get file information for catalog_id-file_id-version_id combination
+    Returns dict with filename and other metadata if found, None otherwise
+    """
+    try:
+        version = Version.query.join(File).join(Catalog).filter(
+            Version.id == version_id,
+            File.id == file_id,
+            Catalog.id == catalog_id
+        ).first()
+        
+        if version:
+            return {
+                'filename': version.filename,
+                'file_name': version.file.name,
+                'catalog_name': version.file.catalog.name,
+                'size': version.size,
+                'created_at': version.created_at.isoformat() if version.created_at else None
+            }
+        return None
+    except Exception as e:
+        print(f"Error looking up file info for {catalog_id}-{file_id}-{version_id}: {e}")
+        return None
 
 def get_conversation(user_id, catalog_id):
     existing_conversation = Conversation.query.filter_by(
@@ -114,11 +163,15 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
             ai_response = search_documents(user_query)
 
         print("final response: ", ai_response)
+        
+        # Parse file references and replace with download links
+        processed_response = parse_file_references(ai_response)
+        
         # Update the message in the database
-        message_out.message = ai_response
+        message_out.message = processed_response
         db.session.commit()
 
-        return ai_response, message_in.id
+        return processed_response, message_in.id
 
     except Exception as e:
         print(f"Error generating AI response: {e}")
@@ -127,12 +180,15 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
 
         # Fallback to document search if an error occurs
         fallback_response = search_documents(user_query)
+        
+        # Parse file references and replace with download links
+        processed_fallback = parse_file_references(fallback_response)
 
         # Update the message in the database
-        message_out.message = fallback_response
+        message_out.message = processed_fallback
         db.session.commit()
 
-        return fallback_response
+        return processed_fallback
 
 
 def search_documents(query):
