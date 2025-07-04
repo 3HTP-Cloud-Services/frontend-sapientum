@@ -230,3 +230,18 @@ class ActivityLog(db.Model):
     file_id = db.Column(db.Integer, db.ForeignKey('files.id'), nullable=True)
     version_id = db.Column(db.Integer, db.ForeignKey('versions.id'), nullable=True)
     message_id = db.Column(db.Integer, db.ForeignKey('messages.id'), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'activity': self.activity,
+            'message': self.message,
+            'event': self.event.value if self.event else None,
+            'user_email': self.user_email,
+            'other_user_email': self.other_user_email,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'catalog_id': self.catalog_id,
+            'file_id': self.file_id,
+            'version_id': self.version_id,
+            'message_id': self.message_id
+        }

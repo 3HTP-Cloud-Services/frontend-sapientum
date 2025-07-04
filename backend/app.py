@@ -503,7 +503,7 @@ def allowed_domains(current_user=None, token_user_data=None, **kwargs):
 def delete_domain(domain_id, current_user=None, token_user_data=None, **kwargs):
 
     try:
-        domain = Domain.query.get(domain_id)
+        domain = db.session.get(Domain, domain_id)
         if not domain:
             return jsonify({"error": "Dominio no encontrado"}), 404
 
@@ -590,7 +590,7 @@ def get_documents():
 def get_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
     print('catalog_id:', catalog_id)
 
-    catalog = Catalog.query.get(catalog_id)
+    catalog = db.session.get(Catalog, catalog_id)
     if catalog:
         return jsonify(catalog.to_dict())
 
@@ -843,7 +843,7 @@ def upload_new_version(file_id, current_user=None, token_user_data=None, **kwarg
 
     try:
         print(f"Fetching file with id {file_id}")
-        file = File.query.get(file_id)
+        file = db.session.get(File, file_id)
         if not file:
             print("File not found")
             return jsonify({"error": "File not found"}), 404
@@ -877,7 +877,7 @@ def upload_new_version(file_id, current_user=None, token_user_data=None, **kwarg
             print("S3 bucket configuration not found")
             return jsonify({"error": "S3 bucket configuration not found"}), 500
 
-        catalog = Catalog.query.get(file.catalog_id)
+        catalog = db.session.get(Catalog, file.catalog_id)
         if not catalog:
             return jsonify({"error": "Catalog not found"}), 404
 
@@ -1001,7 +1001,7 @@ def upload_new_version(file_id, current_user=None, token_user_data=None, **kwarg
 def update_file(file_id, current_user=None, token_user_data=None, **kwargs):
 
     try:
-        file = File.query.get(file_id)
+        file = db.session.get(File, file_id)
         if not file:
             return jsonify({"error": "File not found"}), 404
 
@@ -1036,7 +1036,7 @@ def update_file(file_id, current_user=None, token_user_data=None, **kwargs):
 def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
 
     try:
-        file = File.query.get(file_id)
+        file = db.session.get(File, file_id)
         if not file:
             return jsonify({"error": "File not found"}), 404
 
@@ -1102,7 +1102,7 @@ def download_file(file_id, current_user=None, token_user_data=None, **kwargs):
 @token_required
 def download_version(version_id, current_user=None, token_user_data=None, **kwargs):
     try:
-        version = Version.query.get(version_id)
+        version = db.session.get(Version, version_id)
         if not version:
             return jsonify({"error": "Version not found"}), 404
 
@@ -1208,7 +1208,7 @@ def download_conversation_pdf(catalog_id, current_user=None, token_user_data=Non
             return jsonify({"error": "No conversation found"}), 404
 
         # Get catalog info
-        catalog = Catalog.query.get(catalog_id)
+        catalog = db.session.get(Catalog, catalog_id)
         if not catalog:
             return jsonify({"error": "Catalog not found"}), 404
 
@@ -1598,40 +1598,17 @@ def get_activity_logs(current_user=None, token_user_data=None, **kwargs):
         # Convert logs to dictionaries with user email
         formatted_logs = []
         for log in logs:
-            log_dict = {
-                'id': log.id,
-                'activity': log.activity,
-                'message': log.message,
-                'event': log.event.value if log.event else None,
-                'user_id': log.user_id,
-                'other_user_id': log.other_user_id,
-                'created_at': log.created_at.isoformat() if log.created_at else None,
-                'catalog_id': log.catalog_id,
-                'file_id': log.file_id,
-                'version_id': log.version_id,
-                'message_id': log.message_id
-            }
-
-            # Add user email
-            user = User.query.get(log.user_id)
-            if user:
-                log_dict['user_email'] = user.email
-
-            # Add other user email if present
-            if log.other_user_id:
-                other_user = User.query.get(log.other_user_id)
-                if other_user:
-                    log_dict['other_user_email'] = other_user.email
+            log_dict = log.to_dict()
 
             # Add catalog name if present
             if log.catalog_id:
-                catalog = Catalog.query.get(log.catalog_id)
+                catalog = db.session.get(Catalog, log.catalog_id)
                 if catalog:
                     log_dict['catalog_name'] = catalog.name
 
             # Add file name if present
             if log.file_id:
-                file = File.query.get(log.file_id)
+                file = db.session.get(File, log.file_id)
                 if file:
                     log_dict['file_name'] = file.name
 
