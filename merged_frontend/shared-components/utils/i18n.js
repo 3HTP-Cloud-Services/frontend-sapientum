@@ -5,8 +5,26 @@ import { httpCall } from './httpCall.js';
 export const i18nStore = writable(null);
 export const currentLocale = writable("en");
 
+export function getSavedLanguage() {
+  try {
+    return localStorage.getItem('selectedLanguage') || 'en';
+  } catch (error) {
+    console.error('Error reading language from localStorage:', error);
+    return 'en';
+  }
+}
+
+export function saveLanguage(locale) {
+  try {
+    localStorage.setItem('selectedLanguage', locale);
+  } catch (error) {
+    console.error('Error saving language to localStorage:', error);
+  }
+}
+
 export async function initializeI18n() {
   try {
+    const savedLanguage = getSavedLanguage();
     const defaultTranslations = {
       es: {
         title: "Consola de Administración Sapientum AI",
@@ -25,6 +43,24 @@ export async function initializeI18n() {
         chat_connection_error: "Estoy teniendo problemas para conectarme al servidor. Por favor, inténtalo más tarde.",
         no_chat_access: "No tienes acceso a la funcionalidad de chat.",
         chat_only_access_required: "Esta aplicación requiere permisos de acceso al chat, que tu cuenta no tiene."
+      },
+      pt: {
+        title: "Console de Administração Sapientum AI",
+        i18n_warning: "Não foi possível obter a tradução necessária",
+        chat_title: "Chat",
+        chat_placeholder: "Digite sua mensagem...",
+        send_button: "Enviar",
+        clear_chat: "Limpar",
+        login_title: "Login",
+        username: "Nome de usuário",
+        password: "Senha",
+        login_button: "Entrar",
+        logging_in: "Fazendo login...",
+        logout: "Sair",
+        ai_welcome: "Bem-vindo! Como posso ajudá-lo hoje?",
+        chat_connection_error: "Estou tendo problemas para conectar ao servidor. Tente novamente mais tarde.",
+        no_chat_access: "Você não tem acesso à funcionalidade de chat.",
+        chat_only_access_required: "Esta aplicação requer permissão de acesso ao chat, que sua conta não possui."
       },
       en: {
         title: "Sapientum AI Administration Console",
@@ -57,7 +93,8 @@ export async function initializeI18n() {
       console.error('Failed to load translations:', error);
     }
     i18n.defaultLocale = "en";
-    i18n.locale = "en";
+    i18n.locale = savedLanguage;
+    currentLocale.set(savedLanguage);
     i18nStore.set(i18n);
     return i18n;
   } catch (error) {
@@ -67,10 +104,12 @@ export async function initializeI18n() {
 }
 
 export function setLocale(locale) {
-  if (locale !== 'en' && locale !== 'es') {
+  if (locale !== 'en' && locale !== 'es' && locale !== 'pt') {
     console.error('Invalid locale:', locale);
     return false;
   }
+
+  saveLanguage(locale);
 
   i18nStore.update(i18n => {
     if (i18n) {
@@ -134,7 +173,7 @@ export async function refreshTranslations() {
       const translations = await response.json();
       const i18n = new I18n(translations);
 
-      let locale = "en";
+      let locale = getSavedLanguage();
       i18nStore.subscribe(currentI18n => {
         if (currentI18n) {
           locale = currentI18n.locale;
@@ -143,6 +182,7 @@ export async function refreshTranslations() {
 
       i18n.defaultLocale = "en";
       i18n.locale = locale;
+      currentLocale.set(locale);
       i18nStore.set(i18n);
       return true;
     }

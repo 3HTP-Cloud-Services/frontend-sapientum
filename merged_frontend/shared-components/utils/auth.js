@@ -6,6 +6,8 @@ export const userRole = writable(null);
 export const userEmail = writable(null);
 export const isEmbedded = writable(false);
 export const authToken = writable(null);
+export const refreshToken = writable(null);
+export const accessToken = writable(null);
 
 // Token management functions
 export const setAuthToken = (token) => {
@@ -18,20 +20,74 @@ export const setAuthToken = (token) => {
   }
 };
 
+export const setRefreshToken = (token) => {
+  if (token) {
+    localStorage.setItem('refreshToken', token);
+    refreshToken.set(token);
+  } else {
+    localStorage.removeItem('refreshToken');
+    refreshToken.set(null);
+  }
+};
+
+export const setAccessToken = (token) => {
+  if (token) {
+    localStorage.setItem('accessToken', token);
+    accessToken.set(token);
+  } else {
+    localStorage.removeItem('accessToken');
+    accessToken.set(null);
+  }
+};
+
 export const getAuthToken = () => {
   return localStorage.getItem('authToken');
 };
 
-export const clearAuthToken = () => {
-  localStorage.removeItem('authToken');
-  authToken.set(null);
+export const getRefreshToken = () => {
+  return localStorage.getItem('refreshToken');
 };
 
-// Initialize auth token from localStorage on app start
+export const getAccessToken = () => {
+  return localStorage.getItem('accessToken');
+};
+
+export const clearAuthToken = () => {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('accessToken');
+  authToken.set(null);
+  refreshToken.set(null);
+  accessToken.set(null);
+};
+
+// Initialize auth tokens from localStorage on app start
 export const initAuth = () => {
   const token = getAuthToken();
+  const refresh = getRefreshToken();
+  const access = getAccessToken();
+  
   if (token) {
     authToken.set(token);
+  }
+  if (refresh) {
+    refreshToken.set(refresh);
+  }
+  if (access) {
+    accessToken.set(access);
+  }
+  
+  // Load saved language preference
+  try {
+    const savedLanguage = localStorage.getItem('selectedLanguage');
+    if (savedLanguage && (savedLanguage === 'en' || savedLanguage === 'es' || savedLanguage === 'pt')) {
+      // Import and use setLocale from i18n
+      import('./i18n.js').then(({ setLocale, currentLocale }) => {
+        currentLocale.set(savedLanguage);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading saved language:', error);
   }
 };
 
@@ -104,9 +160,15 @@ export const login = async (username, password) => {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      // Store the JWT token
+      // Store all tokens
       if (data.token) {
         setAuthToken(data.token);
+      }
+      if (data.cognito?.refreshToken) {
+        setRefreshToken(data.cognito.refreshToken);
+      }
+      if (data.cognito?.accessToken) {
+        setAccessToken(data.cognito.accessToken);
       }
       
       isAuthenticated.set(true);
@@ -163,9 +225,15 @@ export const setNewPassword = async (username, newPassword, session) => {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      // Store the JWT token
+      // Store all tokens
       if (data.token) {
         setAuthToken(data.token);
+      }
+      if (data.cognito?.refreshToken) {
+        setRefreshToken(data.cognito.refreshToken);
+      }
+      if (data.cognito?.accessToken) {
+        setAccessToken(data.cognito.accessToken);
       }
       
       isAuthenticated.set(true);
@@ -187,6 +255,45 @@ export const setNewPassword = async (username, newPassword, session) => {
   } catch (error) {
     console.error('Set password error:', error);
     return { success: false, message: 'Network error' };
+  }
+};
+
+export const refreshAuthToken = async () => {
+  try {
+    const refresh = getRefreshToken();
+    if (!refresh) {
+      console.log('No refresh token available');
+      return false;
+    }
+
+    const response = await httpCall('/api/refresh-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ refreshToken: refresh })
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Update tokens
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      if (data.accessToken) {
+        setAccessToken(data.accessToken);
+      }
+      
+      console.log('Token refreshed successfully');
+      return true;
+    } else {
+      console.error('Token refresh failed:', data.error);
+      return false;
+    }
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    return false;
   }
 };
 

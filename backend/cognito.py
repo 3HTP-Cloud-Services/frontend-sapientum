@@ -292,6 +292,51 @@ def update_cognito_user_attributes(email, user_attributes):
         print(f"Error updating Cognito user attributes: {str(e)}")
         return False, {"error": f"Failed to update user attributes in Cognito: {str(e)}"}
 
+def refresh_token(refresh_token):
+    """
+    Refresh JWT tokens using refresh token
+    Returns tuple: (success, response_data)
+    """
+    try:
+        client = get_cognito_client()
+        user_pool_id, client_id = get_cognito_config()
+        
+        if not user_pool_id or not client_id:
+            return False, {"error": "Cognito configuration not found"}
+        
+        # Use refresh token to get new access and ID tokens
+        response = client.admin_initiate_auth(
+            UserPoolId=user_pool_id,
+            ClientId=client_id,
+            AuthFlow='REFRESH_TOKEN_AUTH',
+            AuthParameters={
+                'REFRESH_TOKEN': refresh_token
+            }
+        )
+        
+        if 'AuthenticationResult' not in response:
+            return False, {"error": "Token refresh failed"}
+        
+        auth_result = response['AuthenticationResult']
+        new_id_token = auth_result.get('IdToken', '')
+        new_access_token = auth_result.get('AccessToken', '')
+        expires_in = auth_result.get('ExpiresIn', 0)
+        
+        # Note: Refresh token is not returned in refresh response, 
+        # original refresh token remains valid
+        
+        return True, {
+            "idToken": new_id_token,
+            "accessToken": new_access_token,
+            "expiresIn": expires_in
+        }
+        
+    except client.exceptions.NotAuthorizedException:
+        return False, {"error": "Refresh token is invalid or expired"}
+    except Exception as e:
+        print(f"Token refresh error: {str(e)}")
+        return False, {"error": f"Token refresh failed: {str(e)}"}
+
 def respond_to_auth_challenge(username, new_password, session):
     """
     Respond to NEW_PASSWORD_REQUIRED challenge

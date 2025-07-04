@@ -250,6 +250,41 @@ def logout():
     # The frontend should delete the token from storage
     return jsonify({"success": True, "message": "Logged out successfully"})
 
+@app.route('/api/refresh-token', methods=['POST'])
+def refresh_token():
+    """Refresh JWT tokens using refresh token"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        refresh_token = data.get('refreshToken')
+        if not refresh_token:
+            return jsonify({"error": "Refresh token is required"}), 400
+        
+        # Import refresh token function
+        from cognito import refresh_token as cognito_refresh_token
+        
+        # Refresh the tokens
+        success, response_data = cognito_refresh_token(refresh_token)
+        
+        if success:
+            return jsonify({
+                "success": True,
+                "token": response_data.get("idToken"),
+                "accessToken": response_data.get("accessToken"),
+                "expiresIn": response_data.get("expiresIn")
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": response_data.get("error", "Token refresh failed")
+            }), 401
+            
+    except Exception as e:
+        print(f"Refresh token endpoint error: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
 @app.route('/api/set-password', methods=['POST'])
 def set_password():
     """Handle NEW_PASSWORD_REQUIRED challenge from Cognito"""

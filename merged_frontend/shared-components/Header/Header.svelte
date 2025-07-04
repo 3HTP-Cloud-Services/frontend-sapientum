@@ -43,6 +43,10 @@
                 on:click={() => setLocale('es')}>
           Español
         </button>
+        <button class={`locale-button ${$currentLocale === 'pt' ? 'selected' : ''}`}
+                on:click={() => setLocale('pt')}>
+          Português
+        </button>
       </div>
       <div class="logout-container">
         <button class="logout-button" on:click={handleLogout}>

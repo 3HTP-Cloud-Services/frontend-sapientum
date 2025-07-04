@@ -142,6 +142,8 @@
               on:click={() => setLocale('en')}>English</button>
       <button class={`locale-button ${$i18nStore?.locale === 'es' ? 'selected' : ''}`}
               on:click={() => setLocale('es')}>Español</button>
+      <button class={`locale-button ${$i18nStore?.locale === 'pt' ? 'selected' : ''}`}
+              on:click={() => setLocale('pt')}>Português</button>
     </div>
 
     <div class="logo-container">

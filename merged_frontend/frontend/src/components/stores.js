@@ -29,8 +29,6 @@ export async function fetchCatalogs() {
     if (response.ok) {
       const data = await response.json();
       catalogsStore.set(data);
-    } else if (response.status === 401) {
-      window.location.href = '/#/login';
     } else {
       console.error('Error fetching catalogs:', response.status, response.statusText);
       errorStore.set('Error al cargar catálogos');
@@ -72,8 +70,6 @@ export async function fetchCatalog(id) {
       selectedCatalogStore.set(data);
 
       fetchCatalogFiles(data.id);
-    } else if (response.status === 401) {
-      window.location.href = '/#/login';
     } else if (response.status === 404) {
       catalogErrorStore.set('Catálogo no encontrado');
     } else {
@@ -133,8 +129,6 @@ export async function fetchCatalogFiles(id) {
       });
 
       catalogFilesStore.set(processedFiles);
-    } else if (response.status === 401) {
-      window.location.href = '/#/login';
     } else if (response.status === 404) {
       filesErrorStore.set('Archivos no encontrados');
     } else {
