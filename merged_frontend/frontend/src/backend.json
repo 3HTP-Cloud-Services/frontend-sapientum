@@ -1,4 +1,4 @@
 {
-  "__apiUrl": "http://localhost:8000/api",
-  "apiUrl": "https://kf75zv6hbtup4a7cpjx2daat2q0lwgnt.lambda-url.us-east-1.on.aws/api"
+  "apiUrl": "http://localhost:8000/api",
+  "__apiUrl": "https://kf75zv6hbtup4a7cpjx2daat2q0lwgnt.lambda-url.us-east-1.on.aws/api"
 }

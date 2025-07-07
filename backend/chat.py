@@ -29,13 +29,13 @@ def parse_file_references(text):
     Returns the text with file references replaced by HTML links
     """
     file_pattern = r'\b(\d+)-(\d+)-(\d+)\.([a-zA-Z]{2,6})\b'
-    
+
     def replace_file_reference(match):
         catalog_id = int(match.group(1))
         file_id = int(match.group(2))
         version_id = int(match.group(3))
         extension = match.group(4)
-        
+
         file_info = get_file_info(catalog_id, file_id, version_id)
         if file_info:
             download_url = f"/api/download/{version_id}"
@@ -43,7 +43,7 @@ def parse_file_references(text):
             return f'<a href="{download_url}" download="{filename}">{filename}</a>'
         else:
             return match.group(0)
-    
+
     return re.sub(file_pattern, replace_file_reference, text)
 
 def get_file_info(catalog_id, file_id, version_id):
@@ -57,7 +57,7 @@ def get_file_info(catalog_id, file_id, version_id):
             File.id == file_id,
             Catalog.id == catalog_id
         ).first()
-        
+
         if version:
             return {
                 'filename': version.filename,
@@ -83,7 +83,8 @@ def get_conversation(user_id, catalog_id):
     conversation = create_new_conversation(user_id, catalog_id)
     return conversation.id
 
-def generate_ai_response(user_query, catalog_id=None, user_id=None):
+def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
+    print('\ngenerate_ai_response:', user_query, catalog_id, user_id, jwt)
     conversation_id = get_conversation(user_id, catalog_id)
 
     # Save the user's message to the database
@@ -116,8 +117,10 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
             'user_id': user_id,
             'agent_id': get_agent_id(),
             'agent_alias_id': get_agent_alias_id(),
-            'enable_trace': False
+            'enable_trace': False,
+            'jwt': jwt
         }
+        print('\ngenerate_ai_response: payload:', payload)
 
         # Get the Lambda function URL from config
         lambda_url = get_lambda_url()
@@ -163,10 +166,10 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
             ai_response = search_documents(user_query)
 
         print("final response: ", ai_response)
-        
+
         # Parse file references and replace with download links
         processed_response = parse_file_references(ai_response)
-        
+
         # Update the message in the database
         message_out.message = processed_response
         db.session.commit()
@@ -180,7 +183,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None):
 
         # Fallback to document search if an error occurs
         fallback_response = search_documents(user_query)
-        
+
         # Parse file references and replace with download links
         processed_fallback = parse_file_references(fallback_response)
 
