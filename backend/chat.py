@@ -118,7 +118,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
             'agent_id': get_agent_id(),
             'agent_alias_id': get_agent_alias_id(),
             'enable_trace': False,
-            'jwt': jwt
+            'jwt_token': jwt
         }
         print('\ngenerate_ai_response: payload:', payload)
 

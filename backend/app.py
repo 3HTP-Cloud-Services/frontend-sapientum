@@ -534,20 +534,39 @@ def delete_domain(domain_id, current_user=None, token_user_data=None, **kwargs):
 
 @app.route('/api/i18n', methods=['GET'])
 def get_translations():
+    print("[I18N DEBUG] Starting get_translations function")
     current_dir = os.path.dirname(os.path.abspath(__file__))
     json_path = os.path.join(current_dir, 'i18n/data.json')
+    print(f"[I18N DEBUG] Current directory: {current_dir}")
+    print(f"[I18N DEBUG] JSON path: {json_path}")
+    print(f"[I18N DEBUG] File exists: {os.path.exists(json_path)}")
+    
     try:
-        with open(json_path, 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
+        print("[I18N DEBUG] Attempting to open i18n data file")
+        with open(json_path, 'r', encoding='utf-8') as file:
+            print("[I18N DEBUG] File opened successfully, reading JSON")
+            data = json.load(file)
+            print(f"[I18N DEBUG] JSON loaded successfully, keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            print(f"[I18N DEBUG] Data sample: {str(data)[:200]}...")
+            return data
+    except FileNotFoundError as e:
+        print(f"[I18N DEBUG] FileNotFoundError: {e}")
         app.logger.error(f"Data file not found: {json_path}")
         return {}
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"[I18N DEBUG] JSONDecodeError: {e}")
         app.logger.error(f"Invalid JSON in data file: {json_path}")
         return {
             "i18n_warning": "Error al obtener traducción",
         }
-    return jsonify(TRANSLATIONS)
+    except Exception as e:
+        print(f"[I18N DEBUG] Unexpected error: {e}")
+        print(f"[I18N DEBUG] Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "i18n_error": f"Unexpected error: {str(e)}",
+        }
 
 @app.route('/api/catalogs', methods=['GET'])
 @token_required

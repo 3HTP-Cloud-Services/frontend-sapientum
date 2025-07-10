@@ -289,8 +289,13 @@
     editingDomains = {...editingDomains, [index]: !editingDomains[index]};
   }
 
-  function saveDomain(index) {
+  async function saveDomain(index) {
+    console.log('[DOMAIN DEBUG] saveDomain called for index:', index);
     editingDomains = {...editingDomains, [index]: false};
+    
+    // Actually save the domains to the backend
+    console.log('[DOMAIN DEBUG] Calling saveDomains to persist changes');
+    await saveDomains();
   }
 
   async function removeDomain(i) {
@@ -353,11 +358,13 @@
 
   async function saveDomains() {
     try {
+      console.log('[DOMAIN DEBUG] saveDomains called');
       domainsError = '';
       // Filter out empty domains
       const domainsToSave = allowedDomains.filter(domain => domain.name.trim() !== '');
+      console.log('[DOMAIN DEBUG] Domains to save:', domainsToSave);
 
-      // This would be replaced with an actual API call when backend is ready
+      console.log('[DOMAIN DEBUG] Making HTTP request to /api/allowed-domains');
       const response = await httpCall('/api/allowed-domains', {
         method: 'PUT',
         headers: {
@@ -367,8 +374,17 @@
         credentials: 'include'
       });
 
-      if (!response.ok) {
-        console.error('Error saving domains:', response.status);
+      console.log('[DOMAIN DEBUG] Response status:', response.status);
+      console.log('[DOMAIN DEBUG] Response ok:', response.ok);
+
+      if (response.ok) {
+        console.log('[DOMAIN DEBUG] Domains saved successfully');
+        successMessage = $i18nStore.t('domains_saved_successfully') || 'Domains saved successfully';
+        setTimeout(() => {
+          successMessage = '';
+        }, 3000);
+      } else {
+        console.error('[DOMAIN DEBUG] Error saving domains:', response.status);
 
         if (response.status === 403) {
           domainsError = $i18nStore.t('access_denied_admin_required') || 'Access denied. Admin permissions required.';
@@ -377,12 +393,13 @@
         }
 
         const errorData = await response.json().catch(() => ({}));
+        console.log('[DOMAIN DEBUG] Error data:', errorData);
         if (errorData && errorData.error) {
           domainsError = errorData.error;
         }
       }
     } catch (err) {
-      console.error('Error saving domains:', err);
+      console.error('[DOMAIN DEBUG] Exception saving domains:', err);
       domainsError = 'Connection error while saving domains';
     }
   }
