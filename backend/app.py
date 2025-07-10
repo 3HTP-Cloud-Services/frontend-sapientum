@@ -934,10 +934,10 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
         if not conversation:
             return jsonify([])  # Return empty array if no conversation exists
 
-        # Get all messages for this conversation, ordered by creation time
+        # Get all messages for this conversation, ordered by ID (oldest first)
         messages = Message.query.filter_by(
             conversation_id=conversation.id
-        ).order_by(Message.created_at).all()
+        ).order_by(Message.id.asc()).all()
 
         # Convert messages to the format expected by the frontend
         formatted_messages = []
@@ -946,7 +946,8 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
                 'id': msg.id,
                 'type': 'user' if msg.is_request else 'system',
                 'content': msg.message,
-                'timestamp': msg.created_at.isoformat() if msg.created_at else None
+                'timestamp': msg.created_at.isoformat() if msg.created_at else None,
+                'has_trace': bool(msg.trace and msg.trace.strip())
             })
 
         return jsonify(formatted_messages)
@@ -954,6 +955,43 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
     except Exception as e:
         print(f"Error fetching conversation messages: {e}")
         return jsonify({"error": "Error al cargar mensajes"}), 500
+
+
+@app.route('/api/messages/<int:message_id>/trace', methods=['GET'])
+@token_required
+def get_message_trace(message_id, current_user=None, token_user_data=None, **kwargs):
+    try:
+        from models import Message, Conversation
+        
+        # Get the message and verify user has access to it
+        message = Message.query.join(Conversation).filter(
+            Message.id == message_id,
+            Conversation.speaker_id == current_user.id
+        ).first()
+        
+        if not message:
+            return jsonify({"error": "Message not found or access denied"}), 404
+            
+        # Return trace data if it exists
+        if message.trace and message.trace.strip():
+            try:
+                import json
+                trace_data = json.loads(message.trace)
+                return jsonify({
+                    "success": True,
+                    "trace": trace_data
+                })
+            except json.JSONDecodeError:
+                return jsonify({
+                    "success": True,
+                    "trace": message.trace
+                })
+        else:
+            return jsonify({"error": "No trace data available for this message"}), 404
+            
+    except Exception as e:
+        print(f"Error fetching message trace: {e}")
+        return jsonify({"error": "Error fetching trace data"}), 500
 
 
 @app.route('/api/conversations/<int:catalog_id>/download-pdf', methods=['POST'])
@@ -1011,7 +1049,15 @@ def chat(current_user=None, token_user_data=None, **kwargs):
 
     user_id = current_user.id
     jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token)
+    
+    # Extract client IP address
+    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR')
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    else:
+        client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
+    
+    ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
     create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
 
     return jsonify({

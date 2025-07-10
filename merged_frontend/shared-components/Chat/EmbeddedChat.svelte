@@ -23,6 +23,12 @@
   let downloadDialog;
   let showDownloadDialog = false;
 
+  // Trace popup state
+  let showTracePopup = false;
+  let traceData = null;
+  let loadingTrace = false;
+  let traceError = null;
+
   async function loadConversationMessages(catalogId) {
     try {
       const response = await httpCall(`/api/conversations/${catalogId}`, {
@@ -37,7 +43,8 @@
           id: msg.id,
           type: msg.type,
           content: msg.content,
-          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+          has_trace: msg.has_trace || false
         }));
 
         // If no messages exist, add welcome message
@@ -278,6 +285,39 @@
     }
   }
 
+  async function showTrace(messageId) {
+    showTracePopup = true;
+    loadingTrace = true;
+    traceError = null;
+    traceData = null;
+
+    try {
+      const response = await httpCall(`/api/messages/${messageId}/trace`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        traceData = data.trace;
+      } else {
+        const errorData = await response.json();
+        traceError = errorData.error || 'Failed to load trace data';
+      }
+    } catch (error) {
+      console.error('Error fetching trace data:', error);
+      traceError = 'Network error occurred while fetching trace data';
+    } finally {
+      loadingTrace = false;
+    }
+  }
+
+  function closeTracePopup() {
+    showTracePopup = false;
+    traceData = null;
+    traceError = null;
+    loadingTrace = false;
+  }
+
   function openDownloadDialog() {
     if (!selectedCatalogId) return;
     showDownloadDialog = true;
@@ -389,7 +429,12 @@
         {#each $messagesByCatalog[selectedCatalogId] as message (message.id)}
           <div class={`message ${message.type}`}>
             <div class="message-content">{@html message.content}</div>
-            <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+            <div class="message-meta">
+              <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+              {#if message.has_trace}
+                <div class="trace-indicator" title="Click to view trace data" on:click={() => showTrace(message.id)}>i</div>
+              {/if}
+            </div>
           </div>
         {/each}
       {:else}
@@ -427,6 +472,27 @@
   on:close={closeDownloadDialog}
   on:download={handleDownload}
 />
+
+<!-- Trace Popup -->
+{#if showTracePopup}
+  <div class="trace-popup-overlay" on:click={closeTracePopup}>
+    <div class="trace-popup" on:click|stopPropagation>
+      <div class="trace-popup-header">
+        <h3>Trace Data</h3>
+        <button class="close-button" on:click={closeTracePopup}>&times;</button>
+      </div>
+      <div class="trace-popup-content">
+        {#if loadingTrace}
+          <div class="trace-loading">Loading trace data...</div>
+        {:else if traceError}
+          <div class="trace-error">Error: {traceError}</div>
+        {:else if traceData}
+          <pre class="trace-data">{JSON.stringify(traceData, null, 2)}</pre>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
 
@@ -511,11 +577,46 @@
     color: white;
   }
 
+  .message-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.25rem;
+  }
+
   .message-time {
     font-size: 0.75rem;
-    margin-top: 0.25rem;
     opacity: 0.7;
-    text-align: right;
+  }
+
+  .trace-indicator {
+    font-size: 0.75rem;
+    font-weight: bold;
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #4a5568;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-style: italic;
+    transition: background-color 0.2s ease;
+  }
+
+  .trace-indicator:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .message.system .trace-indicator {
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #4a5568;
+  }
+
+  .message.user .trace-indicator {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
   }
 
   .message-content a {
@@ -691,5 +792,100 @@
     height: 100%;
     color: #a0aec0;
     font-style: italic;
+  }
+
+  /* Trace Popup Styles */
+  .trace-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+  }
+
+  .trace-popup {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 92vh;
+    height: 92vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .trace-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    background-color: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .trace-popup-header h3 {
+    margin: 0;
+    color: #2d3748;
+    font-size: 1.25rem;
+  }
+
+  .close-button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #718096;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+  }
+
+  .close-button:hover {
+    background-color: #e2e8f0;
+    color: #4a5568;
+  }
+
+  .trace-popup-content {
+    padding: 1rem;
+    overflow: auto;
+    flex: 1;
+  }
+
+  .trace-loading {
+    text-align: center;
+    color: #718096;
+    padding: 2rem;
+  }
+
+  .trace-error {
+    color: #e53e3e;
+    padding: 1rem;
+    background-color: #fed7d7;
+    border: 1px solid #feb2b2;
+    border-radius: 4px;
+  }
+
+  .trace-data {
+    background-color: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 1rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: auto;
+    margin: 0;
   }
 </style>

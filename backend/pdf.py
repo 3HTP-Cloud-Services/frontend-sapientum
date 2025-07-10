@@ -43,7 +43,7 @@ def generate_conversation_pdf(catalog_id, user_id, message_count=20):
         # Get the last N messages for this conversation, ordered by creation time
         messages = Message.query.filter_by(
             conversation_id=conversation.id
-        ).order_by(Message.created_at.desc()).limit(message_count).all()
+        ).order_by(Message.id.desc()).limit(message_count).all()
         
         # Reverse to get chronological order
         messages = list(reversed(messages))

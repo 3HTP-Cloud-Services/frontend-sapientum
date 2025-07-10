@@ -198,6 +198,8 @@ class Message(db.Model):
     # should be null for requests, save the prompt that generated the response for responses
     message = db.Column(db.Text, default='', nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
+    origin = db.Column(db.Text, default='')
+    trace = db.Column(db.Text, default='')
 
 
 class EventType(enum.Enum):

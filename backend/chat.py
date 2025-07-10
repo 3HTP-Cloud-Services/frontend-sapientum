@@ -83,9 +83,12 @@ def get_conversation(user_id, catalog_id):
     conversation = create_new_conversation(user_id, catalog_id)
     return conversation.id
 
-def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
-    print('\ngenerate_ai_response:', user_query, catalog_id, user_id, jwt)
+def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, client_ip=None):
+    print('\ngenerate_ai_response:', user_query, catalog_id, user_id, jwt, 'client_ip:', client_ip)
     conversation_id = get_conversation(user_id, catalog_id)
+
+    # Prepare origin info with client IP
+    origin_info = f"ip:{client_ip or 'unknown'}"
 
     # Save the user's message to the database
     message_in = Message(
@@ -93,17 +96,19 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
         is_request = True,
         prompt = '',
         message = user_query,
-        created_at = datetime.now()
+        created_at = datetime.now(),
+        origin = origin_info
     )
     db.session.add(message_in)
     db.session.commit()
 
-    # Create a placeholder for the AI response
+    # Create a placeholder for the AI response with same origin info initially
     message_out = Message(
         conversation_id = conversation_id,
         is_request = False,
         prompt = 'system prompt',
-        created_at = datetime.now()
+        created_at = datetime.now(),
+        origin = origin_info
     )
     db.session.add(message_out)
     db.session.commit()
@@ -117,7 +122,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
             'user_id': user_id,
             'agent_id': get_agent_id(),
             'agent_alias_id': get_agent_alias_id(),
-            'enable_trace': False,
+            'enable_trace': True,
             'jwt_token': jwt
         }
         print('\ngenerate_ai_response: payload:', payload)
@@ -137,8 +142,21 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
         )
 
         print(f"Lambda response: {lambda_response}")
+        lambda_instance_id = "unknown"
+        trace_data = None
+        
         # Process the Lambda response
         if lambda_response and isinstance(lambda_response, dict):
+            # Extract Lambda instance ID if available
+            if 'lambda_instance_id' in lambda_response:
+                lambda_instance_id = lambda_response['lambda_instance_id']
+            elif 'requestId' in lambda_response:
+                lambda_instance_id = lambda_response['requestId']
+            
+            # Extract trace events if present and tracing is enabled
+            if 'trace_events' in lambda_response and payload.get('enable_trace', False):
+                import json
+                trace_data = json.dumps(lambda_response['trace_events'])
             # Extract assistant_response.text from the Lambda response
             if 'assistant_response' in lambda_response and 'text' in lambda_response['assistant_response']:
                 print("getting a response from lambda: ", lambda_response['assistant_response']['text'])
@@ -170,8 +188,12 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
         # Parse file references and replace with download links
         processed_response = parse_file_references(ai_response)
 
-        # Update the message in the database
+        # Update the AI message with response content, Lambda instance info, and trace data
+        updated_origin = f"ip:{client_ip or 'unknown'},lambda:{lambda_instance_id}"
         message_out.message = processed_response
+        message_out.origin = updated_origin
+        if trace_data:
+            message_out.trace = trace_data
         db.session.commit()
 
         return processed_response, message_in.id
@@ -187,8 +209,10 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None):
         # Parse file references and replace with download links
         processed_fallback = parse_file_references(fallback_response)
 
-        # Update the message in the database
+        # Update the message in the database with fallback origin info
+        fallback_origin = f"ip:{client_ip or 'unknown'},lambda:fallback"
         message_out.message = processed_fallback
+        message_out.origin = fallback_origin
         db.session.commit()
 
         return processed_fallback
