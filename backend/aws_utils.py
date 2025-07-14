@@ -115,7 +115,7 @@ def refresh_credentials():
                 print("Retrying credential refresh...")
             else:
                 traceback.print_exc()
-    
+
     return False
 
 
@@ -131,7 +131,7 @@ def get_client_with_assumed_role(service_name, region_name='us-east-1'):
     # Check if we need to initialize credentials
     current_time = time.time()
     credentials_expired = False
-    
+
     if _credentials is None:
         print("No credentials cached, need to get initial credentials")
         credentials_expired = True
@@ -391,6 +391,88 @@ def upload_file_to_s3(bucket_name, catalog_folder, file_obj, file_content, conte
         return file_key
     except Exception as e:
         print(f"Error uploading file to S3: {e}")
+        traceback.print_exc()
+        return None
+
+def invoke_lambda_with_sigv4_v2(url, body=None):
+    session = boto3.Session()
+    base_credentials = session.get_credentials()
+
+    # Create credentials without token (simulate local behavior)
+    from botocore.credentials import Credentials
+    credentials = Credentials(
+        access_key=base_credentials.access_key,
+        secret_key=base_credentials.secret_key,
+        token=None  # Explicitly set to None
+    )
+
+    region = 'us-east-1'
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Host': url.split('/')[2]
+    }
+
+    data = json.dumps(body) if body else ''
+
+    request = AWSRequest(
+        method='POST',
+        url=url,
+        data=data,
+        headers=headers
+    )
+
+    SigV4Auth(credentials, 'lambda', region).add_auth(request)
+    print(f"calling sig v4: credentials {credentials} region {region} headers: {request.headers}")
+    response = requests.post(
+        url,
+        headers=dict(request.headers),
+        data=data
+    )
+
+    print(f"Status: {response.status_code}")
+    return response.json() if response.status_code == 200 else response.text
+
+def call_backend_lambda(payload):
+    try:
+        lambda_client = boto3.client('lambda')
+
+        response = lambda_client.invoke(
+            FunctionName='sapientum-backend-agent-lambda',
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload)
+        )
+
+        if response['StatusCode'] >= 400:
+            print(f"Error invoking Lambda: HTTP {response['StatusCode']}")
+            print(f"Response: {response.get('Payload', 'No payload')}")
+            return None
+
+        payload_bytes = response['Payload'].read()
+        try:
+            parsed_response = json.loads(payload_bytes.decode('utf-8'))
+            print(f"call_backend_lambda parsed response: {parsed_response}")
+            
+            # Handle case where Lambda returns a response with statusCode and body
+            if isinstance(parsed_response, dict) and 'body' in parsed_response:
+                try:
+                    # Try to parse the body as JSON
+                    body_content = json.loads(parsed_response['body'])
+                    print(f"call_backend_lambda extracted body: {body_content}")
+                    return body_content
+                except (json.JSONDecodeError, TypeError):
+                    # If body is not JSON, return the raw body
+                    print(f"call_backend_lambda raw body: {parsed_response['body']}")
+                    return parsed_response['body']
+            
+            return parsed_response
+        except ValueError:
+            decoded_response = payload_bytes.decode('utf-8')
+            print(f"call_backend_lambda raw response: {decoded_response}")
+            return decoded_response
+
+    except Exception as e:
+        print(f"Error invoking Lambda: {e}")
         traceback.print_exc()
         return None
 

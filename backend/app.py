@@ -35,7 +35,7 @@ def sanitize_filename_for_header(filename):
     """
     if not filename:
         return "download"
-    
+
     # Try to encode as Latin-1 first to catch any problematic characters
     try:
         # Test if it's already Latin-1 compatible
@@ -46,28 +46,28 @@ def sanitize_filename_for_header(filename):
         # Normalize Unicode characters (decompose accented characters)
         normalized = unicodedata.normalize('NFKD', filename)
         sanitized = normalized
-    
+
     # Remove control characters (0x00-0x1F, 0x7F-0x9F)
     sanitized = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', sanitized)
-    
+
     # Replace characters that can't be encoded in Latin-1 (anything above 0xFF)
     try:
         sanitized.encode('latin-1')
     except UnicodeEncodeError:
         # Replace any character that can't be encoded in Latin-1 with underscore
         sanitized = ''.join(c if ord(c) <= 255 else '_' for c in sanitized)
-    
+
     # Replace characters that are problematic in HTTP headers or filenames
     # Double quotes are especially problematic in Content-Disposition
     sanitized = re.sub(r'[<>:"|?*\\]', '_', sanitized)
-    
+
     # Remove leading/trailing whitespace and dots (Windows compatibility)
     sanitized = sanitized.strip('. ')
-    
+
     # Ensure the filename is not empty after sanitization
     if not sanitized:
         return "download"
-    
+
     # Final safety check - ensure it can be encoded as Latin-1
     try:
         sanitized.encode('latin-1')
@@ -261,17 +261,17 @@ def refresh_token():
         data = request.json
         if not data:
             return jsonify({"error": "No data provided"}), 400
-        
+
         refresh_token = data.get('refreshToken')
         if not refresh_token:
             return jsonify({"error": "Refresh token is required"}), 400
-        
+
         # Import refresh token function
         from cognito import refresh_token as cognito_refresh_token
-        
+
         # Refresh the tokens
         success, response_data = cognito_refresh_token(refresh_token)
-        
+
         if success:
             return jsonify({
                 "success": True,
@@ -284,7 +284,7 @@ def refresh_token():
                 "success": False,
                 "error": response_data.get("error", "Token refresh failed")
             }), 401
-            
+
     except Exception as e:
         print(f"Refresh token endpoint error: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
@@ -540,7 +540,7 @@ def get_translations():
     print(f"[I18N DEBUG] Current directory: {current_dir}")
     print(f"[I18N DEBUG] JSON path: {json_path}")
     print(f"[I18N DEBUG] File exists: {os.path.exists(json_path)}")
-    
+
     try:
         print("[I18N DEBUG] Attempting to open i18n data file")
         with open(json_path, 'r', encoding='utf-8') as file:
@@ -902,7 +902,7 @@ def download_version(version_id, current_user=None, token_user_data=None, **kwar
         file_content = s3_object['Body'].read()
 
         filename = version.filename or f"file_{version.id}"
-        
+
         response = send_file(
             io.BytesIO(file_content),
             as_attachment=True,
@@ -962,16 +962,16 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
 def get_message_trace(message_id, current_user=None, token_user_data=None, **kwargs):
     try:
         from models import Message, Conversation
-        
+
         # Get the message and verify user has access to it
         message = Message.query.join(Conversation).filter(
             Message.id == message_id,
             Conversation.speaker_id == current_user.id
         ).first()
-        
+
         if not message:
             return jsonify({"error": "Message not found or access denied"}), 404
-            
+
         # Return trace data if it exists
         if message.trace and message.trace.strip():
             try:
@@ -988,7 +988,7 @@ def get_message_trace(message_id, current_user=None, token_user_data=None, **kwa
                 })
         else:
             return jsonify({"error": "No trace data available for this message"}), 404
-            
+
     except Exception as e:
         print(f"Error fetching message trace: {e}")
         return jsonify({"error": "Error fetching trace data"}), 500
@@ -1002,14 +1002,14 @@ def download_conversation_pdf(catalog_id, current_user=None, token_user_data=Non
     try:
         data = request.json
         message_count = data.get('message_count', 20)
-        
+
         # Validate message count
         if not isinstance(message_count, int) or message_count <= 0:
             return jsonify({"error": "Invalid message count"}), 400
 
         # Generate PDF using the pdf module
         pdf_data, filename = generate_conversation_pdf(catalog_id, user_id, message_count)
-        
+
         if pdf_data is None:
             return jsonify({"error": filename}), 404
 
@@ -1040,6 +1040,7 @@ def download_conversation_pdf(catalog_id, current_user=None, token_user_data=Non
 @app.route('/api/chat', methods=['POST'])
 @chat_access_required
 def chat(current_user=None, token_user_data=None, **kwargs):
+    print('CHAT:', current_user)
     data = request.json
     user_message = data.get('message', '')
     catalog = data.get('catalogId', '')
@@ -1049,17 +1050,18 @@ def chat(current_user=None, token_user_data=None, **kwargs):
 
     user_id = current_user.id
     jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    
+
     # Extract client IP address
     client_ip = request.environ.get('HTTP_X_FORWARDED_FOR')
     if client_ip:
         client_ip = client_ip.split(',')[0].strip()
     else:
         client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
-    
+    print('CHAT IP: ', client_ip)
+
     ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
     create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
-
+    print('CHAT: AI RESPONSE:', ai_response)
     return jsonify({
         "response": ai_response,
         "timestamp": None

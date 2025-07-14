@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 import re
 
+from aws_utils import invoke_lambda_with_sigv4_v2, call_backend_lambda
 from models import db, Conversation, Message, Catalog, File, Version
 from aws_utils import invoke_lambda_with_sigv4, get_lambda_url, get_agent_id, get_agent_alias_id
 
@@ -132,19 +133,15 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
 
         # Call the Lambda function using SigV4 authentication
         print(f"Calling Lambda function at {lambda_url} with payload: {payload}")
-        lambda_response = invoke_lambda_with_sigv4(
-            url=lambda_url,
-            method='POST',
-            service='lambda',
-            region='us-east-1',
-            body=payload,
-            headers={'Content-Type': 'application/json'}
-        )
+        lambda_response = call_backend_lambda(payload)
 
         print(f"Lambda response: {lambda_response}")
+        print(f"Lambda response type: {type(lambda_response)}")
+        if lambda_response and isinstance(lambda_response, dict):
+            print(f"Lambda response keys: {list(lambda_response.keys())}")
         lambda_instance_id = "unknown"
         trace_data = None
-        
+
         # Process the Lambda response
         if lambda_response and isinstance(lambda_response, dict):
             # Extract Lambda instance ID if available
@@ -152,7 +149,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
                 lambda_instance_id = lambda_response['lambda_instance_id']
             elif 'requestId' in lambda_response:
                 lambda_instance_id = lambda_response['requestId']
-            
+
             # Extract trace events if present and tracing is enabled
             if 'trace_events' in lambda_response and payload.get('enable_trace', False):
                 import json

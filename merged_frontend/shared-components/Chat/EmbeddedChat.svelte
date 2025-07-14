@@ -1,6 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { i18nStore, initializeI18n } from '../utils/i18n.js';
 
   import { writable } from 'svelte/store';
@@ -62,10 +62,6 @@
           [catalogId]: formattedMessages
         }));
 
-        // Scroll to bottom after messages are loaded, but only for the currently selected catalog
-        if (catalogId === selectedCatalogId) {
-          setTimeout(scrollToBottom, 100);
-        }
       } else {
         console.error('Error loading conversation messages:', response.status);
         // Fallback to welcome message
@@ -81,10 +77,6 @@
           [catalogId]: [welcomeMessage]
         }));
 
-        // Scroll to bottom after welcome message, but only for the currently selected catalog
-        if (catalogId === selectedCatalogId) {
-          setTimeout(scrollToBottom, 100);
-        }
       }
     } catch (error) {
       console.error('Error loading conversation messages:', error);
@@ -101,10 +93,6 @@
         [catalogId]: [welcomeMessage]
       }));
 
-      // Scroll to bottom after welcome message, but only for the currently selected catalog
-      if (catalogId === selectedCatalogId) {
-        setTimeout(scrollToBottom, 100);
-      }
     }
   }
 
@@ -113,9 +101,6 @@
     // Load conversation messages for this catalog if they don't exist
     if (!$messagesByCatalog[id]) {
       loadConversationMessages(id);
-    } else {
-      // If messages already exist, scroll to bottom immediately
-      setTimeout(scrollToBottom, 50);
     }
   }
 
@@ -134,6 +119,15 @@
 
   // Current messages for the selected catalog
   $: currentMessages = selectedCatalogId ? ($messagesByCatalog[selectedCatalogId] || []) : [];
+
+  // Auto-scroll to bottom whenever messages change
+  $: if (currentMessages.length > 0 && messagesContainer) {
+    tick().then(() => {
+      setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }, 100);
+    });
+  }
 
   export let handleLogout = async () => {
     try {
@@ -163,6 +157,13 @@
     }
   }
 
+  async function scrollToBottomAsync() {
+    await tick();
+    setTimeout(scrollToBottom, 50);
+  }
+
+  export { scrollToBottom };
+
   async function sendMessage() {
     if (!userInput.trim() || !selectedCatalogId) return;
 
@@ -183,8 +184,6 @@
 
     const messageToSend = userInput;
     userInput = '';
-
-    setTimeout(scrollToBottom, 0);
 
     try {
       const requestBody = {
@@ -221,8 +220,6 @@
           };
         });
 
-        setTimeout(scrollToBottom, 0);
-
         // Reload conversation to get real IDs from database
         setTimeout(() => {
           loadConversationMessages(selectedCatalogId);
@@ -250,8 +247,6 @@
             [selectedCatalogId]: [...catalogMessages, errorMessage]
           };
         });
-
-        setTimeout(scrollToBottom, 0);
       }
     } catch (error) {
       console.error('Network error when calling chat API:', error);
@@ -273,8 +268,6 @@
           [selectedCatalogId]: [...catalogMessages, errorMsg]
         };
       });
-
-      setTimeout(scrollToBottom, 0);
     }
   }
 
@@ -403,7 +396,6 @@
       console.error('Error in onMount:', error);
     }
 
-    setTimeout(scrollToBottom, 0);
   });
 </script>
 

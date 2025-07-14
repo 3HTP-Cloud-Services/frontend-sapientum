@@ -171,7 +171,15 @@
         "download_help_text": "Ingrese el número de mensajes recientes a incluir en el PDF (predeterminado: 20)",
         "download_error_positive": "Por favor ingrese un número positivo",
         "downloading": "Descargando...",
-        "download": "Descargar PDF"
+        "download": "Descargar PDF",
+        "showing": "Mostrando",
+        "of": "de",
+        "items": "elementos",
+        "previous": "Anterior",
+        "next": "Siguiente",
+        "previous_page": "Página anterior",
+        "next_page": "Página siguiente",
+        "no_activity_logs": "No se encontraron registros de actividad"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -345,7 +353,15 @@
         "download_help_text": "Enter the number of recent messages to include in the PDF (default: 20)",
         "download_error_positive": "Please enter a positive number",
         "downloading": "Downloading...",
-        "download": "Download PDF"
+        "download": "Download PDF",
+        "showing": "Showing",
+        "of": "of",
+        "items": "items",
+        "previous": "Previous",
+        "next": "Next",
+        "previous_page": "Previous page",
+        "next_page": "Next page",
+        "no_activity_logs": "No activity logs found"
     },
     "pt": {
         "title": "Console de Administração Sapientum AI",
@@ -519,6 +535,14 @@
         "download_help_text": "Digite o número de mensagens recentes a incluir no PDF (padrão: 20)",
         "download_error_positive": "Por favor, digite um número positivo",
         "downloading": "Baixando...",
-        "download": "Baixar PDF"
+        "download": "Baixar PDF",
+        "showing": "Mostrando",
+        "of": "de",
+        "items": "itens",
+        "previous": "Anterior",
+        "next": "Próximo",
+        "previous_page": "Página anterior",
+        "next_page": "Próxima página",
+        "no_activity_logs": "Nenhum registro de atividade encontrado"
     }
 }
