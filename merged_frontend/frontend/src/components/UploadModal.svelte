@@ -235,7 +235,7 @@
   .modal-header h2 {
     margin: 0;
     font-size: 1.25rem;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .close-button {
@@ -252,7 +252,7 @@
 
   .catalog-name-display {
     font-weight: 500;
-    color: #2d3748;
+    color: #032b36;
     margin-bottom: 1rem;
     font-size: 1.1rem;
   }
@@ -275,7 +275,7 @@
   }
 
   .version-info-value {
-    color: #2d3748;
+    color: #032b36;
     margin: 0;
     word-break: break-word;
   }
@@ -318,7 +318,7 @@
   .selected-files-section h3 {
     margin-top: 0;
     margin-bottom: 0.75rem;
-    color: #2d3748;
+    color: #032b36;
     font-size: 1rem;
   }
 
@@ -439,7 +439,7 @@
 
   .upload-status {
     font-size: 1rem;
-    color: #2d3748;
+    color: #032b36;
     font-weight: 500;
   }
 

@@ -292,7 +292,7 @@
   async function saveDomain(index) {
     console.log('[DOMAIN DEBUG] saveDomain called for index:', index);
     editingDomains = {...editingDomains, [index]: false};
-    
+
     // Actually save the domains to the backend
     console.log('[DOMAIN DEBUG] Calling saveDomains to persist changes');
     await saveDomains();
@@ -453,10 +453,10 @@
 
         // Clear logo cache to force refresh across all components
         clearLogoCache();
-        
+
         // Reload current logo
         await loadCurrentLogo();
-        
+
         // Dispatch event to notify parent that logo was uploaded
         dispatch('logoUploaded');
 
@@ -706,7 +706,7 @@
       <div class="modal-header">
         <h3>{$i18nStore.t('confirm_delete') || 'Confirm Deletion'}</h3>
       </div>
-      
+
       <div class="modal-body">
         <p>
           {$i18nStore.t('delete_user_confirmation') || '¿Estás seguro de que quieres eliminar este usuario?'}
@@ -716,25 +716,25 @@
             <strong>{userToDelete.email}</strong>
           </div>
         {/if}
-        
+
         {#if usersError}
           <div class="error-message">
             {usersError}
           </div>
         {/if}
       </div>
-      
+
       <div class="modal-footer">
-        <button 
-          class="cancel-button" 
+        <button
+          class="cancel-button"
           on:click={cancelDelete}
           disabled={isDeleting}
         >
           {$i18nStore.t('cancel') || 'Cancel'}
         </button>
-        
-        <button 
-          class="delete-button confirm-delete" 
+
+        <button
+          class="delete-button confirm-delete"
           on:click={deleteUser}
           disabled={isDeleting}
         >
@@ -862,7 +862,7 @@
 
   .modal h2 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
     margin-bottom: 1.5rem;
   }
 
@@ -931,7 +931,7 @@
 
   .domains-section h3 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
     margin-bottom: 1rem;
   }
 
@@ -1100,7 +1100,7 @@
 
   .logo-section h3 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
     margin-bottom: 0.5rem;
   }
 

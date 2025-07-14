@@ -156,7 +156,7 @@
   .modal-header h2 {
     margin: 0;
     font-size: 1.25rem;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .close-button {
@@ -179,7 +179,7 @@
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .form-group input[type="text"],
@@ -254,7 +254,7 @@
   .toggle-label {
     font-size: 0.875rem;
   }
-  
+
   .modal-footer {
     display: flex;
     justify-content: flex-end;

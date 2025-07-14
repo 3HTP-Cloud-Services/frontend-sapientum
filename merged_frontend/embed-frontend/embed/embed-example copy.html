@@ -10,11 +10,11 @@
       padding: 20px;
       background-color: #f5f7fa;
     }
-    
+
     h1 {
-      color: #2d3748;
+      color: #032b36;
     }
-    
+
     .embed-container {
       margin-top: 20px;
       border: 1px solid #e2e8f0;
@@ -22,14 +22,14 @@
       overflow: hidden;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    
+
     .controls {
       margin: 20px 0;
       padding: 15px;
       background-color: #f0f0f0;
       border-radius: 5px;
     }
-    
+
     button {
       padding: 8px 15px;
       margin-right: 10px;
@@ -39,11 +39,11 @@
       border-radius: 4px;
       cursor: pointer;
     }
-    
+
     button:hover {
       background-color: #3182ce;
     }
-    
+
     .log-container {
       background-color: #f8f8f8;
       border: 1px solid #ddd;
@@ -53,7 +53,7 @@
       font-family: monospace;
       margin-top: 20px;
     }
-    
+
     .highlight {
       background-color: #ebf8ff;
       padding: 5px;
@@ -61,7 +61,7 @@
       font-weight: bold;
       color: #2b6cb0;
     }
-    
+
     .nav-controls {
       display: flex;
       gap: 10px;
@@ -71,31 +71,31 @@
 </head>
 <body>
   <h1>Sapientum AI Embed Example</h1>
-  
+
   <div class="controls">
     <button id="load-embed">Load Embed</button>
     <button id="resize-embed">Resize (800px height)</button>
     <button id="theme-toggle">Toggle Dark Theme</button>
   </div>
-  
+
   <div id="sapientum-container" class="embed-container" style="height: 600px">
     <p style="padding: 20px;">Embed will appear here when you click "Load Embed"</p>
   </div>
-  
+
   <div class="nav-controls">
     <button id="nav-to-console">Navigate to Console</button>
     <button id="nav-to-chat">Navigate to Chat</button>
   </div>
-  
+
   <h3>Message Log</h3>
   <div id="message-log" class="log-container"></div>
-  
+
   <script src="embed.js"></script>
-  
+
   <script>
     let embedInstance = null;
     let darkTheme = false;
-    
+
     // Log function
     function log(message) {
       const logContainer = document.getElementById('message-log');
@@ -104,14 +104,14 @@
       logContainer.appendChild(entry);
       logContainer.scrollTop = logContainer.scrollHeight;
     }
-    
+
     // Button actions
     document.getElementById('load-embed').addEventListener('click', function() {
       if (embedInstance) {
         log('Embed already loaded - destroying first');
         embedInstance.destroy();
       }
-      
+
       log('Loading embed...');
       embedInstance = SapientumEmbed.create('#sapientum-container', {
         width: '100%',
@@ -126,29 +126,29 @@
         }
       });
     });
-    
+
     document.getElementById('resize-embed').addEventListener('click', function() {
       if (\!embedInstance) {
         log('⚠️ Embed not loaded yet');
         return;
       }
-      
+
       log('Resizing embed to 800px height');
       embedInstance.resize('100%', '800px');
     });
-    
+
     document.getElementById('theme-toggle').addEventListener('click', function() {
       if (\!embedInstance) {
         log('⚠️ Embed not loaded yet');
         return;
       }
-      
+
       darkTheme = \!darkTheme;
       log(`Switching to ${darkTheme ? 'dark' : 'light'} theme`);
-      
+
       // Reload embed with new theme
       embedInstance.destroy();
-      
+
       embedInstance = SapientumEmbed.create('#sapientum-container', {
         width: '100%',
         height: '600px',
@@ -162,26 +162,26 @@
         }
       });
     });
-    
+
     document.getElementById('nav-to-console').addEventListener('click', function() {
       if (\!embedInstance) {
         log('⚠️ Embed not loaded yet');
         return;
       }
-      
+
       log('Navigating to console...');
       embedInstance.sendMessage({
         type: 'sapientum:navigate',
         path: '/console'
       });
     });
-    
+
     document.getElementById('nav-to-chat').addEventListener('click', function() {
       if (\!embedInstance) {
         log('⚠️ Embed not loaded yet');
         return;
       }
-      
+
       log('Navigating to chat...');
       embedInstance.sendMessage({
         type: 'sapientum:navigate',

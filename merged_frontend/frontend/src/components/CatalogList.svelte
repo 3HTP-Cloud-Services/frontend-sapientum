@@ -339,7 +339,7 @@
 
   .catalog-card h3 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .catalog-card .view-catalog-button {
@@ -427,7 +427,7 @@
   .modal-header h2 {
     margin: 0;
     font-size: 1.25rem;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .close-button {

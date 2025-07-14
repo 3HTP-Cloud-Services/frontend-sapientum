@@ -20,27 +20,27 @@
 
   function validatePasswords() {
     validationErrors = {};
-    
+
     if (newPassword && newPassword.length < 8) {
       validationErrors.newPassword = 'Password must be at least 8 characters long';
     }
-    
+
     if (newPassword && !/(?=.*[a-z])/.test(newPassword)) {
       validationErrors.newPassword = 'Password must contain at least one lowercase letter';
     }
-    
+
     if (newPassword && !/(?=.*[A-Z])/.test(newPassword)) {
       validationErrors.newPassword = 'Password must contain at least one uppercase letter';
     }
-    
+
     if (newPassword && !/(?=.*\d)/.test(newPassword)) {
       validationErrors.newPassword = 'Password must contain at least one number';
     }
-    
+
     if (newPassword && !/(?=.*[!@#$%^&*()_+\-=\[\]{}|;:,.<>?])/.test(newPassword)) {
       validationErrors.newPassword = 'Password must contain at least one special character';
     }
-    
+
     if (confirmPassword && newPassword !== confirmPassword) {
       validationErrors.confirmPassword = 'Passwords do not match';
     }
@@ -48,15 +48,15 @@
 
   function handleSubmit() {
     validatePasswords();
-    
+
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
-    
+
     if (!newPassword || !confirmPassword) {
       return;
     }
-    
+
     dispatch('passwordChange', {
       username,
       newPassword,
@@ -258,7 +258,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.9);
-    color: #2d3748;
+    color: #032b36;
     font-size: 1rem;
     box-sizing: border-box;
   }

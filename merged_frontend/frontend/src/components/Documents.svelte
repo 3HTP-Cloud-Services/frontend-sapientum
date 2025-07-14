@@ -153,7 +153,7 @@
 
   .document-detail h1 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
     font-size: 1.5rem;
     margin-bottom: 1.5rem;
     border-bottom: 1px solid #e2e8f0;
@@ -200,7 +200,7 @@
 
   .document-card h3 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .document-card .view-document-button {

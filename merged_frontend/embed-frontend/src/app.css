@@ -3,7 +3,7 @@
   line-height: 1.5;
   font-weight: 400;
   color: #111111;
-  background-color: #2d3748;
+  background-color: #032b36;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,7 +14,7 @@
 :root[data-theme="light"] {
   --bg-primary: #ffffff;
   --bg-secondary: #f7fafc;
-  --text-primary: #2d3748;
+  --text-primary: #032b36;
   --text-secondary: #4a5568;
   --border-color: #e2e8f0;
   --accent-color: #4299e1;
@@ -22,7 +22,7 @@
 
 :root[data-theme="dark"] {
   --bg-primary: #1a202c;
-  --bg-secondary: #2d3748;
+  --bg-secondary: #032b36;
   --text-primary: #f7fafc;
   --text-secondary: #e2e8f0;
   --border-color: #4a5568;

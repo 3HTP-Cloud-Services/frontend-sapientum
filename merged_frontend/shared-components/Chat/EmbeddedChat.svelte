@@ -560,7 +560,7 @@
   .message.system {
     align-self: flex-start;
     background-color: #edf2f7;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .message.user {
@@ -822,7 +822,7 @@
 
   .trace-popup-header h3 {
     margin: 0;
-    color: #2d3748;
+    color: #032b36;
     font-size: 1.25rem;
   }
 

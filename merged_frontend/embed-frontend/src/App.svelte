@@ -113,7 +113,7 @@
 
   :global(html[data-theme="light"]) {
     --bg-color: #ffffff;
-    --text-color: #2d3748;
+    --text-color: #032b36;
     --border-color: #e2e8f0;
   }
 

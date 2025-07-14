@@ -10,7 +10,7 @@
 
   // Import shared components
   import Header from '../../../shared-components/Header/Header.svelte'
-  
+
   let headerComponent;
 
   // Store for passing catalog ID between components
@@ -39,7 +39,7 @@
 
   // Flag to track if user has explicitly selected a section
   let userSelectedSection = false;
-  
+
   // For checking catalog-specific permissions
   let canManageCatalogPermissions = false;
   let checkingCatalogPermissions = false;
@@ -57,12 +57,12 @@
       }
     }
   }
-  
+
   // Check catalog permissions when catalog ID changes
   $: if ($currentCatalogIdStore) {
     checkCatalogPermissions($currentCatalogIdStore);
   }
-  
+
   async function checkCatalogPermissions(catalogId) {
     checkingCatalogPermissions = true;
     try {
@@ -109,6 +109,7 @@
 
   let sidebarCollapsed = false;
   let isMobile = false;
+  // let showAlternateLogo = false;
 
   function checkMobile() {
     isMobile = window.innerWidth <= 768;
@@ -120,6 +121,10 @@
   function toggleSidebar() {
     sidebarCollapsed = !sidebarCollapsed;
   }
+
+  // function toggleLogo() {
+  //   showAlternateLogo = !showAlternateLogo;
+  // }
 
   async function handleLogout() {
     await logout();
@@ -241,6 +246,10 @@
             </button>
           </li>
         </ul>
+        <div class="sidebar-logo" class:collapsed={sidebarCollapsed}>
+          <img src="/sapientum_big.webp" alt="Sapientum" />
+          <!-- Alternative logo for future use: /sapientum.png -->
+        </div>
       </nav>
 
     <main class="content" class:expanded={sidebarCollapsed}>
@@ -419,7 +428,7 @@
 
   .sidebar {
     width: 250px;
-    background-color: #2d3748;
+    background-color: #032b36;
     color: white;
     padding: 1rem 0;
     position: relative;
@@ -470,6 +479,7 @@
     padding: 0;
     margin: 0;
     margin-top: 20px;
+    padding-bottom: 160px;
   }
 
   .sidebar li {
@@ -524,6 +534,36 @@
     background-color: #4a5568;
   }
 
+  .sidebar-logo {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+  }
+
+  .sidebar-logo img {
+    width: 120px;
+    height: auto;
+    opacity: 0.8;
+    transition: all 0.3s ease;
+  }
+
+  .sidebar-logo.collapsed {
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.8);
+  }
+
+  .sidebar-logo:hover img {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
   .content {
     flex: 1;
     padding: 2rem;
@@ -573,7 +613,7 @@
 
   .section-header h2 {
     margin: 0;
-    color: #2d3748;
+    color: #032b36;
   }
 
   .view-all {

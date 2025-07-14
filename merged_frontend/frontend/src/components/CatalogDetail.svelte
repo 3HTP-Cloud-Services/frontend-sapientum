@@ -30,19 +30,19 @@
 
   // For tracking updates
   let updateCount = 0;
-  
+
   // For checking catalog permissions
   let canManagePermissions = false;
   let permissionCheckResult = null;
   let permissionCheckError = null;
   let dbPermissionInfo = null;
-  
+
   // Check if user can manage permissions for this catalog
   $: if ($selectedCatalogStore && $selectedCatalogStore.id) {
     checkCanManagePermissions($selectedCatalogStore.id);
     fetchDbPermissionInfo($selectedCatalogStore.id);
   }
-  
+
   async function checkCanManagePermissions(catalogId) {
     try {
       const response = await httpCall(`/api/catalogs/${catalogId}/can-manage-permissions`, 'GET');
@@ -62,7 +62,7 @@
       canManagePermissions = false;
     }
   }
-  
+
   async function fetchDbPermissionInfo(catalogId) {
     try {
       const response = await httpCall(`/api/catalogs/${catalogId}/my-permission`, 'GET');
@@ -234,7 +234,7 @@
             console.log('Extracted filename from header:', filename);
           }
         }
-        
+
         // Also check for X-Suggested-Filename header as fallback
         if (filename === fallbackFilename) {
           const suggestedFilename = response.headers.get('X-Suggested-Filename') || response.headers.get('x-suggested-filename');
@@ -334,15 +334,15 @@
             <span class="s3-badge">S3</span>
           {/if}
         </div>
-        
+
         <!-- DEBUG INFO - HIDDEN FOR NOW -->
-        <!-- 
+        <!--
         <div style="background: #f0f0f0; padding: 10px; margin: 10px 0; border: 1px solid #ccc;">
           <h4>DEBUG - Catalog Permissions Info:</h4>
           <p><strong>User Role:</strong> {$userRole}</p>
           <p><strong>Can Manage Permissions:</strong> {canManagePermissions}</p>
           <p><strong>Selected Catalog ID:</strong> {$selectedCatalogStore?.id}</p>
-          
+
           <h5>Database Permission (catalog_users table):</h5>
           {#if dbPermissionInfo}
             {#if dbPermissionInfo.has_permission_row}
@@ -359,14 +359,14 @@
           {:else}
             <p><strong>Database Permission:</strong> Loading...</p>
           {/if}
-          
+
           <h5>Permission Check API Result:</h5>
           <p><strong>Permission Check Result:</strong> {JSON.stringify(permissionCheckResult, null, 2)}</p>
           <p><strong>Permission Check Error:</strong> {permissionCheckError}</p>
           <p><strong>API URL:</strong> {$selectedCatalogStore?.id ? `/api/catalogs/${$selectedCatalogStore.id}/can-manage-permissions` : 'No catalog ID'}</p>
         </div>
         -->
-        
+
         {#if canManagePermissions}
         <button class="lock-button" on:click={() => {console.log('Catalog ID:', $selectedCatalogStore.id);viewCatalogPermissions($selectedCatalogStore.id)}}>
           <span class="lock-lock">🔒</span> {$i18nStore.t('catalog_permissions')}</button>
@@ -536,7 +536,7 @@
 
   .catalog-detail h1 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
     font-size: 1.5rem;
     margin-bottom: 0;
   }
@@ -568,7 +568,7 @@
 
   .catalog-detail h3 {
     margin-top: 2rem;
-    color: #2d3748;
+    color: #032b36;
     font-size: 1.2rem;
     margin-bottom: 1rem;
     border-bottom: 1px solid #e2e8f0;
@@ -748,7 +748,7 @@
 
   .file-name {
     font-weight: 600;
-    color: #2d3748;
+    color: #032b36;
     margin-bottom: 4px;
     word-wrap: break-word;
   }

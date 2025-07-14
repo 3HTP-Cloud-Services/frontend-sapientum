@@ -275,7 +275,7 @@
 
   .modal h2 {
     margin-top: 0;
-    color: #2d3748;
+    color: #032b36;
     margin-bottom: 1.5rem;
   }
 

@@ -249,7 +249,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.9);
-    color: #2d3748;
+    color: #032b36;
     font-size: 1rem;
   }
 

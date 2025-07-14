@@ -250,7 +250,7 @@
     padding: 0.5rem;
     border: 1px solid #718096;
     border-radius: 4px;
-    background-color: #2d3748;
+    background-color: #032b36;
     color: white;
     font-size: 1rem;
     box-sizing: border-box;

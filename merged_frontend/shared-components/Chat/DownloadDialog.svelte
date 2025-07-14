@@ -4,9 +4,9 @@
 
   export let isVisible = false;
   export let catalogName = '';
-  
+
   const dispatch = createEventDispatcher();
-  
+
   let messageCount = 20;
   let isDownloading = false;
   let errorMessage = '';
@@ -23,10 +23,10 @@
       errorMessage = $i18nStore?.t('download_error_positive') || 'Please enter a positive number';
       return;
     }
-    
+
     errorMessage = '';
     isDownloading = true;
-    
+
     dispatch('download', {
       messageCount: messageCount
     });
@@ -61,22 +61,22 @@
         <h3>{$i18nStore?.t('download_conversation') || 'Download Conversation'}</h3>
         <button class="close-button" on:click={closeDialog}>&times;</button>
       </div>
-      
+
       <div class="modal-body">
         <p class="catalog-info">
-          {$i18nStore?.t('downloading_from') || 'Downloading conversation from'}: 
+          {$i18nStore?.t('downloading_from') || 'Downloading conversation from'}:
           <strong>{catalogName}</strong>
         </p>
-        
+
         <div class="input-group">
           <label for="messageCount">
             {$i18nStore?.t('number_of_messages') || 'Number of messages to include'}:
           </label>
-          <input 
+          <input
             id="messageCount"
-            type="number" 
-            bind:value={messageCount} 
-            min="1" 
+            type="number"
+            bind:value={messageCount}
+            min="1"
             max="1000"
             on:keydown={handleKeydown}
             disabled={isDownloading}
@@ -85,14 +85,14 @@
             {$i18nStore?.t('download_help_text') || 'Enter the number of recent messages to include in the PDF (default: 20)'}
           </small>
         </div>
-        
+
         {#if errorMessage}
           <div class="error-message">
             {errorMessage}
           </div>
         {/if}
       </div>
-      
+
       <div class="modal-footer">
         <button class="cancel-button" on:click={closeDialog} disabled={isDownloading}>
           {$i18nStore?.t('cancel') || 'Cancel'}
@@ -144,7 +144,7 @@
 
   .modal-header h3 {
     margin: 0;
-    color: #2d3748;
+    color: #032b36;
     font-size: 1.25rem;
   }
 
@@ -185,7 +185,7 @@
   .input-group label {
     display: block;
     margin-bottom: 0.5rem;
-    color: #2d3748;
+    color: #032b36;
     font-weight: 500;
   }
 
