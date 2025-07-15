@@ -1040,32 +1040,49 @@ def download_conversation_pdf(catalog_id, current_user=None, token_user_data=Non
 @app.route('/api/chat', methods=['POST'])
 @chat_access_required
 def chat(current_user=None, token_user_data=None, **kwargs):
+    print('[DEBUG] Chat endpoint called')
     print('CHAT:', current_user)
-    data = request.json
-    user_message = data.get('message', '')
-    catalog = data.get('catalogId', '')
+    
+    try:
+        data = request.json
+        user_message = data.get('message', '')
+        catalog = data.get('catalogId', '')
+        print(f'[DEBUG] Chat request - user_message: {user_message[:100]}..., catalog: {catalog}')
 
-    if not user_message:
-        return jsonify({"error": "El mensaje no puede estar vacío"}), 400
+        if not user_message:
+            print('[DEBUG] Empty message provided')
+            return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
-    user_id = current_user.id
-    jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        user_id = current_user.id
+        jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        print(f'[DEBUG] Processing chat for user_id: {user_id}')
 
-    # Extract client IP address
-    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR')
-    if client_ip:
-        client_ip = client_ip.split(',')[0].strip()
-    else:
-        client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
-    print('CHAT IP: ', client_ip)
+        # Extract client IP address
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR')
+        if client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        else:
+            client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
+        print('CHAT IP: ', client_ip)
 
-    ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
-    create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
-    print('CHAT: AI RESPONSE:', ai_response)
-    return jsonify({
-        "response": ai_response,
-        "timestamp": None
-    })
+        print(f'[DEBUG] About to call generate_ai_response')
+        ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
+        print(f'[DEBUG] generate_ai_response completed successfully, message_id: {message_id}')
+        
+        print(f'[DEBUG] About to create activity log')
+        create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
+        print(f'[DEBUG] Activity log created successfully')
+        
+        print(f'[DEBUG] Chat endpoint returning response with {len(ai_response)} characters')
+        return jsonify({
+            "response": ai_response,
+            "timestamp": None
+        })
+    except Exception as e:
+        print(f'[ERROR] Chat endpoint error: {e}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Error interno del servidor"}), 500
 
 @app.route('/api/users', methods=['GET'])
 @admin_required

@@ -432,10 +432,41 @@ def invoke_lambda_with_sigv4_v2(url, body=None):
 
     print(f"Status: {response.status_code}")
     return response.json() if response.status_code == 200 else response.text
+import boto3
+import json
+import traceback
+from botocore.config import Config
+from botocore.exceptions import ClientError, EndpointConnectionError, ReadTimeoutError, ConnectTimeoutError
 
-def call_backend_lambda(payload):
+def call_backend_lambda(payload, timeout_seconds=300):
+    """
+    Call backend Lambda with enhanced error handling and configurable timeout.
+
+    Args:
+        payload: The payload to send to the Lambda function
+        timeout_seconds: Maximum time to wait for response (default: 5 minutes)
+
+    Returns:
+        Parsed response or None if error
+    """
     try:
-        lambda_client = boto3.client('lambda')
+        # Configure boto3 client with extended timeouts (no retries)
+        config = Config(
+            region_name='us-east-1',
+            retries={
+                'max_attempts': 0  # No retries
+            },
+            read_timeout=timeout_seconds,  # How long to wait for response
+            connect_timeout=60,            # How long to wait for connection
+            max_pool_connections=50
+        )
+
+        lambda_client = boto3.client('lambda', config=config)
+
+        print(f"Invoking Lambda with payload size: {len(json.dumps(payload))} bytes")
+        print(f"Timeout configured for: {timeout_seconds} seconds")
+
+        start_time = time.time()
 
         response = lambda_client.invoke(
             FunctionName='sapientum-backend-agent-lambda',
@@ -443,39 +474,90 @@ def call_backend_lambda(payload):
             Payload=json.dumps(payload)
         )
 
+        invoke_time = time.time() - start_time
+        print(f"Lambda invocation completed in {invoke_time:.2f} seconds")
+
+        # Check for Lambda execution errors
+        if 'FunctionError' in response:
+            print(f"Lambda function error: {response['FunctionError']}")
+            error_payload = response['Payload'].read().decode('utf-8')
+            print(f"Error details: {error_payload}")
+            return None
+
         if response['StatusCode'] >= 400:
             print(f"Error invoking Lambda: HTTP {response['StatusCode']}")
             print(f"Response: {response.get('Payload', 'No payload')}")
             return None
 
+        # Read and parse the response
         payload_bytes = response['Payload'].read()
+        response_size = len(payload_bytes)
+        print(f"Received response of {response_size} bytes")
+
         try:
             parsed_response = json.loads(payload_bytes.decode('utf-8'))
-            print(f"call_backend_lambda parsed response: {parsed_response}")
-            
+            print(f"call_backend_lambda parsed response type: {type(parsed_response)}")
+
             # Handle case where Lambda returns a response with statusCode and body
             if isinstance(parsed_response, dict) and 'body' in parsed_response:
                 try:
                     # Try to parse the body as JSON
                     body_content = json.loads(parsed_response['body'])
-                    print(f"call_backend_lambda extracted body: {body_content}")
+                    print(f"call_backend_lambda extracted body type: {type(body_content)}")
                     return body_content
-                except (json.JSONDecodeError, TypeError):
+                except (json.JSONDecodeError, TypeError) as json_error:
                     # If body is not JSON, return the raw body
-                    print(f"call_backend_lambda raw body: {parsed_response['body']}")
+                    print(f"Body is not JSON, returning raw: {type(parsed_response['body'])}")
                     return parsed_response['body']
-            
+
             return parsed_response
-        except ValueError:
+
+        except ValueError as parse_error:
             decoded_response = payload_bytes.decode('utf-8')
-            print(f"call_backend_lambda raw response: {decoded_response}")
+            print(f"Failed to parse JSON response: {parse_error}")
+            print(f"call_backend_lambda raw response: {decoded_response[:500]}...")  # Truncate long responses
             return decoded_response
 
-    except Exception as e:
-        print(f"Error invoking Lambda: {e}")
-        traceback.print_exc()
-        return None
+    except (ConnectTimeoutError, EndpointConnectionError) as conn_error:
+        print(f"[ERROR] Connection error when invoking Lambda: {conn_error}")
+        print(f"[ERROR] Connection error type: {type(conn_error).__name__}")
+        print("[ERROR] This usually indicates network connectivity issues or Lambda cold start delays")
+        return {"error": "Connection failed", "message": "Unable to connect to backend service. Please try again later."}
 
+    except ReadTimeoutError as timeout_error:
+        print(f"[ERROR] Timeout error when invoking Lambda: {timeout_error}")
+        print(f"[ERROR] Lambda execution exceeded {timeout_seconds} seconds timeout")
+        print("[ERROR] Consider increasing timeout or optimizing the target Lambda function")
+        return {"error": "Timeout", "message": "Backend service is taking too long to respond. Please try again later."}
+
+    except ClientError as client_error:
+        error_code = client_error.response['Error']['Code']
+        error_message = client_error.response['Error']['Message']
+        print(f"[ERROR] AWS Client error ({error_code}): {error_message}")
+
+        if error_code == 'TooManyRequestsException':
+            print("[ERROR] Lambda is being throttled - too many concurrent executions")
+            return {"error": "Service busy", "message": "Backend service is currently busy. Please try again in a moment."}
+        elif error_code == 'ServiceException':
+            print("[ERROR] AWS Lambda service error - temporary issue")
+            return {"error": "Service error", "message": "Backend service is temporarily unavailable. Please try again later."}
+        elif error_code == 'ResourceNotFoundException':
+            print("[ERROR] Lambda function not found - check function name")
+            return {"error": "Service error", "message": "Backend service configuration error. Please contact support."}
+
+        return {"error": "Service error", "message": "Backend service encountered an error. Please try again later."}
+
+    except Exception as e:
+        print(f"[ERROR] Unexpected error invoking Lambda: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        return {"error": "Unexpected error", "message": "An unexpected error occurred. Please try again later."}
+
+# Usage examples:
+# Synchronous with default 5-minute timeout
+# result = call_backend_lambda(your_payload)
+
+# Synchronous with custom 10-minute timeout
+# result = call_backend_lambda(your_payload, timeout_seconds=600)
 
 def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lambda', body=None, headers=None):
     """

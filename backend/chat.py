@@ -73,46 +73,78 @@ def get_file_info(catalog_id, file_id, version_id):
         return None
 
 def get_conversation(user_id, catalog_id):
-    existing_conversation = Conversation.query.filter_by(
-        speaker_id=user_id,
-        catalog_id=catalog_id
-    ).first()
+    print(f'[DEBUG] get_conversation called with user_id: {user_id}, catalog_id: {catalog_id}')
+    try:
+        existing_conversation = Conversation.query.filter_by(
+            speaker_id=user_id,
+            catalog_id=catalog_id
+        ).first()
+        print(f'[DEBUG] Query for existing conversation completed')
 
-    if existing_conversation:
-        return existing_conversation.id
+        if existing_conversation:
+            print(f'[DEBUG] Found existing conversation with id: {existing_conversation.id}')
+            return existing_conversation.id
 
-    conversation = create_new_conversation(user_id, catalog_id)
-    return conversation.id
+        print(f'[DEBUG] No existing conversation found, creating new one')
+        conversation = create_new_conversation(user_id, catalog_id)
+        print(f'[DEBUG] Created new conversation with id: {conversation.id}')
+        return conversation.id
+    except Exception as e:
+        print(f'[ERROR] Error in get_conversation: {e}')
+        raise e
 
 def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, client_ip=None):
     print('\ngenerate_ai_response:', user_query, catalog_id, user_id, jwt, 'client_ip:', client_ip)
-    conversation_id = get_conversation(user_id, catalog_id)
+    print(f'[DEBUG] Starting generate_ai_response - user_id: {user_id}, catalog_id: {catalog_id}')
+    
+    try:
+        conversation_id = get_conversation(user_id, catalog_id)
+        print(f'[DEBUG] Got conversation_id: {conversation_id}')
+    except Exception as e:
+        print(f'[ERROR] Failed to get conversation: {e}')
+        raise e
 
     # Prepare origin info with client IP
     origin_info = f"ip:{client_ip or 'unknown'}"
 
     # Save the user's message to the database
-    message_in = Message(
-        conversation_id = conversation_id,
-        is_request = True,
-        prompt = '',
-        message = user_query,
-        created_at = datetime.now(),
-        origin = origin_info
-    )
-    db.session.add(message_in)
-    db.session.commit()
+    try:
+        print(f'[DEBUG] Creating user message - conversation_id: {conversation_id}, origin: {origin_info}')
+        message_in = Message(
+            conversation_id = conversation_id,
+            is_request = True,
+            prompt = '',
+            message = user_query,
+            created_at = datetime.now(),
+            origin = origin_info
+        )
+        db.session.add(message_in)
+        print(f'[DEBUG] Added user message to session, attempting commit')
+        db.session.commit()
+        print(f'[DEBUG] Successfully committed user message with id: {message_in.id}')
+    except Exception as e:
+        print(f'[ERROR] Failed to save user message: {e}')
+        db.session.rollback()
+        raise e
 
     # Create a placeholder for the AI response with same origin info initially
-    message_out = Message(
-        conversation_id = conversation_id,
-        is_request = False,
-        prompt = 'system prompt',
-        created_at = datetime.now(),
-        origin = origin_info
-    )
-    db.session.add(message_out)
-    db.session.commit()
+    try:
+        print(f'[DEBUG] Creating AI response placeholder - conversation_id: {conversation_id}')
+        message_out = Message(
+            conversation_id = conversation_id,
+            is_request = False,
+            prompt = 'system prompt',
+            created_at = datetime.now(),
+            origin = origin_info
+        )
+        db.session.add(message_out)
+        print(f'[DEBUG] Added AI response placeholder to session, attempting commit')
+        db.session.commit()
+        print(f'[DEBUG] Successfully committed AI response placeholder with id: {message_out.id}')
+    except Exception as e:
+        print(f'[ERROR] Failed to create AI response placeholder: {e}')
+        db.session.rollback()
+        raise e
 
     try:
         # Prepare the request payload for the Lambda function
@@ -132,8 +164,13 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
         lambda_url = get_lambda_url()
 
         # Call the Lambda function using SigV4 authentication
-        print(f"Calling Lambda function at {lambda_url} with payload: {payload}")
-        lambda_response = call_backend_lambda(payload)
+        print(f"[DEBUG] Calling Lambda function at {lambda_url} with payload: {payload}")
+        try:
+            lambda_response = call_backend_lambda(payload)
+            print(f"[DEBUG] Lambda call completed successfully")
+        except Exception as lambda_error:
+            print(f"[ERROR] Lambda call failed: {lambda_error}")
+            raise lambda_error
 
         print(f"Lambda response: {lambda_response}")
         print(f"Lambda response type: {type(lambda_response)}")
@@ -156,7 +193,6 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
                 trace_data = json.dumps(lambda_response['trace_events'])
             # Extract assistant_response.text from the Lambda response
             if 'assistant_response' in lambda_response and 'text' in lambda_response['assistant_response']:
-                print("getting a response from lambda: ", lambda_response['assistant_response']['text'])
                 ai_response = lambda_response['assistant_response']['text']
 
                 # Extract agent_session_id from the Lambda response and update the conversation
@@ -169,29 +205,36 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
                         db.session.commit()
             elif 'response' in lambda_response:
                 # Fallback to old response format if assistant_response.text is not available
-                print("falling back to old response format: ", lambda_response['response'])
                 ai_response = lambda_response['response']
             else:
                 # Fallback to document search if Lambda response doesn't have expected fields
-                print("lambda response doesn't have expected fields, falling back to document search")
+                print("[DEBUG] Lambda response doesn't have expected fields, falling back to document search")
                 ai_response = search_documents(user_query)
         else:
             # Fallback to document search if Lambda call fails
-            print("no response from lambda, falling back to document search")
+            print("[DEBUG] No response from lambda, falling back to document search")
             ai_response = search_documents(user_query)
 
-        print("final response: ", ai_response)
+        print(f"[DEBUG] Final AI response length: {len(ai_response)} characters")
 
         # Parse file references and replace with download links
         processed_response = parse_file_references(ai_response)
 
         # Update the AI message with response content, Lambda instance info, and trace data
-        updated_origin = f"ip:{client_ip or 'unknown'},lambda:{lambda_instance_id}"
-        message_out.message = processed_response
-        message_out.origin = updated_origin
-        if trace_data:
-            message_out.trace = trace_data
-        db.session.commit()
+        try:
+            updated_origin = f"ip:{client_ip or 'unknown'},lambda:{lambda_instance_id}"
+            print(f"[DEBUG] Updating AI message with response, origin: {updated_origin}")
+            message_out.message = processed_response
+            message_out.origin = updated_origin
+            if trace_data:
+                message_out.trace = trace_data
+            print(f"[DEBUG] Attempting to commit updated AI message")
+            db.session.commit()
+            print(f"[DEBUG] Successfully committed updated AI message")
+        except Exception as e:
+            print(f"[ERROR] Failed to update AI message: {e}")
+            db.session.rollback()
+            raise e
 
         return processed_response, message_in.id
 
@@ -207,10 +250,18 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
         processed_fallback = parse_file_references(fallback_response)
 
         # Update the message in the database with fallback origin info
-        fallback_origin = f"ip:{client_ip or 'unknown'},lambda:fallback"
-        message_out.message = processed_fallback
-        message_out.origin = fallback_origin
-        db.session.commit()
+        try:
+            fallback_origin = f"ip:{client_ip or 'unknown'},lambda:fallback"
+            print(f"[DEBUG] Updating AI message with fallback response, origin: {fallback_origin}")
+            message_out.message = processed_fallback
+            message_out.origin = fallback_origin
+            print(f"[DEBUG] Attempting to commit fallback AI message")
+            db.session.commit()
+            print(f"[DEBUG] Successfully committed fallback AI message")
+        except Exception as e:
+            print(f"[ERROR] Failed to update AI message with fallback: {e}")
+            db.session.rollback()
+            raise e
 
         return processed_fallback
 
@@ -228,14 +279,22 @@ def search_documents(query):
     return "No estoy seguro de entender tu pregunta. ¿Podrías reformularla o proporcionar más detalles?"
 
 def create_new_conversation(user_id, catalog_id):
-    curr_date = datetime.now().strftime("%Y-%m-%d") # by default, let's use the date as the convo
-    conversation = Conversation(
-        catalog_id=catalog_id,
-        speaker_id=user_id,
-        title=curr_date,
-        session_id=''
-    )
-    db.session.add(conversation)
-    db.session.commit()
-    print(f"Created new conversation with ID {conversation.id} {conversation.title}")
-    return conversation
+    print(f'[DEBUG] create_new_conversation called with user_id: {user_id}, catalog_id: {catalog_id}')
+    try:
+        curr_date = datetime.now().strftime("%Y-%m-%d") # by default, let's use the date as the convo
+        print(f'[DEBUG] Creating conversation with title: {curr_date}')
+        conversation = Conversation(
+            catalog_id=catalog_id,
+            speaker_id=user_id,
+            title=curr_date,
+            session_id=''
+        )
+        db.session.add(conversation)
+        print(f'[DEBUG] Added conversation to session, attempting commit')
+        db.session.commit()
+        print(f"[DEBUG] Successfully created new conversation with ID {conversation.id} {conversation.title}")
+        return conversation
+    except Exception as e:
+        print(f'[ERROR] Failed to create new conversation: {e}')
+        db.session.rollback()
+        raise e
