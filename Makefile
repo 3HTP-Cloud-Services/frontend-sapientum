@@ -37,15 +37,19 @@ static:
 	@rm -rf backend/static
 	@rm -rf merged_frontend/frontend/dist
 	@rm -rf merged_frontend/embed-frontend/dist
+	@echo "Backing up original backend.json files..."
+	@cp merged_frontend/frontend/src/backend.json merged_frontend/frontend/src/backend.json.bak 2>/dev/null || true
+	@echo "Updating backend.json with production API URL..."
+	@echo '{"apiUrl": "https://kf75zv6hbtup4a7cpjx2daat2q0lwgnt.lambda-url.us-east-1.on.aws/api"}' > merged_frontend/frontend/src/backend.json
 	@echo "Building merged frontend as static sites..."
 	cd merged_frontend && npm run build:both
+	@echo "Restoring original backend.json files..."
+	@cp merged_frontend/frontend/src/backend.json.bak merged_frontend/frontend/src/backend.json 2>/dev/null || true
+	@rm -f merged_frontend/frontend/src/backend.json.bak 2>/dev/null || true
 	@mkdir -p backend/static
 	@cp -r merged_frontend/frontend/dist/* backend/static/
 	@mkdir -p backend/static/embed
 	@cp -r merged_frontend/embed-frontend/dist/* backend/static/embed/
-	@echo "Overwriting backend.json with production API URL..."
-	@echo '{"apiUrl": "https://kf75zv6hbtup4a7cpjx2daat2q0lwgnt.lambda-url.us-east-1.on.aws/api"}' > backend/static/assets/backend.json 2>/dev/null || true
-	@echo '{"apiUrl": "https://kf75zv6hbtup4a7cpjx2daat2q0lwgnt.lambda-url.us-east-1.on.aws/api"}' > backend/static/embed/assets/backend.json 2>/dev/null || true
 	@echo "Static sites built and copied to backend/static/" 
 
 # Serve the static site with Flask

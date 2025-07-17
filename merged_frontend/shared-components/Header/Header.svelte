@@ -7,6 +7,7 @@
   export let title = 'Sapientum AI';
   
   let logoUrl = null;
+  let showLanguageDropdown = false;
 
   async function loadCompanyLogo() {
     logoUrl = await loadLogo();
@@ -14,11 +15,49 @@
 
   onMount(() => {
     loadCompanyLogo();
+    
+    function handleClickOutside(event) {
+      if (showLanguageDropdown && !event.target.closest('.language-dropdown')) {
+        showLanguageDropdown = false;
+      }
+    }
+    
+    document.addEventListener('click', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
   });
 
   // Public function to refresh logo (called from parent when logo is uploaded)
   export function refreshLogo() {
     loadCompanyLogo();
+  }
+
+  function toggleLanguageDropdown() {
+    showLanguageDropdown = !showLanguageDropdown;
+  }
+
+  function selectLanguage(locale) {
+    setLocale(locale);
+    showLanguageDropdown = false;
+  }
+
+  $: languageLabel = (() => {
+    switch ($currentLocale) {
+      case 'es': return 'Idiomas';
+      case 'pt': return 'Idiomas';
+      default: return 'Languages';
+    }
+  })();
+
+  function getLanguageName(locale) {
+    switch (locale) {
+      case 'en': return 'English';
+      case 'es': return 'Español';
+      case 'pt': return 'Português';
+      default: return locale;
+    }
   }
 </script>
 
@@ -35,18 +74,28 @@
 
     <div class="header-actions">
       <div class="language-selector">
-        <button class={`locale-button ${$currentLocale === 'en' ? 'selected' : ''}`}
-                on:click={() => setLocale('en')}>
-          English
-        </button>
-        <button class={`locale-button ${$currentLocale === 'es' ? 'selected' : ''}`}
-                on:click={() => setLocale('es')}>
-          Español
-        </button>
-        <button class={`locale-button ${$currentLocale === 'pt' ? 'selected' : ''}`}
-                on:click={() => setLocale('pt')}>
-          Português
-        </button>
+        <div class="language-dropdown">
+          <button class="language-button" on:click={toggleLanguageDropdown}>
+            {languageLabel}
+            <span class="dropdown-arrow" class:rotated={showLanguageDropdown}>▼</span>
+          </button>
+          {#if showLanguageDropdown}
+            <div class="language-menu">
+              <button class={`language-option ${$currentLocale === 'en' ? 'selected' : ''}`}
+                      on:click={() => selectLanguage('en')}>
+                English
+              </button>
+              <button class={`language-option ${$currentLocale === 'es' ? 'selected' : ''}`}
+                      on:click={() => selectLanguage('es')}>
+                Español
+              </button>
+              <button class={`language-option ${$currentLocale === 'pt' ? 'selected' : ''}`}
+                      on:click={() => selectLanguage('pt')}>
+                Português
+              </button>
+            </div>
+          {/if}
+        </div>
       </div>
       <div class="logout-container">
         <button class="logout-button" on:click={handleLogout}>
@@ -114,10 +163,75 @@
   }
 
   .language-selector {
-    display: flex;
-    gap: 0.5rem;
+    position: relative;
   }
 
+  .language-dropdown {
+    position: relative;
+  }
+
+  .language-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: white;
+    background-color: #718096;
+    padding: 0.5rem 0.75rem;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 100px;
+    justify-content: space-between;
+  }
+
+  .language-button:hover {
+    background-color: #4a72b3;
+    border: 2px solid white;
+  }
+
+  .dropdown-arrow {
+    transition: transform 0.2s ease;
+    font-size: 0.8rem;
+  }
+
+  .dropdown-arrow.rotated {
+    transform: rotate(180deg);
+  }
+
+  .language-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: #718096;
+    border: 2px solid #4a5568;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    margin-top: 2px;
+  }
+
+  .language-option {
+    display: block;
+    width: 100%;
+    color: white;
+    background-color: transparent;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    text-align: left;
+  }
+
+  .language-option:hover {
+    background-color: #4a72b3;
+  }
+
+  .language-option.selected {
+    background-color: #4a72b3;
+    font-weight: bold;
+  }
 
   .logout-button {
     background-color: #e53e3e;
@@ -129,23 +243,8 @@
     font-weight: bold;
   }
 
-  .locale-button {
-    margin: 0 4px;
-    color: white;
-    background-color: #718096;
-    padding: 0.5rem 0.75rem;
-    border: 2px solid transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
   .logout-container {
     min-width: 150px;
-  }
-  .locale-button.selected {
-    background-color: #4a72b3;
-    border: 2px solid white;
   }
 
   .logout-button:hover {

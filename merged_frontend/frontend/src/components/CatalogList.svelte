@@ -169,7 +169,7 @@
 <div class="section-header">
   <h2>{$i18nStore.t('sidebar_catalogs')}</h2>
   <button class="add-catalog-button" on:click={addNewCatalog}>
-    {$i18nStore.t('add_user_button').replace('User', 'Catalog')}
+    {$i18nStore.t('add_catalog_button')}
   </button>
 </div>
 <div class="catalogs-section">
