@@ -575,38 +575,60 @@ def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lam
         dict: The response from the Lambda function or API
     """
     try:
-        # Create a session and get credentials
+        print(f"\n[AWS_UTILS] invoke_lambda_with_sigv4 called")
+        print(f"[AWS_UTILS] URL: {url}")
+        print(f"[AWS_UTILS] Method: {method}")
+        print(f"[AWS_UTILS] Region: {region}")
+        print(f"[AWS_UTILS] Service: {service}")
+        print(f"[AWS_UTILS] Body present: {body is not None}")
+        if body:
+            print(f"[AWS_UTILS] Body keys: {list(body.keys()) if isinstance(body, dict) else 'not a dict'}")
+
+        print(f"\n[AWS_UTILS] Getting AWS credentials...")
         session = boto3.Session()
         credentials = session.get_credentials()
 
-        # If we're using assumed role credentials, use those instead
         global _credentials, _using_instance_profile
         if not _using_instance_profile and _credentials:
+            print(f"[AWS_UTILS] Using assumed role credentials")
             from botocore.credentials import Credentials
             credentials = Credentials(
                 access_key=_credentials['AccessKeyId'],
                 secret_key=_credentials['SecretAccessKey'],
                 token=_credentials['SessionToken']
             )
+        else:
+            print(f"[AWS_UTILS] Using instance profile/Lambda execution role credentials")
 
-        # Prepare headers
-        request_headers = {'Host': url.split('/')[2]}
+        print(f"[AWS_UTILS] ✓ Credentials obtained")
+
+        print(f"\n[AWS_UTILS] Preparing request headers...")
+        request_headers = {
+            'Host': url.split('/')[2],
+            'Content-Type': 'application/json'
+        }
         if headers:
             request_headers.update(headers)
+        print(f"[AWS_UTILS] Headers: {request_headers}")
 
-        # Create the request
+        print(f"\n[AWS_UTILS] Creating AWS request...")
         request_body = json.dumps(body) if body else ''
+        if body:
+            print(f"[AWS_UTILS] Request body length: {len(request_body)} characters")
+
         aws_request = AWSRequest(
             method=method,
             url=url,
             data=request_body if body else None,
             headers=request_headers
         )
+        print(f"[AWS_UTILS] ✓ AWS request created")
 
-        # Sign the request
+        print(f"\n[AWS_UTILS] Signing request with SigV4...")
         SigV4Auth(credentials, service, region).add_auth(aws_request)
+        print(f"[AWS_UTILS] ✓ Request signed")
+        print(f"[AWS_UTILS] Signed headers: {list(aws_request.headers.keys())}")
 
-        # Convert AWSRequest to requests library format
         request_kwargs = {
             'method': method,
             'url': url,
@@ -616,22 +638,34 @@ def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lam
         if body:
             request_kwargs['json'] = body
 
-        # Send the request
+        print(f"\n[AWS_UTILS] Sending HTTP request to Lambda URL...")
         response = requests.request(**request_kwargs)
+        print(f"[AWS_UTILS] ✓ HTTP request completed")
+        print(f"[AWS_UTILS] Response status code: {response.status_code}")
+        print(f"[AWS_UTILS] Response headers: {dict(response.headers)}")
 
-        # Check if the request was successful
         if response.status_code >= 400:
-            print(f"Error invoking Lambda: HTTP {response.status_code}")
-            print(f"Response: {response.text}")
+            print(f"[AWS_UTILS] ✗ ERROR: HTTP {response.status_code}")
+            print(f"[AWS_UTILS] Response body: {response.text[:1000]}")
             return None
 
-        # Parse and return the response
+        print(f"[AWS_UTILS] ✓ Request successful (HTTP {response.status_code})")
+
+        print(f"\n[AWS_UTILS] Parsing response...")
         try:
-            return response.json()
-        except ValueError:
+            parsed_response = response.json()
+            print(f"[AWS_UTILS] ✓ Response parsed as JSON")
+            if isinstance(parsed_response, dict):
+                print(f"[AWS_UTILS] Response keys: {list(parsed_response.keys())}")
+            return parsed_response
+        except ValueError as json_error:
+            print(f"[AWS_UTILS] ✗ Failed to parse response as JSON: {json_error}")
+            print(f"[AWS_UTILS] Returning raw text response")
             return response.text
 
     except Exception as e:
-        print(f"Error invoking Lambda with SigV4: {e}")
+        print(f"[AWS_UTILS] ✗ EXCEPTION in invoke_lambda_with_sigv4")
+        print(f"[AWS_UTILS] Error type: {type(e).__name__}")
+        print(f"[AWS_UTILS] Error message: {str(e)}")
         traceback.print_exc()
         return None

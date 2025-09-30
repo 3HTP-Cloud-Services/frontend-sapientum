@@ -147,95 +147,187 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
         raise e
 
     try:
-        # Prepare the request payload for the Lambda function
+        print(f"[STEP 1] Retrieving conversation from database...")
+        print(f"[STEP 1] conversation_id: {conversation_id}")
+
+        conversation = Conversation.query.get(conversation_id)
+
+        if conversation:
+            print(f"[STEP 1] ✓ Conversation found - ID: {conversation.id}, Title: {conversation.title}")
+            print(f"[STEP 1] Conversation session_id: {conversation.session_id}")
+            existing_session_id = conversation.session_id if conversation.session_id else None
+        else:
+            print(f"[STEP 1] ✗ WARNING: Conversation not found for ID: {conversation_id}")
+            existing_session_id = None
+
+        print(f"\n[STEP 2] Building payload for new Lambda URL service...")
+
+        agent_id = get_agent_id()
+        agent_alias_id = get_agent_alias_id()
+
+        print(f"[STEP 2] agent_id: {agent_id}")
+        print(f"[STEP 2] agent_alias_id: {agent_alias_id}")
+        print(f"[STEP 2] message length: {len(user_query)} characters")
+        print(f"[STEP 2] enable_trace: True")
+
         payload = {
+            'agent_id': agent_id,
+            'agent_alias_id': agent_alias_id,
             'message': user_query,
-            'conversation_id': conversation_id,
-            'catalog_id': catalog_id,
-            'user_id': user_id,
-            'agent_id': get_agent_id(),
-            'agent_alias_id': get_agent_alias_id(),
-            'enable_trace': True,
-            'jwt_token': jwt
+            'enable_trace': True
         }
-        print('\ngenerate_ai_response: payload:', payload)
 
-        # Get the Lambda function URL from config
+        if existing_session_id:
+            payload['agent_session_id'] = existing_session_id
+            print(f"[STEP 2] ✓ Adding agent_session_id to payload: {existing_session_id}")
+            print(f"[STEP 2] This is a CONTINUING conversation")
+        else:
+            print(f"[STEP 2] ✓ No existing session_id - this is a NEW conversation")
+            print(f"[STEP 2] Lambda will generate a new agent_session_id")
+
+        print(f"\n[STEP 2] Complete payload:")
+        print(f"{payload}")
+
+        print(f"\n[STEP 3] Preparing to call Lambda URL endpoint...")
         lambda_url = get_lambda_url()
+        print(f"[STEP 3] Lambda URL: {lambda_url}")
+        print(f"[STEP 3] HTTP Method: POST")
+        print(f"[STEP 3] Service: lambda")
+        print(f"[STEP 3] Headers: Content-Type: application/json")
 
-        # Call the Lambda function using SigV4 authentication
-        print(f"[DEBUG] Calling Lambda function at {lambda_url} with payload: {payload}")
+        print(f"\n[STEP 4] Invoking Lambda URL with SigV4 authentication...")
+        import time
+        start_time = time.time()
+
         try:
-            lambda_response = call_backend_lambda(payload)
-            print(f"[DEBUG] Lambda call completed successfully")
+            lambda_response = invoke_lambda_with_sigv4(
+                url=lambda_url,
+                method='POST',
+                service='lambda',
+                body=payload,
+                headers={'Content-Type': 'application/json'}
+            )
+            elapsed_time = time.time() - start_time
+            print(f"[STEP 4] ✓ Lambda URL call completed successfully in {elapsed_time:.2f} seconds")
+
         except Exception as lambda_error:
-            print(f"[ERROR] Lambda call failed: {lambda_error}")
+            elapsed_time = time.time() - start_time
+            print(f"[STEP 4] ✗ Lambda URL call FAILED after {elapsed_time:.2f} seconds")
+            print(f"[STEP 4] Error type: {type(lambda_error).__name__}")
+            print(f"[STEP 4] Error message: {str(lambda_error)}")
+            import traceback
+            print(f"[STEP 4] Traceback:")
+            traceback.print_exc()
             raise lambda_error
 
-        print(f"Lambda response: {lambda_response}")
-        print(f"Lambda response type: {type(lambda_response)}")
-        if lambda_response and isinstance(lambda_response, dict):
-            print(f"Lambda response keys: {list(lambda_response.keys())}")
+        print(f"\n[STEP 5] Processing Lambda response...")
+        print(f"[STEP 5] Response type: {type(lambda_response)}")
+
+        if lambda_response is None:
+            print(f"[STEP 5] ✗ WARNING: Lambda response is None")
+        elif isinstance(lambda_response, dict):
+            print(f"[STEP 5] ✓ Response is a dictionary")
+            print(f"[STEP 5] Response keys: {list(lambda_response.keys())}")
+            print(f"[STEP 5] Response content (first 500 chars): {str(lambda_response)[:500]}")
+        else:
+            print(f"[STEP 5] Response content: {lambda_response}")
         lambda_instance_id = "unknown"
         trace_data = None
 
-        # Process the Lambda response
+        print(f"\n[STEP 6] Extracting data from Lambda response...")
+
         if lambda_response and isinstance(lambda_response, dict):
-            # Extract Lambda instance ID if available
             if 'lambda_instance_id' in lambda_response:
                 lambda_instance_id = lambda_response['lambda_instance_id']
+                print(f"[STEP 6] ✓ Found lambda_instance_id: {lambda_instance_id}")
             elif 'requestId' in lambda_response:
                 lambda_instance_id = lambda_response['requestId']
+                print(f"[STEP 6] ✓ Found requestId: {lambda_instance_id}")
+            else:
+                print(f"[STEP 6] No lambda_instance_id or requestId in response")
 
-            # Extract trace events if present and tracing is enabled
             if 'trace_events' in lambda_response and payload.get('enable_trace', False):
                 import json
                 trace_data = json.dumps(lambda_response['trace_events'])
-            # Extract assistant_response.text from the Lambda response
+                print(f"[STEP 6] ✓ Found trace_events, length: {len(trace_data)} characters")
+            else:
+                print(f"[STEP 6] No trace_events in response")
+
             if 'assistant_response' in lambda_response and 'text' in lambda_response['assistant_response']:
                 ai_response = lambda_response['assistant_response']['text']
+                print(f"[STEP 6] ✓ Found assistant_response.text, length: {len(ai_response)} characters")
+                print(f"[STEP 6] Response preview: {ai_response[:200]}...")
 
-                # Extract agent_session_id from the Lambda response and update the conversation
                 if 'agent_session_id' in lambda_response:
                     agent_session_id = lambda_response['agent_session_id']
-                    print(f"Updating conversation with agent_session_id: {agent_session_id}")
+                    print(f"[STEP 6] ✓ Found agent_session_id: {agent_session_id}")
+                    print(f"[STEP 6] Updating conversation {conversation_id} with new session_id...")
+
                     conversation = Conversation.query.get(conversation_id)
                     if conversation:
                         conversation.session_id = agent_session_id
                         db.session.commit()
+                        print(f"[STEP 6] ✓ Conversation session_id updated successfully")
+                    else:
+                        print(f"[STEP 6] ✗ WARNING: Could not find conversation to update")
+                else:
+                    print(f"[STEP 6] No agent_session_id in response (may already be set)")
+
             elif 'response' in lambda_response:
-                # Fallback to old response format if assistant_response.text is not available
                 ai_response = lambda_response['response']
+                print(f"[STEP 6] ✓ Found 'response' field (fallback format), length: {len(ai_response)} characters")
+                print(f"[STEP 6] Response preview: {ai_response[:200]}...")
             else:
-                # Fallback to document search if Lambda response doesn't have expected fields
-                print("[DEBUG] Lambda response doesn't have expected fields, falling back to document search")
+                print(f"[STEP 6] ✗ No 'assistant_response.text' or 'response' field found")
+                print(f"[STEP 6] Available fields: {list(lambda_response.keys())}")
+                print(f"[STEP 6] Falling back to local document search...")
                 ai_response = search_documents(user_query)
         else:
-            # Fallback to document search if Lambda call fails
-            print("[DEBUG] No response from lambda, falling back to document search")
+            print(f"[STEP 6] ✗ Invalid or empty response from Lambda")
+            print(f"[STEP 6] Falling back to local document search...")
             ai_response = search_documents(user_query)
 
-        print(f"[DEBUG] Final AI response length: {len(ai_response)} characters")
+        print(f"\n[STEP 7] Final AI response prepared")
+        print(f"[STEP 7] Response length: {len(ai_response)} characters")
+        print(f"[STEP 7] Has trace data: {trace_data is not None}")
+        print(f"[STEP 7] Lambda instance ID: {lambda_instance_id}")
 
-        # Parse file references and replace with download links
+        print(f"\n[STEP 8] Parsing file references in response...")
         processed_response = parse_file_references(ai_response)
+        if processed_response != ai_response:
+            print(f"[STEP 8] ✓ File references were parsed and replaced with download links")
+        else:
+            print(f"[STEP 8] No file references found in response")
 
-        # Update the AI message with response content, Lambda instance info, and trace data
+        print(f"\n[STEP 9] Updating AI message in database...")
         try:
             updated_origin = f"ip:{client_ip or 'unknown'},lambda:{lambda_instance_id}"
-            print(f"[DEBUG] Updating AI message with response, origin: {updated_origin}")
+            print(f"[STEP 9] Setting message origin: {updated_origin}")
+            print(f"[STEP 9] Message ID to update: {message_out.id}")
+
             message_out.message = processed_response
             message_out.origin = updated_origin
+
             if trace_data:
                 message_out.trace = trace_data
-            print(f"[DEBUG] Attempting to commit updated AI message")
+                print(f"[STEP 9] ✓ Trace data attached to message")
+            else:
+                print(f"[STEP 9] No trace data to attach")
+
+            print(f"[STEP 9] Committing to database...")
             db.session.commit()
-            print(f"[DEBUG] Successfully committed updated AI message")
+            print(f"[STEP 9] ✓ AI message successfully saved to database")
+
         except Exception as e:
-            print(f"[ERROR] Failed to update AI message: {e}")
+            print(f"[STEP 9] ✗ FAILED to update AI message in database")
+            print(f"[STEP 9] Error type: {type(e).__name__}")
+            print(f"[STEP 9] Error message: {str(e)}")
             db.session.rollback()
+            print(f"[STEP 9] Database transaction rolled back")
             raise e
 
+        print(f"\n[STEP 10] ✓ Chat processing completed successfully")
+        print(f"[STEP 10] Returning response (length: {len(processed_response)}) and message_id: {message_in.id}")
         return processed_response, message_in.id
 
     except Exception as e:
