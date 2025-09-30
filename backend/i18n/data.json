@@ -1,6 +1,7 @@
 {
     "es": {
         "title": "Consola de Administración Sapientum AI",
+        "title_simple": "Administración de Archivos Sapientum",
         "logout": "Cerrar Sesión",
         "i18n_warning": "No se pudo conseguir la traducción necesaria",
         "login_title": "Iniciar Sesión",
@@ -184,6 +185,7 @@
     },
     "en": {
         "title": "Sapientum AI Administration Console",
+        "title_simple": "Administration of Files Sapientum",
         "logout": "Log Out",
         "i18n_warning": "Could not get the necessary translation",
         "login_title": "Log In",
@@ -367,6 +369,7 @@
     },
     "pt": {
         "title": "Console de Administração Sapientum AI",
+        "title_simple": "Administração de Arquivos Sapientum",
         "logout": "Sair",
         "i18n_warning": "Não foi possível obter a tradução necessária",
         "login_title": "Entrar",

@@ -5,7 +5,7 @@ from flask_migrate import Migrate
 import os
 import json
 from io import BytesIO
-from models import db, User, Domain, Catalog, File, Version, ActivityLog, EventType
+from models import db, User, Domain, Catalog, File, Version, ActivityLog, EventType, Parameter
 import db as db_utils
 import traceback
 from datetime import datetime
@@ -27,6 +27,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 static_folder = os.path.join(current_dir, 'static')
 
 app = Flask(__name__, static_folder=static_folder)
+
+app_parameters = {}
 
 def sanitize_filename_for_header(filename):
     """
@@ -1043,6 +1045,12 @@ def chat(current_user=None, token_user_data=None, **kwargs):
     print('[DEBUG] Chat endpoint called')
     print('CHAT:', current_user)
     
+    # Check if simple mode is enabled
+    global app_parameters
+    simple_mode = app_parameters.get('simple_mode', 'false')
+    if simple_mode.lower() == 'true':
+        return jsonify({"error": "Chat is disabled in simple mode"}), 403
+    
     try:
         data = request.json
         user_message = data.get('message', '')
@@ -1143,6 +1151,13 @@ def get_activity_logs(current_user=None, token_user_data=None, **kwargs):
     """Get activity logs with pagination"""
     return get_activity_logs_with_pagination()
 
+@app.route('/api/simple-mode', methods=['GET'])
+def get_simple_mode():
+    """Get simple mode parameter"""
+    global app_parameters
+    simple_mode = app_parameters.get('simple_mode', 'false')
+    return jsonify({"simple_mode": simple_mode.lower() == 'true'})
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static_files(path):
@@ -1173,10 +1188,23 @@ def serve_static_files(path):
         print(f"Error serving file: {str(e)}")
         return f"Error: {str(e)}", 500
 
+def load_parameters():
+    """Load parameters from database into memory"""
+    global app_parameters
+    try:
+        with app.app_context():
+            parameters = Parameter.query.all()
+            app_parameters = {param.name: param.value for param in parameters}
+            print(f"Loaded {len(app_parameters)} parameters into memory")
+    except Exception as e:
+        print(f"Error loading parameters: {e}")
+        app_parameters = {}
+
 with app.app_context():
     try:
         if db_utils.test_connection(app):
             print("Database connection test successful")
+            load_parameters()
         else:
             print("Database connection test failed")
     except Exception as e:

@@ -247,3 +247,19 @@ class ActivityLog(db.Model):
             'version_id': self.version_id,
             'message_id': self.message_id
         }
+
+class Parameter(db.Model):
+    __tablename__ = 'parameters'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    value = db.Column(db.Text)
+    visible = db.Column(db.Boolean, default=False)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'value': self.value,
+            'visible': self.visible
+        }

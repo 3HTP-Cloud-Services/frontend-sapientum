@@ -40,6 +40,9 @@
   // Flag to track if user has explicitly selected a section
   let userSelectedSection = false;
 
+  // Simple mode parameter
+  let simpleMode = true;
+
   // For checking catalog-specific permissions
   let canManageCatalogPermissions = false;
   let checkingCatalogPermissions = false;
@@ -185,6 +188,15 @@
         fetchCatalogs();
     }
 
+    // Load simple mode setting
+    try {
+      const response = await httpCall('/api/simple-mode', 'GET');
+      const data = await response.json();
+      simpleMode = data.simple_mode;
+    } catch (error) {
+      console.error('Error loading simple mode:', error);
+    }
+
     checkMobile();
 
     // Add event listener for catalog permissions
@@ -206,7 +218,7 @@
 <div class="console hide-in-embed">
   <!-- Hide header and sidebar in embedded mode -->
     <Header
-      title={$i18nStore.t('title')}
+      title={simpleMode ? $i18nStore.t('title_simple') : $i18nStore.t('title')}
       handleLogout={handleLogout}
       bind:this={headerComponent}
     />
@@ -239,15 +251,17 @@
             </button>
           </li>
           {/if}
+          {#if !simpleMode}
           <li class={activeSection === 'chat' ? 'active' : ''}>
             <button on:click={() => switchSection('chat')}>
               <span class="icon">💬</span>
               <span class="text">{$i18nStore.t('sidebar_chat')}</span>
             </button>
           </li>
+          {/if}
         </ul>
         <div class="sidebar-logo" class:collapsed={sidebarCollapsed}>
-          <img src="/sapientum_big.webp" alt="Sapientum" />
+          <img src={simpleMode ? "/sapientum_big_simple.webp" : "/sapientum_big.webp"} alt="Sapientum" />
           <!-- Alternative logo for future use: /sapientum.png -->
         </div>
       </nav>
