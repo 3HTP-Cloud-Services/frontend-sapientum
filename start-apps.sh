@@ -15,7 +15,7 @@ sleep 2
 
 # Update vite.config.js in frontend apps to use the correct path
 echo "Starting main frontend on port 5173..."
-cd ../frontend
+cd ../merged_frontend/frontend
 npm run dev &
 MAIN_FRONTEND_PID=$!
 
