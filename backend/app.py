@@ -1040,16 +1040,27 @@ def download_conversation_pdf(catalog_id, current_user=None, token_user_data=Non
 
 
 @app.route('/api/chat', methods=['POST'])
-@chat_access_required
+@token_required
 def chat(current_user=None, token_user_data=None, **kwargs):
     print('[DEBUG] Chat endpoint called')
     print('CHAT:', current_user)
-    
-    # Check if simple mode is enabled
-    global app_parameters
-    simple_mode = app_parameters.get('simple_mode', 'false')
-    if simple_mode.lower() == 'true':
-        return jsonify({"error": "Chat is disabled in simple mode"}), 403
+
+    if current_user.is_admin or current_user.chat_access:
+        pass
+    else:
+        data = request.json
+        catalog_id = data.get('catalogId', '')
+
+        if catalog_id:
+            catalog_permission = CatalogPermission.query.filter_by(
+                catalog_id=catalog_id,
+                user_id=current_user.id
+            ).first()
+
+            if not catalog_permission or catalog_permission.permission == PermissionType.READ_ONLY:
+                return jsonify({"error": "Chat access required"}), 403
+        else:
+            return jsonify({"error": "Chat access required"}), 403
     
     try:
         data = request.json
@@ -1152,11 +1163,36 @@ def get_activity_logs(current_user=None, token_user_data=None, **kwargs):
     return get_activity_logs_with_pagination()
 
 @app.route('/api/simple-mode', methods=['GET'])
-def get_simple_mode():
-    """Get simple mode parameter"""
-    global app_parameters
-    simple_mode = app_parameters.get('simple_mode', 'false')
-    return jsonify({"simple_mode": simple_mode.lower() == 'true'})
+@token_required
+def get_simple_mode(current_user=None, token_user_data=None, **kwargs):
+    """Get simple mode parameter based on user permissions and referer"""
+
+    referer = request.headers.get('Referer', '')
+    allowed_referers = [
+        'https://sapientum-app.3htp.cloud/',
+        'http://localhost:5173',
+        'http://localhost:8000'
+    ]
+
+    is_allowed_referer = any(referer.startswith(ref) for ref in allowed_referers)
+
+    if not is_allowed_referer:
+        return jsonify({"simple_mode": True})
+
+    if current_user.is_admin or current_user.is_catalog_editor:
+        return jsonify({"simple_mode": False})
+
+    has_catalog_permissions = CatalogPermission.query.filter_by(user_id=current_user.id).filter(
+        CatalogPermission.permission != PermissionType.CHAT_ONLY
+    ).first() is not None
+
+    if has_catalog_permissions:
+        return jsonify({"simple_mode": False})
+
+    if current_user.chat_access:
+        return jsonify({"simple_mode": True})
+
+    return jsonify({"simple_mode": True})
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

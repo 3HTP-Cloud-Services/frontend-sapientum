@@ -229,6 +229,7 @@
           <span class="toggle-icon">{sidebarCollapsed ? '→' : '←'}</span>
         </div>
         <ul>
+          {#if !simpleMode}
           {#if showCatalogMenu || $userRole === 'admin'}
           <li class={activeSection === 'catalogs' || activeSection === 'catalog-detail' || activeSection === 'catalog-permissions' ? 'active' : ''}>
             <button on:click={() => switchSection('catalogs')}>
@@ -251,14 +252,13 @@
             </button>
           </li>
           {/if}
-          {#if !simpleMode}
+          {/if}
           <li class={activeSection === 'chat' ? 'active' : ''}>
             <button on:click={() => switchSection('chat')}>
               <span class="icon">💬</span>
               <span class="text">{$i18nStore.t('sidebar_chat')}</span>
             </button>
           </li>
-          {/if}
         </ul>
         <div class="sidebar-logo" class:collapsed={sidebarCollapsed}>
           <img src={simpleMode ? "/sapientum_big_simple.webp" : "/sapientum_big.webp"} alt="Sapientum" />
