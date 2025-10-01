@@ -170,10 +170,17 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
         print(f"[STEP 2] message length: {len(user_query)} characters")
         print(f"[STEP 2] enable_trace: True")
 
+        catalog = Catalog.query.get(catalog_id)
+        catalog_name = catalog.name if catalog else f"catalog_{catalog_id}"
+        print(f"[STEP 2] catalog_name: {catalog_name}")
+
         payload = {
             'agent_id': agent_id,
             'agent_alias_id': agent_alias_id,
             'message': user_query,
+            'jwt_token': jwt,
+            'catalog_id': str(catalog_id),
+            'catalog_name': catalog_name,
             'enable_trace': True
         }
 
