@@ -286,46 +286,6 @@ def get_s3_folder_metadata(bucket_name, folder_name):
         traceback.print_exc()
         return None
 
-def create_s3_metadata(bucket_name):
-    """Create metadata in S3 bucket using direct S3 client from assumed role"""
-    try:
-        # Get a fresh S3 client with assumed role credentials
-        s3_client = get_client_with_assumed_role('s3')
-        import json
-
-        metadata_content = {
-            'type': 's3_folder',
-            'created_at': str(datetime.now()),
-            'has_metadata': 'true'
-        }
-
-        metadata_key = 'catalog_dir/.metadata'
-
-        s3_client.put_object(
-            Bucket=bucket_name,
-            Key=metadata_key,
-            Body=json.dumps(metadata_content),
-            ContentType='application/json'
-        )
-
-        print(f"Created metadata object in bucket '{bucket_name}'")
-
-        try:
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key='catalog_dir/',
-                Body=''
-            )
-        except Exception as folder_error:
-            print(f"Note: Error creating catalog_dir folder marker: {folder_error}")
-
-        return True
-    except Exception as e:
-        print(f"Error creating S3 metadata: {e}")
-        traceback.print_exc()
-        return False
-
-
 def create_s3_folder(bucket_name, folder_name, description=None, catalog_type=None):
     """Create a folder in S3 bucket using direct S3 client from assumed role"""
     try:
@@ -344,7 +304,7 @@ def create_s3_folder(bucket_name, folder_name, description=None, catalog_type=No
         import json
 
         metadata_content = {
-            'type': catalog_type or 's3_folder',
+            'type': catalog_type or 'General',
             'description': description or f"S3 folder in catalog_dir ({folder_name})",
             'created_at': str(datetime.now()),
             'name': folder_name

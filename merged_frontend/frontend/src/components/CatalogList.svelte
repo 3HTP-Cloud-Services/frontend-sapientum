@@ -187,7 +187,7 @@
             <div class="catalog-header">
               <h3>{catalog.catalog_name}</h3>
               <div class="catalog-type">{catalog.type}</div>
-              {#if catalog.type === 's3_folder'}
+              {#if catalog.type === 'General'}
                 <div class="catalog-badge">S3</div>
               {/if}
             </div>

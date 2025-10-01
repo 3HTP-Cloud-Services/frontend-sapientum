@@ -330,7 +330,7 @@
         </div>
         <div class="catalog-type">
           Tipo: {$selectedCatalogStore.type}
-          {#if $selectedCatalogStore.type === 's3_folder'}
+          {#if $selectedCatalogStore.type === 'General'}
             <span class="s3-badge">S3</span>
           {/if}
         </div>

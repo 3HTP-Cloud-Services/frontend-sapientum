@@ -235,7 +235,9 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
         elif isinstance(lambda_response, dict):
             print(f"[STEP 5] ✓ Response is a dictionary")
             print(f"[STEP 5] Response keys: {list(lambda_response.keys())}")
-            print(f"[STEP 5] Response content (first 500 chars): {str(lambda_response)[:500]}")
+            print(f"[STEP 5] Full response content:")
+            import json
+            print(json.dumps(lambda_response, indent=2, ensure_ascii=False))
         else:
             print(f"[STEP 5] Response content: {lambda_response}")
         lambda_instance_id = "unknown"

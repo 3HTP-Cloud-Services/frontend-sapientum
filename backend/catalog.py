@@ -43,9 +43,10 @@ def sanitize_s3_folder_name(name):
 
 def get_catalog_types():
     return [
-        {"id": "manual", "name": "manual"},
-        {"id": "contract", "name": "contract"},
-        {"id": "s3_folder", "name": "S3 Folder"}
+        {"id": "Legal", "name": "Legal", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"},
+        {"id": "Manuales_Tecnicos", "name": "Manuales Tecnicos", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"},
+        {"id": "Procedimientos_Administrativos", "name": "Procedimientos Administrativos", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"},
+        {"id": "General", "name": "General", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"}
     ]
 
 def get_s3_folders():
@@ -257,7 +258,7 @@ def get_catalog_files(catalog_id):
             return file_dicts
 
         # If no files in database, try S3 as fallback (older files might not be in DB)
-        if catalog.type == 's3_folder':
+        if catalog.type == 'General':
             s3_files = get_s3_catalog_files(catalog.id)
             if s3_files:
                 return s3_files
@@ -344,7 +345,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 
         # Use default catalog_type if not provided
         if not catalog_type:
-            catalog_type = 's3_folder'
+            catalog_type = 'General'
 
         # Sanitize catalog name for S3 compatibility
         sanitized_s3_name = sanitize_s3_folder_name(catalog_name)
@@ -425,7 +426,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             )
             db.session.add(new_catalog)
             db.session.commit()
-            
+
             # Grant FULL permission to the catalog creator
             from models import CatalogPermission, PermissionType
             catalog_permission = CatalogPermission(
@@ -435,7 +436,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             )
             db.session.add(catalog_permission)
             db.session.commit()
-            
+
             create_activity_catalog_log(EventType.CATALOG_CREATION, user_id, new_catalog.id, 'User ' + user_email + ' created the catalog ' + catalog_name)
 
             return new_catalog.to_dict()
