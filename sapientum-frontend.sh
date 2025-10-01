@@ -9,9 +9,6 @@ CLOUDFRONT_DISTRIBUTION_ID="E1KB6ETEXV7TWJ"
 echo "Building static frontend..."
 make static
 
-echo "Opening backend/static directory..."
-open backend/static
-
 echo "Uploading to S3 bucket: $S3_BUCKET..."
 aws s3 sync backend/static/ s3://$S3_BUCKET/ --profile $AWS_PROFILE --delete
 
