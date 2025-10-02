@@ -1,6 +1,6 @@
 <script>
   import { push } from 'svelte-spa-router';
-  import { onMount, tick } from 'svelte';
+  import { onMount, afterUpdate, tick } from 'svelte';
   import { i18nStore, initializeI18n } from '../utils/i18n.js';
 
   import { writable } from 'svelte/store';
@@ -22,8 +22,9 @@
   let messagesContainer;
   let downloadDialog;
   let showDownloadDialog = false;
+  let lastScrollCatalogId = null;
+  let lastScrollMessageCount = 0;
 
-  // Trace popup state
   let showTracePopup = false;
   let traceData = null;
   let loadingTrace = false;
@@ -62,6 +63,8 @@
           [catalogId]: formattedMessages
         }));
 
+        console.log('Messages loaded for catalog', catalogId, 'count:', formattedMessages.length);
+
       } else {
         console.error('Error loading conversation messages:', response.status);
         // Fallback to welcome message
@@ -97,10 +100,13 @@
   }
 
   function selectCatalog(id) {
+    console.log('selectCatalog clicked', id, 'has messages:', !!$messagesByCatalog[id]);
     selectedCatalogId = id;
-    // Load conversation messages for this catalog if they don't exist
     if (!$messagesByCatalog[id]) {
+      console.log('Loading messages for catalog', id);
       loadConversationMessages(id);
+    } else {
+      console.log('Catalog already has messages, count:', $messagesByCatalog[id].length);
     }
   }
 
@@ -117,17 +123,43 @@
     });
   }
 
-  // Current messages for the selected catalog
   $: currentMessages = selectedCatalogId ? ($messagesByCatalog[selectedCatalogId] || []) : [];
 
-  // Auto-scroll to bottom whenever messages change
-  $: if (currentMessages.length > 0 && messagesContainer) {
-    tick().then(() => {
-      setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      }, 100);
-    });
-  }
+  afterUpdate(() => {
+    if (messagesContainer && currentMessages.length > 0) {
+      const catalogChanged = lastScrollCatalogId !== selectedCatalogId;
+      const messagesChanged = lastScrollMessageCount !== currentMessages.length;
+
+      console.log('afterUpdate fired', {
+        catalogChanged,
+        messagesChanged,
+        messageCount: currentMessages.length,
+        scrollHeight: messagesContainer?.scrollHeight,
+        scrollTop: messagesContainer?.scrollTop,
+        selectedCatalogId
+      });
+
+      if (catalogChanged || messagesChanged) {
+        lastScrollCatalogId = selectedCatalogId;
+        lastScrollMessageCount = currentMessages.length;
+
+        requestAnimationFrame(() => {
+          console.log('Before scroll:', {
+            scrollTop: messagesContainer.scrollTop,
+            scrollHeight: messagesContainer.scrollHeight,
+            clientHeight: messagesContainer.clientHeight,
+            offsetHeight: messagesContainer.offsetHeight,
+            maxScroll: messagesContainer.scrollHeight - messagesContainer.clientHeight
+          });
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+          console.log('After scroll:', {
+            scrollTop: messagesContainer.scrollTop,
+            scrollHeight: messagesContainer.scrollHeight
+          });
+        });
+      }
+    }
+  });
 
   export let handleLogout = async () => {
     try {
@@ -399,8 +431,7 @@
   });
 </script>
 
-<div class={ isEmbedded? 'embedded-chat' : '' }>
-  <h1 style="background: red; color: white; padding: 20px; margin: 0;">SHARED-COMPONENTS EMBEDDEDCHAT.SVELTE LOADED</h1>
+<div class={ isEmbedded? 'embedded-chat' : 'chat-wrapper' }>
   {#if isEmbedded}
   <Header handleLogout={handleLogout} title="Sapientum Chat" />
   {/if}
@@ -415,43 +446,41 @@
     {/each}
   </div>
 
-  <div class="chat-container">
-    <!-- Show messages only for the selected catalog -->
-    <div class="chat-messages" bind:this={messagesContainer}>
-      {#if selectedCatalogId && $messagesByCatalog[selectedCatalogId]}
-        {#each $messagesByCatalog[selectedCatalogId] as message (message.id)}
-          <div class={`message ${message.type}`}>
-            <div class="message-content">{@html message.content}</div>
-            <div class="message-meta">
-              <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-              {#if message.has_trace}
-                <div class="trace-indicator" title="Click to view trace data" on:click={() => showTrace(message.id)}>i</div>
-              {/if}
-            </div>
+  <div class="chat-messages" bind:this={messagesContainer}>
+    {#if selectedCatalogId && $messagesByCatalog[selectedCatalogId]}
+      {#each $messagesByCatalog[selectedCatalogId] as message (message.id)}
+        <div class={`message ${message.type}`}>
+          <div class="message-content">{@html message.content}</div>
+          <div class="message-meta">
+            <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+            {#if message.has_trace}
+              <div class="trace-indicator" title="Click to view trace data" on:click={() => showTrace(message.id)}>i</div>
+            {/if}
           </div>
-        {/each}
-      {:else}
-        <div class="no-catalog-selected">
-          {$i18nStore?.t('select_catalog') || 'Please select a catalog to start chatting'}
         </div>
-      {/if}
-    </div>
-    <div class="chat-input">
-      <div class="input-row">
-        <textarea
-                placeholder={$i18nStore?.t('chat_placeholder') || 'Type your message...'}
-                bind:value={userInput}
-                on:keydown={handleKeydown}
-                disabled={!selectedCatalogId}
-        ></textarea>
-        <div class="button-column">
-          <button class="send-button" on:click={sendMessage} disabled={!userInput.trim() || !selectedCatalogId}>
-            {$i18nStore?.t('send_button') || 'Send'}
-          </button>
-          <button class="download-conversation-button" on:click={openDownloadDialog} disabled={!selectedCatalogId}>
-            📄 {$i18nStore?.t('download_conversation') || 'Download Conversation'}
-          </button>
-        </div>
+      {/each}
+    {:else}
+      <div class="no-catalog-selected">
+        {$i18nStore?.t('select_catalog') || 'Please select a catalog to start chatting'}
+      </div>
+    {/if}
+  </div>
+
+  <div class="chat-input">
+    <div class="input-row">
+      <textarea
+              placeholder={$i18nStore?.t('chat_placeholder') || 'Type your message...'}
+              bind:value={userInput}
+              on:keydown={handleKeydown}
+              disabled={!selectedCatalogId}
+      ></textarea>
+      <div class="button-column">
+        <button class="send-button" on:click={sendMessage} disabled={!userInput.trim() || !selectedCatalogId}>
+          {$i18nStore?.t('send_button') || 'Send'}
+        </button>
+        <button class="download-conversation-button" on:click={openDownloadDialog} disabled={!selectedCatalogId}>
+          📄 {$i18nStore?.t('download_conversation') || 'Download Conversation'}
+        </button>
       </div>
     </div>
   </div>
@@ -533,11 +562,12 @@
     z-index: 9999;
   }
 
-  .chat-container {
+  .chat-wrapper {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    background-color: #f8f9fa;
   }
 
   .chat-messages {
@@ -548,6 +578,7 @@
     flex-direction: column;
     gap: 1rem;
     background-color: #f8f9fa;
+    min-height: 0;
   }
 
   .message {
