@@ -194,61 +194,133 @@ USERS = [
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.json
-    email = data.get('username')
-    password = data.get('password')
+    import io
+    import sys
+    import traceback as tb
 
-    # Import cognito authentication
-    from cognito import authenticate_user
+    log_capture = io.StringIO()
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
 
-    # Try Cognito authentication first
-    success, cognito_response = authenticate_user(email, password)
-    print('\ncognito:', success, cognito_response)
+    class TeeStream:
+        def __init__(self, original, capture):
+            self.original = original
+            self.capture = capture
 
-    # Handle NEW_PASSWORD_REQUIRED challenge
-    if not success and cognito_response.get("error") == "new_password_required":
-        return jsonify({
-            "success": False,
-            "challenge": "new_password_required",
-            "session": cognito_response.get("session"),
-            "message": "New password required for first login",
-            "error": "new_password_required"
-        }), 200  # Use 200 status code for challenges, not errors
+        def write(self, data):
+            self.original.write(data)
+            self.capture.write(data)
 
-    if success:
-        # Cognito authentication successful, check if user exists in local DB
-        user = User.query.filter_by(email=email).first()
+        def flush(self):
+            self.original.flush()
+            self.capture.flush()
 
-        if not user:
+    sys.stdout = TeeStream(original_stdout, log_capture)
+    sys.stderr = TeeStream(original_stderr, log_capture)
+
+    try:
+        print('[DEBUG] Login endpoint called')
+        data = request.json
+        email = data.get('username')
+        password = data.get('password')
+        print(f'[DEBUG] Login attempt for email: {email}')
+
+        # Import cognito authentication
+        from cognito import authenticate_user
+
+        # Try Cognito authentication first
+        print('[DEBUG] Calling authenticate_user')
+        success, cognito_response = authenticate_user(email, password)
+        print(f'\n[DEBUG] Cognito response - success: {success}, response: {cognito_response}')
+
+        # Handle NEW_PASSWORD_REQUIRED challenge
+        if not success and cognito_response.get("error") == "new_password_required":
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
             return jsonify({
                 "success": False,
-                "message": "User authenticated but not found in system",
-                "error": "user_not_in_system"
+                "challenge": "new_password_required",
+                "session": cognito_response.get("session"),
+                "message": "New password required for first login",
+                "error": "new_password_required",
+                "_log": log_capture.getvalue()
+            }), 200
+
+        if success:
+            # Cognito authentication successful, check if user exists in local DB
+            print('[DEBUG] Cognito authentication successful, checking local DB')
+            user = User.query.filter_by(email=email).first()
+
+            if not user:
+                print(f'[DEBUG] User {email} not found in local DB')
+                sys.stdout = original_stdout
+                sys.stderr = original_stderr
+                return jsonify({
+                    "success": False,
+                    "message": "User authenticated but not found in system",
+                    "error": "user_not_in_system",
+                    "_log": log_capture.getvalue()
+                }), 401
+
+            print(f'[DEBUG] User found: {user.email}, role: {user.role}')
+
+            # Check if this is an embedded request
+            embedded = is_embedded_request()
+            print(f'[DEBUG] Is embedded request: {embedded}')
+
+            # Check if the user has chat access when in embedded mode
+            if embedded and not user.chat_access:
+                print(f'[DEBUG] User does not have chat access in embedded mode')
+                sys.stdout = original_stdout
+                sys.stderr = original_stderr
+                return jsonify({
+                    "success": False,
+                    "message": "You do not have access to chat functionality, which is required for embedded mode",
+                    "error": "no_chat_access",
+                    "_log": log_capture.getvalue()
+                }), 403
+
+            print('[DEBUG] Login successful, returning token')
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+
+            # Return JWT token for authentication
+            return jsonify({
+                "success": True,
+                "role": user.role,
+                "is_embedded": embedded,
+                "token": cognito_response.get("idToken"),
+                "cognito": cognito_response,
+                "_log": log_capture.getvalue()
+            })
+        else:
+            # Cognito authentication failed
+            print(f'[DEBUG] Cognito authentication failed')
+            error_message = cognito_response.get("error", "Credenciales inválidas")
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+            return jsonify({
+                "success": False,
+                "message": error_message,
+                "_log": log_capture.getvalue()
             }), 401
 
-        # Check if this is an embedded request
-        embedded = is_embedded_request()
+    except Exception as e:
+        print(f'[ERROR] Login endpoint error: {e}')
+        tb.print_exc()
 
-        # Check if the user has chat access when in embedded mode
-        if embedded and not user.chat_access:
-            return jsonify({
-                "success": False,
-                "message": "You do not have access to chat functionality, which is required for embedded mode",
-                "error": "no_chat_access"
-            }), 403
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
-        # Return JWT token for authentication
         return jsonify({
-            "success": True,
-            "role": user.role,
-            "is_embedded": embedded,
-            "token": cognito_response.get("idToken"),
-            "cognito": cognito_response
-        })
-    else:
-        # Cognito authentication failed
-        error_message = cognito_response.get("error", "Credenciales inválidas")
-        return jsonify({"success": False, "message": error_message}), 401
+            "success": False,
+            "error": "Error interno del servidor",
+            "_log": log_capture.getvalue(),
+            "_traceback": tb.format_exc()
+        }), 500
+    finally:
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -1042,66 +1114,111 @@ def download_conversation_pdf(catalog_id, current_user=None, token_user_data=Non
 @app.route('/api/chat', methods=['POST'])
 @token_required
 def chat(current_user=None, token_user_data=None, **kwargs):
-    print('[DEBUG] Chat endpoint called')
-    print('CHAT:', current_user)
+    import io
+    import sys
+    import traceback as tb
 
-    if current_user.is_admin or current_user.chat_access:
-        pass
-    else:
-        data = request.json
-        catalog_id = data.get('catalogId', '')
+    log_capture = io.StringIO()
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
 
-        if catalog_id:
-            catalog_permission = CatalogPermission.query.filter_by(
-                catalog_id=catalog_id,
-                user_id=current_user.id
-            ).first()
+    class TeeStream:
+        def __init__(self, original, capture):
+            self.original = original
+            self.capture = capture
 
-            if not catalog_permission or catalog_permission.permission == PermissionType.READ_ONLY:
-                return jsonify({"error": "Chat access required"}), 403
-        else:
-            return jsonify({"error": "Chat access required"}), 403
-    
+        def write(self, data):
+            self.original.write(data)
+            self.capture.write(data)
+
+        def flush(self):
+            self.original.flush()
+            self.capture.flush()
+
+    sys.stdout = TeeStream(original_stdout, log_capture)
+    sys.stderr = TeeStream(original_stderr, log_capture)
+
     try:
-        data = request.json
-        user_message = data.get('message', '')
-        catalog = data.get('catalogId', '')
-        print(f'[DEBUG] Chat request - user_message: {user_message[:100]}..., catalog: {catalog}')
+        print('[DEBUG] Chat endpoint called')
+        print('CHAT:', current_user)
 
-        if not user_message:
-            print('[DEBUG] Empty message provided')
-            return jsonify({"error": "El mensaje no puede estar vacío"}), 400
-
-        user_id = current_user.id
-        jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        print(f'[DEBUG] Processing chat for user_id: {user_id}')
-
-        # Extract client IP address
-        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR')
-        if client_ip:
-            client_ip = client_ip.split(',')[0].strip()
+        if current_user.is_admin or current_user.chat_access:
+            pass
         else:
-            client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
-        print('CHAT IP: ', client_ip)
+            data = request.json
+            catalog_id = data.get('catalogId', '')
 
-        print(f'[DEBUG] About to call generate_ai_response')
-        ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
-        print(f'[DEBUG] generate_ai_response completed successfully, message_id: {message_id}')
-        
-        print(f'[DEBUG] About to create activity log')
-        create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
-        print(f'[DEBUG] Activity log created successfully')
-        
-        print(f'[DEBUG] Chat endpoint returning response with {len(ai_response)} characters')
-        return jsonify({
-            "response": ai_response,
-            "timestamp": None
-        })
-    except Exception as e:
-        print(f'[ERROR] Chat endpoint error: {e}')
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": "Error interno del servidor"}), 500
+            if catalog_id:
+                catalog_permission = CatalogPermission.query.filter_by(
+                    catalog_id=catalog_id,
+                    user_id=current_user.id
+                ).first()
+
+                if not catalog_permission or catalog_permission.permission == PermissionType.READ_ONLY:
+                    sys.stdout = original_stdout
+                    sys.stderr = original_stderr
+                    return jsonify({"error": "Chat access required", "_log": log_capture.getvalue()}), 403
+            else:
+                sys.stdout = original_stdout
+                sys.stderr = original_stderr
+                return jsonify({"error": "Chat access required", "_log": log_capture.getvalue()}), 403
+
+        try:
+            data = request.json
+            user_message = data.get('message', '')
+            catalog = data.get('catalogId', '')
+            print(f'[DEBUG] Chat request - user_message: {user_message[:100]}..., catalog: {catalog}')
+
+            if not user_message:
+                print('[DEBUG] Empty message provided')
+                sys.stdout = original_stdout
+                sys.stderr = original_stderr
+                return jsonify({"error": "El mensaje no puede estar vacío", "_log": log_capture.getvalue()}), 400
+
+            user_id = current_user.id
+            jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+            print(f'[DEBUG] Processing chat for user_id: {user_id}')
+
+            client_ip = request.environ.get('HTTP_X_FORWARDED_FOR')
+            if client_ip:
+                client_ip = client_ip.split(',')[0].strip()
+            else:
+                client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
+            print('CHAT IP: ', client_ip)
+
+            print(f'[DEBUG] About to call generate_ai_response')
+            ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
+            print(f'[DEBUG] generate_ai_response completed successfully, message_id: {message_id}')
+
+            print(f'[DEBUG] About to create activity log')
+            create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
+            print(f'[DEBUG] Activity log created successfully')
+
+            print(f'[DEBUG] Chat endpoint returning response with {len(ai_response)} characters')
+
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+
+            return jsonify({
+                "response": ai_response,
+                "timestamp": None,
+                "_log": log_capture.getvalue()
+            })
+        except Exception as e:
+            print(f'[ERROR] Chat endpoint error: {e}')
+            tb.print_exc()
+
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+
+            return jsonify({
+                "error": "Error interno del servidor",
+                "_log": log_capture.getvalue(),
+                "_traceback": tb.format_exc()
+            }), 500
+    finally:
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
 @app.route('/api/users', methods=['GET'])
 @admin_required

@@ -58,6 +58,8 @@ class Catalog(db.Model):
     created_by = db.relationship('User', backref=db.backref('catalogs', lazy=True))
     is_active = db.Column(db.Boolean, default=True)
     type = db.Column(db.String(50), default='')
+    knowledge_base_id = db.Column(db.String(50), default='')
+    data_source_id = db.Column(db.String(50), default='')
 
     def to_dict(self):
         return {

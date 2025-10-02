@@ -98,13 +98,16 @@ export async function fetchCatalogFiles(id) {
       const files = await response.json();
 
       console.log('Files:', files);
+      console.log('[VERSION DEBUG] Raw files from server:', files.map(f => ({ id: f.id, name: f.name, version: f.version })));
 
       const processedFiles = files.map(file => {
         try {
           // Try to convert uploadDate to a Date object
           const dateStr = file.uploadDate || file.uploaded_at;
           const uploadDate = dateStr ? new Date(dateStr) : new Date();
-          
+
+          console.log(`[VERSION DEBUG] Processing file ${file.id}: raw version='${file.version}'`);
+
           return {
             ...file,
             // Make sure we have all required fields with correct names
@@ -128,6 +131,7 @@ export async function fetchCatalogFiles(id) {
         }
       });
 
+      console.log('[VERSION DEBUG] Processed files:', processedFiles.map(f => ({ id: f.id, name: f.name, version: f.version })));
       catalogFilesStore.set(processedFiles);
     } else if (response.status === 404) {
       filesErrorStore.set('Archivos no encontrados');

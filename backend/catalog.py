@@ -43,11 +43,53 @@ def sanitize_s3_folder_name(name):
 
 def get_catalog_types():
     return [
-        {"id": "Legal", "name": "Legal", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"},
-        {"id": "Manuales_Tecnicos", "name": "Manuales Tecnicos", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"},
-        {"id": "Procedimientos_Administrativos", "name": "Procedimientos Administrativos", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"},
-        {"id": "General", "name": "General", "knowledgeBaseId": "EKNNBS144F", "dataSourceId": "G3O6VVFSDH"}
+        {"id": "Legal", "name": "Legal"},
+        {"id": "Manuales_Tecnicos", "name": "Manuales Tecnicos"},
+        {"id": "Procedimientos_Administrativos", "name": "Procedimientos Administrativos"},
+        {"id": "General", "name": "General"}
     ]
+
+def trigger_bedrock_ingestion(catalog):
+    try:
+        if not catalog:
+            print("Warning: No catalog provided for ingestion trigger")
+            return False
+
+        knowledge_base_id = catalog.knowledge_base_id
+        data_source_id = catalog.data_source_id
+
+        if not knowledge_base_id or not data_source_id:
+            print(f"Warning: Missing knowledge_base_id or data_source_id for catalog '{catalog.name}' (ID: {catalog.id})")
+            print(f"  - knowledge_base_id: {knowledge_base_id}")
+            print(f"  - data_source_id: {data_source_id}")
+            return False
+
+        from aws_utils import get_client_with_assumed_role
+
+        bedrock_agent = get_client_with_assumed_role('bedrock-agent', region_name='us-east-1')
+
+        if not bedrock_agent:
+            print("Error: Could not create bedrock-agent client")
+            return False
+
+        print(f"Starting Bedrock ingestion job for catalog '{catalog.name}' (type: {catalog.type})")
+        print(f"  - Knowledge Base ID: {knowledge_base_id}")
+        print(f"  - Data Source ID: {data_source_id}")
+
+        response = bedrock_agent.start_ingestion_job(
+            knowledgeBaseId=knowledge_base_id,
+            dataSourceId=data_source_id
+        )
+
+        ingestion_job_id = response.get('ingestionJob', {}).get('ingestionJobId', 'Unknown')
+        print(f"Bedrock ingestion job started successfully: {ingestion_job_id}")
+
+        return True
+
+    except Exception as e:
+        print(f"Error triggering Bedrock ingestion: {e}")
+        traceback.print_exc()
+        return False
 
 def get_s3_folders():
     try:
@@ -233,6 +275,13 @@ def get_catalog_files(catalog_id):
                 # Get original version (lowest version number)
                 original_version = Version.query.filter_by(file_id=file.id).order_by(Version.version).first()
 
+                print(f"[VERSION DEBUG] File ID {file.id} ({file.name}):")
+                print(f"  - Active version: {active_version.version if active_version else 'None'}")
+                print(f"  - Original version: {original_version.version if original_version else 'None'}")
+                all_versions = Version.query.filter_by(file_id=file.id).order_by(Version.version).all()
+                print(f"  - All versions for this file: {[v.version for v in all_versions]}")
+                print(f"  - Active status: {[(v.version, v.active) for v in all_versions]}")
+
                 # Use active version's filename as the current filename
                 if active_version:
                     # Store the original file name
@@ -243,6 +292,7 @@ def get_catalog_files(catalog_id):
                     file_dict['version'] = str(active_version.version)
                     file_dict['size'] = format_size(active_version.size)
                     file_dict['active_version_id'] = active_version.id
+                    print(f"  - Setting file_dict['version'] = '{file_dict['version']}'")
                 else:
                     file_dict['name'] = file_dict.get('name', file.name)
                     file_dict['original_filename'] = file_dict['name']
@@ -417,12 +467,14 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             s3_path = f"{catalog_type}/{sanitized_s3_name}"
 
             new_catalog = Catalog(
-                name=catalog_name,  # Use original name for display
-                s3Id=s3_path,  # Use path including catalog_type
+                name=catalog_name,
+                s3Id=s3_path,
                 description=description or f"S3 folder in catalog_dir/{catalog_type} ({catalog_name})",
                 type=catalog_type,
                 created_by_id=user_id,
-                is_active=True
+                is_active=True,
+                knowledge_base_id='WZROVEIVGV',
+                data_source_id='7E1KNZRZRK'
             )
             db.session.add(new_catalog)
             db.session.commit()
@@ -549,7 +601,9 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                     # Commit the transaction
                     db.session.commit()
 
-                    create_activity_catalog_log(EventType.FILE_UPLOAD, user_id, new_file.id, 'User ' + user_email + ' uploaded the file ' + file_obj.filename)
+                    create_activity_catalog_log(EventType.FILE_UPLOAD, user_email, catalog.id, 'User ' + user_email + ' uploaded the file ' + file_obj.filename)
+
+                    trigger_bedrock_ingestion(catalog)
 
                     # Return the file dictionary
                     file_dict = new_file.to_dict()

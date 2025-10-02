@@ -96,7 +96,7 @@ def get_conversation(user_id, catalog_id):
 def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, client_ip=None):
     print('\ngenerate_ai_response:', user_query, catalog_id, user_id, jwt, 'client_ip:', client_ip)
     print(f'[DEBUG] Starting generate_ai_response - user_id: {user_id}, catalog_id: {catalog_id}')
-    
+
     try:
         conversation_id = get_conversation(user_id, catalog_id)
         print(f'[DEBUG] Got conversation_id: {conversation_id}')
@@ -172,7 +172,16 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
 
         catalog = Catalog.query.get(catalog_id)
         catalog_name = catalog.name if catalog else f"catalog_{catalog_id}"
+        catalog_s3_id = catalog.s3Id if catalog else ""
+        catalog_type = catalog.type if catalog else ""
         print(f"[STEP 2] catalog_name: {catalog_name}")
+        print(f"[STEP 2] catalog_s3_id: {catalog_s3_id}")
+        print(f"[STEP 2] catalog_type: {catalog_type}")
+
+        from db import get_bucket_name
+        bucket_name = get_bucket_name()
+        s3_path = f"s3://{bucket_name}/catalog_dir/{catalog_s3_id}" if bucket_name and catalog_s3_id else ""
+        print(f"[STEP 2] s3_path: {s3_path}")
 
         payload = {
             'agent_id': agent_id,
@@ -181,9 +190,12 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
             'jwt_token': jwt,
             'catalog_id': str(catalog_id),
             'catalog_name': catalog_name,
+            'catalog_s3_id': catalog_s3_id,
+            'catalog_type': catalog_type,
+            's3_path': s3_path,
             'enable_trace': True
         }
-
+        print(f"[STEP 2] payload: {payload}")
         if existing_session_id:
             payload['agent_session_id'] = existing_session_id
             print(f"[STEP 2] ✓ Adding agent_session_id to payload: {existing_session_id}")

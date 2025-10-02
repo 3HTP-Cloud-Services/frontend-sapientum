@@ -147,6 +147,9 @@ def upload_new_version(file_id, user_id, user_email):
         print("Committing new version to database")
         db.session.commit()
 
+        from catalog import trigger_bedrock_ingestion
+        trigger_bedrock_ingestion(catalog)
+
         print("Successfully uploaded new version")
         return jsonify({
             "success": True,

@@ -20,10 +20,21 @@
 
     // Only update data if it's a new file
     if (file !== fileData.originalFile) {
+      let normalizedStatus = file.status || 'Published';
+
+      if (normalizedStatus) {
+        normalizedStatus = normalizedStatus.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+      }
+
+      console.log('[EDIT MODAL DEBUG] File status:', file.status);
+      console.log('[EDIT MODAL DEBUG] Normalized status:', normalizedStatus);
+
       fileData = {
         id: file.id,
         description: file.summary || file.description || '',
-        status: file.status || 'Published',
+        status: normalizedStatus,
         confidentiality: file.confidentiality === true,
         originalFile: file
       };

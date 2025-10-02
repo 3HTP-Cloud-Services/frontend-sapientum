@@ -170,10 +170,10 @@
 
       let url;
       if (event.detail.isNewVersion && event.detail.existingFileId) {
-        // Upload a new version of an existing file
+        console.log(`[VERSION DEBUG] Uploading NEW VERSION for file ID: ${event.detail.existingFileId}`);
         url = `/api/files/${event.detail.existingFileId}/version`;
       } else {
-        // Upload a new file to the catalog
+        console.log(`[VERSION DEBUG] Uploading NEW FILE to catalog ID: ${event.detail.catalogId}`);
         url = `/api/catalogs/${event.detail.catalogId}/upload`;
       }
 
@@ -186,6 +186,9 @@
       if (response.ok) {
         const result = await response.json();
         console.log("Upload successful:", result);
+        if (result.version) {
+          console.log(`[VERSION DEBUG] Server returned version info:`, result.version);
+        }
         success = true;
       } else {
         console.error("Upload failed:", response.status, response.statusText);
@@ -198,6 +201,7 @@
       if (onComplete) onComplete(success);
       closeUploadModal();
       if ($selectedCatalogStore) {
+        console.log(`[VERSION DEBUG] Refreshing file list for catalog ${$selectedCatalogStore.id}`);
         fetchCatalogFiles($selectedCatalogStore.id);
       }
     }
