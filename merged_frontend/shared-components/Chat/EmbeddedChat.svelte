@@ -400,6 +400,7 @@
 </script>
 
 <div class={ isEmbedded? 'embedded-chat' : '' }>
+  <h1 style="background: red; color: white; padding: 20px; margin: 0;">SHARED-COMPONENTS EMBEDDEDCHAT.SVELTE LOADED</h1>
   {#if isEmbedded}
   <Header handleLogout={handleLogout} title="Sapientum Chat" />
   {/if}
