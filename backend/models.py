@@ -60,6 +60,8 @@ class Catalog(db.Model):
     type = db.Column(db.String(50), default='')
     knowledge_base_id = db.Column(db.String(50), default='')
     data_source_id = db.Column(db.String(50), default='')
+    agent_version_id = db.Column(db.String(50), default='')
+    agent_id = db.Column(db.String(50), default='')
 
     def to_dict(self):
         return {
