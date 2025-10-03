@@ -11,10 +11,11 @@
   import DownloadDialog from './DownloadDialog.svelte';
 
   export let isEmbedded = true;
+  export let initialMessageLimit = 10;
+  export let loadMoreMessageLimit = 20;
 
   export const catalogsStore = writable([]);
 
-  // Change to a map of catalog ID -> messages array
   export const messagesByCatalog = writable({});
   export let userInput = '';
 
@@ -24,6 +25,9 @@
   let showDownloadDialog = false;
   let lastScrollCatalogId = null;
   let lastScrollMessageCount = 0;
+  let loadingOlderMessages = false;
+  let hasMoreMessages = writable({});
+  let isLoadingOlder = false;
 
   let showTracePopup = false;
   let traceData = null;
@@ -32,14 +36,13 @@
 
   async function loadConversationMessages(catalogId) {
     try {
-      const response = await httpCall(`/api/conversations/${catalogId}`, {
+      const response = await httpCall(`/api/conversations/${catalogId}?user_message_limit=${initialMessageLimit}`, {
         credentials: 'include'
       });
 
       if (response.ok) {
         const messages = await response.json();
 
-        // Convert timestamps and add proper message structure
         const formattedMessages = messages.map(msg => ({
           id: msg.id,
           type: msg.type,
@@ -48,7 +51,6 @@
           has_trace: msg.has_trace || false
         }));
 
-        // If no messages exist, add welcome message
         if (formattedMessages.length === 0) {
           formattedMessages.push({
             id: 1,
@@ -61,6 +63,11 @@
         messagesByCatalog.update(msgs => ({
           ...msgs,
           [catalogId]: formattedMessages
+        }));
+
+        hasMoreMessages.update(m => ({
+          ...m,
+          [catalogId]: messages.length > 0
         }));
 
         console.log('Messages loaded for catalog', catalogId, 'count:', formattedMessages.length);
@@ -99,6 +106,89 @@
     }
   }
 
+  async function loadOlderMessages(catalogId) {
+    if (loadingOlderMessages || !$hasMoreMessages[catalogId]) {
+      return;
+    }
+
+    const currentMessages = $messagesByCatalog[catalogId];
+    if (!currentMessages || currentMessages.length === 0) {
+      return;
+    }
+
+    const oldestMessageId = currentMessages[0].id;
+    const oldScrollHeight = messagesContainer.scrollHeight;
+    const oldScrollTop = messagesContainer.scrollTop;
+
+    loadingOlderMessages = true;
+    isLoadingOlder = true;
+
+    try {
+      const response = await httpCall(
+        `/api/conversations/${catalogId}?before_message_id=${oldestMessageId}&user_message_limit=${loadMoreMessageLimit}`,
+        { credentials: 'include' }
+      );
+
+      if (response.ok) {
+        const messages = await response.json();
+
+        if (messages.length === 0) {
+          hasMoreMessages.update(m => ({ ...m, [catalogId]: false }));
+          loadingOlderMessages = false;
+          isLoadingOlder = false;
+          return;
+        }
+
+        const formattedMessages = messages.map(msg => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content,
+          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+          has_trace: msg.has_trace || false
+        }));
+
+        messagesByCatalog.update(msgs => ({
+          ...msgs,
+          [catalogId]: [...formattedMessages, ...(msgs[catalogId] || [])]
+        }));
+
+        const newMessageCount = formattedMessages.length + (currentMessages?.length || 0);
+        lastScrollMessageCount = newMessageCount;
+
+        await tick();
+        const newScrollHeight = messagesContainer.scrollHeight;
+        const newScrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+        messagesContainer.scrollTop = newScrollTop;
+
+        console.log('Loaded older messages for catalog', catalogId, 'count:', formattedMessages.length);
+        console.log('Scroll adjustment:', {
+          oldScrollHeight,
+          newScrollHeight,
+          oldScrollTop,
+          newScrollTop,
+          actualScrollTop: messagesContainer.scrollTop
+        });
+
+        await tick();
+        isLoadingOlder = false;
+      }
+    } catch (error) {
+      console.error('Error loading older messages:', error);
+      isLoadingOlder = false;
+    } finally {
+      loadingOlderMessages = false;
+    }
+  }
+
+  function handleScroll(event) {
+    if (loadingOlderMessages || !selectedCatalogId) return;
+
+    const scrollTop = event.target.scrollTop;
+    if (scrollTop < 100 && $hasMoreMessages[selectedCatalogId]) {
+      loadOlderMessages(selectedCatalogId);
+    }
+  }
+
   function selectCatalog(id) {
     console.log('selectCatalog clicked', id, 'has messages:', !!$messagesByCatalog[id]);
     selectedCatalogId = id;
@@ -126,11 +216,17 @@
   $: currentMessages = selectedCatalogId ? ($messagesByCatalog[selectedCatalogId] || []) : [];
 
   afterUpdate(() => {
+    if (isLoadingOlder) {
+      console.log('afterUpdate skipped because isLoadingOlder is true');
+      return;
+    }
+
     if (messagesContainer && currentMessages.length > 0) {
       const catalogChanged = lastScrollCatalogId !== selectedCatalogId;
       const messagesChanged = lastScrollMessageCount !== currentMessages.length;
 
       console.log('afterUpdate fired', {
+        isLoadingOlder,
         catalogChanged,
         messagesChanged,
         messageCount: currentMessages.length,
@@ -446,7 +542,10 @@
     {/each}
   </div>
 
-  <div class="chat-messages" bind:this={messagesContainer}>
+  <div class="chat-messages" bind:this={messagesContainer} on:scroll={handleScroll}>
+    {#if loadingOlderMessages}
+      <div class="loading-older-messages">Loading older messages...</div>
+    {/if}
     {#if selectedCatalogId && $messagesByCatalog[selectedCatalogId]}
       {#each $messagesByCatalog[selectedCatalogId] as message (message.id)}
         <div class={`message ${message.type}`}>
@@ -739,6 +838,14 @@
   .send-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .loading-older-messages {
+    text-align: center;
+    padding: 0.5rem;
+    color: #718096;
+    font-size: 0.875rem;
+    font-style: italic;
   }
 
   .loading-container {

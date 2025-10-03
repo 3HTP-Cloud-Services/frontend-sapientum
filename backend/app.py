@@ -998,22 +998,47 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
 
     try:
         from models import Conversation, Message
+        from sqlalchemy import func
 
-        # Find the conversation for this user and catalog
         conversation = Conversation.query.filter_by(
             speaker_id=user_id,
             catalog_id=catalog_id
         ).first()
 
         if not conversation:
-            return jsonify([])  # Return empty array if no conversation exists
+            return jsonify([])
 
-        # Get all messages for this conversation, ordered by ID (oldest first)
-        messages = Message.query.filter_by(
-            conversation_id=conversation.id
-        ).order_by(Message.id.asc()).all()
+        user_message_limit = request.args.get('user_message_limit', type=int)
+        before_message_id = request.args.get('before_message_id', type=int)
 
-        # Convert messages to the format expected by the frontend
+        if user_message_limit is not None and user_message_limit > 0:
+            query = Message.query.filter_by(
+                conversation_id=conversation.id,
+                is_request=True
+            )
+
+            if before_message_id is not None:
+                query = query.filter(Message.id < before_message_id)
+
+            user_messages = query.order_by(Message.id.desc()).limit(user_message_limit).all()
+
+            if not user_messages:
+                return jsonify([])
+
+            user_message_ids = [msg.id for msg in user_messages]
+            oldest_user_message_id = min(user_message_ids)
+
+            messages = Message.query.filter_by(
+                conversation_id=conversation.id
+            ).filter(Message.id >= oldest_user_message_id).order_by(Message.id.asc()).all()
+
+            if before_message_id is not None:
+                messages = [m for m in messages if m.id < before_message_id]
+        else:
+            messages = Message.query.filter_by(
+                conversation_id=conversation.id
+            ).order_by(Message.id.asc()).all()
+
         formatted_messages = []
         for msg in messages:
             formatted_messages.append({
