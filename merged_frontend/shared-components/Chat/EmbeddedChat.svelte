@@ -48,7 +48,8 @@
           type: msg.type,
           content: msg.content,
           timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-          has_trace: msg.has_trace || false
+          has_trace: msg.has_trace || false,
+          citations: msg.citations || []
         }));
 
         if (formattedMessages.length === 0) {
@@ -144,7 +145,8 @@
           type: msg.type,
           content: msg.content,
           timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-          has_trace: msg.has_trace || false
+          has_trace: msg.has_trace || false,
+          citations: msg.citations || []
         }));
 
         messagesByCatalog.update(msgs => ({
@@ -337,7 +339,8 @@
           id: Date.now() + 1, // Temporary ID
           type: 'system',
           content: data.response,
-          timestamp: new Date()
+          timestamp: new Date(),
+          citations: data.citations || []
         };
 
         messagesByCatalog.update(msgs => {
@@ -403,6 +406,38 @@
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       sendMessage();
+    }
+  }
+
+  async function downloadCitation(messageId, encryptedTriplet, filename) {
+    try {
+      const response = await httpCall('/api/download-citation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message_id: messageId,
+          encrypted_triplet: encryptedTriplet
+        }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'document.pdf';
+        document.body.appendChild(link);
+        link.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+      } else {
+        console.error('Error downloading citation:', response.status);
+      }
+    } catch (error) {
+      console.error('Error downloading citation:', error);
     }
   }
 
@@ -550,6 +585,27 @@
       {#each $messagesByCatalog[selectedCatalogId] as message (message.id)}
         <div class={`message ${message.type}`}>
           <div class="message-content">{@html message.content}</div>
+          {#if message.citations && message.citations.length > 0}
+            <div class="citations-section">
+              <div class="citations-header">
+                📚 Sources ({message.citations.length})
+              </div>
+              <div class="citations-list">
+                {#each message.citations as citation, index}
+                  <div class="citation-item">
+                    <span class="citation-number">{index + 1}.</span>
+                    <span class="citation-filename">{citation.resolved_filename || 'Unknown'}</span>
+                    <span class="citation-page">Page {citation.page_number || 'N/A'}</span>
+                    <button
+                      class="download-icon"
+                      title="Download file"
+                      on:click={() => downloadCitation(message.id, citation.encrypted_triplet, citation.resolved_filename)}
+                    >↓</button>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
           <div class="message-meta">
             <div class="message-time">{message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
             {#if message.has_trace}
@@ -740,6 +796,65 @@
   .message.user .trace-indicator {
     background-color: rgba(255, 255, 255, 0.2);
     color: white;
+  }
+
+  .citations-section {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background-color: #f7fafc;
+    border-left: 3px solid #4299e1;
+    border-radius: 4px;
+  }
+
+  .citations-header {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+  }
+
+  .citations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .citation-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .citation-number {
+    color: #4a5568;
+    font-weight: 500;
+    min-width: 1.5rem;
+  }
+
+  .citation-filename {
+    flex: 1;
+    color: #2d3748;
+  }
+
+  .citation-page {
+    font-style: italic;
+    color: #718096;
+    margin-right: 0.5rem;
+  }
+
+  .download-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.25rem;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+  }
+
+  .download-icon:hover {
+    opacity: 1;
   }
 
   .message-content a {
