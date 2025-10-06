@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Set AWS credentials for backend
+export AWS_PROFILE=AdministratorAccess-369595298303
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_REGION=us-east-1
+
+# Set Flask environment for Cognito config
+export FLASK_ENV=development
+
 # Setup shared components
 echo "Setting up shared components..."
 ./sync-shared.sh

@@ -5,6 +5,7 @@ import re
 from aws_utils import invoke_lambda_with_sigv4_v2, call_backend_lambda
 from models import db, Conversation, Message, Catalog, File, Version
 from aws_utils import invoke_lambda_with_sigv4, get_lambda_url, get_agent_id, get_agent_alias_id
+from crypto_utils import generate_encryption_key, encrypt_triplet
 
 DOCUMENTS = [
     {
@@ -254,6 +255,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
             print(f"[STEP 5] Response content: {lambda_response}")
         lambda_instance_id = "unknown"
         trace_data = None
+        citations = []
 
         print(f"\n[STEP 6] Extracting data from Lambda response...")
 
@@ -273,6 +275,12 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
                 print(f"[STEP 6] ✓ Found trace_events, length: {len(trace_data)} characters")
             else:
                 print(f"[STEP 6] No trace_events in response")
+
+            if 'assistant_response' in lambda_response and 'citations' in lambda_response['assistant_response']:
+                citations = lambda_response['assistant_response']['citations']
+                print(f"[STEP 6] ✓ Found citations, count: {len(citations)}")
+            else:
+                print(f"[STEP 6] No citations in response")
 
             if 'assistant_response' in lambda_response and 'text' in lambda_response['assistant_response']:
                 ai_response = lambda_response['assistant_response']['text']
@@ -335,6 +343,39 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
             else:
                 print(f"[STEP 9] No trace data to attach")
 
+            encrypted_citations = []
+            if citations:
+                import json
+                encryption_key = generate_encryption_key()
+
+                for citation in citations:
+                    encoded_filename = citation.get('source_uri', '').split('/')[-1]
+                    match = re.match(r'^(\d+)-(\d+)-(\d+)\.\w+$', encoded_filename)
+
+                    if match:
+                        catalog_id = int(match.group(1))
+                        file_id = int(match.group(2))
+                        version_id = int(match.group(3))
+
+                        encrypted_triplet = encrypt_triplet(catalog_id, file_id, version_id, encryption_key)
+
+                        version = Version.query.filter_by(id=version_id).first()
+                        if version:
+                            citation['resolved_filename'] = version.filename
+                        else:
+                            citation['resolved_filename'] = encoded_filename
+
+                        citation['encrypted_triplet'] = encrypted_triplet
+                        citation.pop('source_uri', None)
+
+                    encrypted_citations.append(citation)
+
+                message_out.citations = json.dumps(encrypted_citations)
+                message_out.encryption_key = encryption_key
+                print(f"[STEP 9] ✓ Citations attached to message with encryption: {len(encrypted_citations)} citations")
+            else:
+                print(f"[STEP 9] No citations to attach")
+
             print(f"[STEP 9] Committing to database...")
             db.session.commit()
             print(f"[STEP 9] ✓ AI message successfully saved to database")
@@ -348,21 +389,18 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
             raise e
 
         print(f"\n[STEP 10] ✓ Chat processing completed successfully")
-        print(f"[STEP 10] Returning response (length: {len(processed_response)}) and message_id: {message_in.id}")
-        return processed_response, message_in.id
+        print(f"[STEP 10] Returning response (length: {len(processed_response)}), citations: {len(encrypted_citations)}, and message_id: {message_in.id}")
+        return processed_response, message_in.id, encrypted_citations
 
     except Exception as e:
         print(f"Error generating AI response: {e}")
         import traceback
         traceback.print_exc()
 
-        # Fallback to document search if an error occurs
         fallback_response = search_documents(user_query)
 
-        # Parse file references and replace with download links
         processed_fallback = parse_file_references(fallback_response)
 
-        # Update the message in the database with fallback origin info
         try:
             fallback_origin = f"ip:{client_ip or 'unknown'},lambda:fallback"
             print(f"[DEBUG] Updating AI message with fallback response, origin: {fallback_origin}")
@@ -376,7 +414,7 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
             db.session.rollback()
             raise e
 
-        return processed_fallback
+        return processed_fallback, message_in.id, []
 
 
 def search_documents(query):

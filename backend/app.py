@@ -5,7 +5,7 @@ from flask_migrate import Migrate
 import os
 import json
 from io import BytesIO
-from models import db, User, Domain, Catalog, File, Version, ActivityLog, EventType, Parameter
+from models import db, User, Domain, Catalog, File, Version, ActivityLog, EventType, Parameter, Message, Conversation
 import db as db_utils
 import traceback
 from datetime import datetime
@@ -243,7 +243,6 @@ def login():
                 "session": cognito_response.get("session"),
                 "message": "New password required for first login",
                 "error": "new_password_required",
-                "_log": log_capture.getvalue()
             }), 200
 
         if success:
@@ -259,7 +258,6 @@ def login():
                     "success": False,
                     "message": "User authenticated but not found in system",
                     "error": "user_not_in_system",
-                    "_log": log_capture.getvalue()
                 }), 401
 
             print(f'[DEBUG] User found: {user.email}, role: {user.role}')
@@ -277,7 +275,6 @@ def login():
                     "success": False,
                     "message": "You do not have access to chat functionality, which is required for embedded mode",
                     "error": "no_chat_access",
-                    "_log": log_capture.getvalue()
                 }), 403
 
             print('[DEBUG] Login successful, returning token')
@@ -291,7 +288,6 @@ def login():
                 "is_embedded": embedded,
                 "token": cognito_response.get("idToken"),
                 "cognito": cognito_response,
-                "_log": log_capture.getvalue()
             })
         else:
             # Cognito authentication failed
@@ -302,7 +298,6 @@ def login():
             return jsonify({
                 "success": False,
                 "message": error_message,
-                "_log": log_capture.getvalue()
             }), 401
 
     except Exception as e:
@@ -314,9 +309,7 @@ def login():
 
         return jsonify({
             "success": False,
-            "error": "Error interno del servidor",
-            "_log": log_capture.getvalue(),
-            "_traceback": tb.format_exc()
+            "error": "Error interno del servidor"
         }), 500
     finally:
         sys.stdout = original_stdout
@@ -1039,14 +1032,64 @@ def get_conversation_messages(catalog_id, current_user=None, token_user_data=Non
                 conversation_id=conversation.id
             ).order_by(Message.id.asc()).all()
 
+        import json
+        from crypto_utils import decrypt_triplet
+
+        version_lookup = {}
+        for msg in messages:
+            if msg.citations and msg.citations.strip() and msg.encryption_key:
+                try:
+                    raw_citations = json.loads(msg.citations)
+                    for citation in raw_citations:
+                        encrypted_triplet = citation.get('encrypted_triplet')
+                        if encrypted_triplet:
+                            catalog_id, file_id, version_id = decrypt_triplet(encrypted_triplet, msg.encryption_key)
+                            if catalog_id and file_id and version_id:
+                                version_lookup[(catalog_id, file_id, version_id)] = None
+                except json.JSONDecodeError:
+                    continue
+
+        if version_lookup:
+            version_ids = [vid for (_, _, vid) in version_lookup.keys()]
+
+            versions = Version.query.filter(Version.id.in_(version_ids)).all()
+
+            for version_obj in versions:
+                version_lookup[(version_obj.file.catalog_id, version_obj.file_id, version_obj.id)] = version_obj.filename
+
         formatted_messages = []
         for msg in messages:
+            citations_data = []
+            if msg.citations and msg.citations.strip():
+                try:
+                    raw_citations = json.loads(msg.citations)
+
+                    for citation in raw_citations:
+                        encrypted_triplet = citation.get('encrypted_triplet')
+
+                        if encrypted_triplet and msg.encryption_key:
+                            catalog_id, file_id, version_id = decrypt_triplet(encrypted_triplet, msg.encryption_key)
+                            if catalog_id and file_id and version_id:
+                                resolved_name = version_lookup.get((catalog_id, file_id, version_id), encrypted_triplet)
+                                citation['resolved_filename'] = resolved_name
+                            else:
+                                citation['resolved_filename'] = encrypted_triplet
+                        else:
+                            citation['resolved_filename'] = citation.get('encrypted_triplet', 'Unknown')
+                            citation.pop('encrypted_triplet', None)
+
+                        citations_data.append(citation)
+                except json.JSONDecodeError:
+                    print(f"Warning: Failed to parse citations for message {msg.id}")
+                    citations_data = []
+
             formatted_messages.append({
                 'id': msg.id,
                 'type': 'user' if msg.is_request else 'system',
                 'content': msg.message,
                 'timestamp': msg.created_at.isoformat() if msg.created_at else None,
-                'has_trace': bool(msg.trace and msg.trace.strip())
+                'has_trace': bool(msg.trace and msg.trace.strip()),
+                'citations': citations_data
             })
 
         return jsonify(formatted_messages)
@@ -1182,11 +1225,11 @@ def chat(current_user=None, token_user_data=None, **kwargs):
                 if not catalog_permission or catalog_permission.permission == PermissionType.READ_ONLY:
                     sys.stdout = original_stdout
                     sys.stderr = original_stderr
-                    return jsonify({"error": "Chat access required", "_log": log_capture.getvalue()}), 403
+                    return jsonify({"error": "Chat access required"}), 403
             else:
                 sys.stdout = original_stdout
                 sys.stderr = original_stderr
-                return jsonify({"error": "Chat access required", "_log": log_capture.getvalue()}), 403
+                return jsonify({"error": "Chat access required"}), 403
 
         try:
             data = request.json
@@ -1198,7 +1241,7 @@ def chat(current_user=None, token_user_data=None, **kwargs):
                 print('[DEBUG] Empty message provided')
                 sys.stdout = original_stdout
                 sys.stderr = original_stderr
-                return jsonify({"error": "El mensaje no puede estar vacío", "_log": log_capture.getvalue()}), 400
+                return jsonify({"error": "El mensaje no puede estar vacío"}), 400
 
             user_id = current_user.id
             jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
@@ -1212,22 +1255,23 @@ def chat(current_user=None, token_user_data=None, **kwargs):
             print('CHAT IP: ', client_ip)
 
             print(f'[DEBUG] About to call generate_ai_response')
-            ai_response, message_id = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
-            print(f'[DEBUG] generate_ai_response completed successfully, message_id: {message_id}')
+            ai_response, message_id, citations = generate_ai_response(user_message, catalog, user_id, jwt_token, client_ip)
+            print(f'[DEBUG] generate_ai_response completed successfully, message_id: {message_id}, citations: {len(citations)}')
 
             print(f'[DEBUG] About to create activity log')
             create_activity_chat_log(EventType.CHAT_INTERACTION, current_user.email, catalog, message_id, 'spoke to the ai')
             print(f'[DEBUG] Activity log created successfully')
 
-            print(f'[DEBUG] Chat endpoint returning response with {len(ai_response)} characters')
+            print(f'[DEBUG] Chat endpoint returning response with {len(ai_response)} characters and {len(citations)} citations')
 
             sys.stdout = original_stdout
             sys.stderr = original_stderr
 
             return jsonify({
                 "response": ai_response,
-                "timestamp": None,
-                "_log": log_capture.getvalue()
+                "citations": citations,
+                "message_id": message_id,
+                "timestamp": None
             })
         except Exception as e:
             print(f'[ERROR] Chat endpoint error: {e}')
@@ -1237,13 +1281,78 @@ def chat(current_user=None, token_user_data=None, **kwargs):
             sys.stderr = original_stderr
 
             return jsonify({
-                "error": "Error interno del servidor",
-                "_log": log_capture.getvalue(),
-                "_traceback": tb.format_exc()
+                "error": "Error interno del servidor"
             }), 500
     finally:
         sys.stdout = original_stdout
         sys.stderr = original_stderr
+
+@app.route('/api/download-citation', methods=['POST'])
+@token_required
+def download_citation(current_user=None, token_user_data=None, **kwargs):
+    try:
+        from crypto_utils import decrypt_triplet
+        from flask import send_file
+        import tempfile
+
+        data = request.json
+        message_id = data.get('message_id')
+        encrypted_triplet = data.get('encrypted_triplet')
+
+        if not message_id or not encrypted_triplet:
+            return jsonify({"error": "message_id and encrypted_triplet required"}), 400
+
+        message = Message.query.join(Conversation).filter(
+            Message.id == message_id,
+            Conversation.speaker_id == current_user.id
+        ).first()
+
+        if not message:
+            return jsonify({"error": "Message not found or access denied"}), 404
+
+        if not message.encryption_key:
+            return jsonify({"error": "No encryption key for this message"}), 400
+
+        catalog_id, file_id, version_id = decrypt_triplet(encrypted_triplet, message.encryption_key)
+
+        if not catalog_id or not file_id or not version_id:
+            return jsonify({"error": "Invalid encrypted triplet"}), 400
+
+        version = Version.query.join(File).join(Catalog).filter(
+            Version.id == version_id,
+            File.id == file_id,
+            Catalog.id == catalog_id
+        ).first()
+
+        if not version:
+            return jsonify({"error": "File version not found"}), 404
+
+        from aws_utils import get_client_with_assumed_role
+        from db import get_bucket_name
+        import io
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return jsonify({"error": "S3 bucket configuration not found"}), 500
+
+        s3_client = get_client_with_assumed_role('s3')
+        if not s3_client:
+            return jsonify({"error": "S3 client not available"}), 500
+
+        s3_object = s3_client.get_object(Bucket=bucket_name, Key=version.s3Id)
+        file_content = s3_object['Body'].read()
+
+        return send_file(
+            io.BytesIO(file_content),
+            as_attachment=True,
+            download_name=version.filename
+        )
+
+    except Exception as e:
+        print(f"Error downloading citation file: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "Error downloading file"}), 500
 
 @app.route('/api/users', methods=['GET'])
 @admin_required

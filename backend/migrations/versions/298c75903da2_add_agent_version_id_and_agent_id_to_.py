@@ -1,4 +1,4 @@
-backend/migrations/versions/298c75903da2_add_agent_version_id_and_agent_id_to_.py """add_agent_version_id_and_agent_id_to_catalog
+"""add_agent_version_id_and_agent_id_to_catalog
 
 Revision ID: 298c75903da2
 Revises: 164a45d4f73b

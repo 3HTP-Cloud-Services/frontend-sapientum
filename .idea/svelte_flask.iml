@@ -2,7 +2,7 @@
 <module type="WEB_MODULE" version="4">
   <component name="FacetManager">
     <facet type="Python" name="Python facet">
-      <configuration sdkName="Python 3.10 virtualenv at ~/aicompetency/svelte_flask/backend/.venv" />
+      <configuration sdkName="Python 3.13 (SapientumAI)" />
     </facet>
   </component>
   <component name="NewModuleRootManager">
@@ -11,12 +11,13 @@
       <excludeFolder url="file://$MODULE_DIR$/temp" />
       <excludeFolder url="file://$MODULE_DIR$/tmp" />
       <excludeFolder url="file://$MODULE_DIR$/backend/static" />
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
       <excludePattern pattern=".aws-sam" />
       <excludePattern pattern="backend/static" />
       <excludePattern pattern=".venv" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Python 3.10 virtualenv at ~/aicompetency/svelte_flask/backend/.venv interpreter library" level="application" />
+    <orderEntry type="library" name="Python 3.13 (SapientumAI) interpreter library" level="application" />
   </component>
 </module>

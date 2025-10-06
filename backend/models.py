@@ -197,13 +197,14 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     conversation_id = db.Column(db.Integer, db.ForeignKey('conversations.id'), nullable=False)
     conversation = db.relationship('Conversation', backref='messages', lazy=True)
-    is_request = db.Column(db.Boolean, default=False, nullable=False) # false for responses from the AI
+    is_request = db.Column(db.Boolean, default=False, nullable=False)
     prompt = db.Column(db.Text, default='', nullable=True)
-    # should be null for requests, save the prompt that generated the response for responses
     message = db.Column(db.Text, default='', nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now(), nullable=False)
     origin = db.Column(db.Text, default='')
     trace = db.Column(db.Text, default='')
+    citations = db.Column(db.Text, default='')
+    encryption_key = db.Column(db.String(64), default='')
 
 
 class EventType(enum.Enum):
