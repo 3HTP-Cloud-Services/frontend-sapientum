@@ -594,7 +594,12 @@
                 {#each message.citations as citation, index}
                   <div class="citation-item">
                     <span class="citation-number">{index + 1}.</span>
-                    <span class="citation-filename">{citation.resolved_filename || 'Unknown'}</span>
+                    <span
+                      class="citation-filename"
+                      title={citation.retrieved_text_chunk || ''}
+                    >
+                      {citation.resolved_filename || 'Unknown'}
+                    </span>
                     <span class="citation-page">Page {citation.page_number || 'N/A'}</span>
                     <button
                       class="download-icon"
@@ -835,6 +840,9 @@
   .citation-filename {
     flex: 1;
     color: #2d3748;
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
   }
 
   .citation-page {
