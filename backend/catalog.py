@@ -13,6 +13,8 @@ from datetime import datetime
 import random
 import re
 import string
+import requests
+import json
 
 def format_size(size_bytes):
     if size_bytes == 0:
@@ -48,6 +50,132 @@ def get_catalog_types():
         {"id": "Procedimientos_Administrativos", "name": "Procedimientos Administrativos"},
         {"id": "General", "name": "General"}
     ]
+
+def call_external_catalog_api(catalog_name, catalog_type, description=None, instruction=None, apply=False, jwt_token=None):
+    """
+    Call the external catalog creation API
+
+    Args:
+        catalog_name: Unique identifier for the catalog
+        catalog_type: Type of catalog (general, legal, technical, administrative)
+        description: Optional description
+        instruction: Optional instruction
+        apply: Whether to execute complete creation (default: False)
+        jwt_token: JWT Bearer token for authentication
+
+    Returns:
+        Tuple of (success: bool, response_data: dict)
+    """
+    try:
+        # Map internal catalog types to API enum values
+        catalog_type_mapping = {
+            'General': 'general',
+            'Legal': 'legal',
+            'Manuales_Tecnicos': 'technical',
+            'Procedimientos_Administrativos': 'administrative'
+        }
+
+        api_catalog_type = catalog_type_mapping.get(catalog_type, 'general')
+
+        # Prepare the API endpoint
+        base_url = "https://yx8b0cx4za.execute-api.us-east-1.amazonaws.com"
+        endpoint = f"{base_url}/api/v1/catalogs"
+
+        # Prepare request body
+        request_body = {
+            "catalog_type": api_catalog_type,
+            "catalog_name": catalog_name
+        }
+
+        if description:
+            request_body["description"] = description
+
+        if instruction:
+            request_body["instruction"] = instruction
+
+        # Prepare headers
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        if jwt_token:
+            headers["Authorization"] = f"Bearer {jwt_token}"
+
+        # Prepare query parameters
+        params = {
+            "apply": str(apply).lower()
+        }
+
+        print("=" * 80)
+        print("EXTERNAL CATALOG API CALL")
+        print("=" * 80)
+        print(f"Endpoint: {endpoint}")
+        print(f"Method: POST")
+        print(f"Query Parameters: {json.dumps(params, indent=2)}")
+        print(f"Headers: {json.dumps({k: v for k, v in headers.items() if k != 'Authorization'}, indent=2)}")
+        print(f"Request Body: {json.dumps(request_body, indent=2)}")
+        print("=" * 80)
+
+        # Make the API call
+        response = requests.post(
+            endpoint,
+            json=request_body,
+            headers=headers,
+            params=params,
+            timeout=30
+        )
+
+        # Print full response details
+        print("=" * 80)
+        print("EXTERNAL CATALOG API RESPONSE")
+        print("=" * 80)
+        print(f"Status Code: {response.status_code}")
+        print(f"Response Headers: {json.dumps(dict(response.headers), indent=2)}")
+        print("-" * 80)
+        print("Response Body (Raw Text):")
+        print(response.text)
+        print("-" * 80)
+
+        # Try to parse JSON response
+        response_json = None
+        try:
+            response_json = response.json()
+            print("Response Body (Formatted JSON):")
+            print(json.dumps(response_json, indent=2, ensure_ascii=False))
+        except json.JSONDecodeError:
+            print("Response is not valid JSON - raw text response:")
+            print(repr(response.text))
+            # Store the raw text in the response for returning
+            response_json = {
+                "error": "Invalid JSON response",
+                "raw_text": response.text,
+                "status_code": response.status_code
+            }
+            print("Stored response data:")
+            print(json.dumps(response_json, indent=2, ensure_ascii=False))
+
+        print("=" * 80)
+
+        # Check if request was successful
+        if response.status_code == 201:
+            return True, response_json
+        else:
+            return False, response_json
+
+    except requests.exceptions.Timeout:
+        error_msg = "Request to external catalog API timed out"
+        print(f"ERROR: {error_msg}")
+        return False, {"error": error_msg}
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Error calling external catalog API: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        traceback.print_exc()
+        return False, {"error": error_msg}
+    except Exception as e:
+        error_msg = f"Unexpected error in call_external_catalog_api: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        traceback.print_exc()
+        return False, {"error": error_msg}
 
 def trigger_bedrock_ingestion(catalog):
     try:

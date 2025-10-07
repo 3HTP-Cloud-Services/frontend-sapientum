@@ -649,6 +649,30 @@ def create_catalog(current_user=None, token_user_data=None, **kwargs):
     if not data or not data.get('catalog_name'):
         return jsonify({"error": "Catalog name is required"}), 400
 
+    # Extract JWT token from request headers
+    jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+
+    # Call external catalog creation API
+    from catalog import call_external_catalog_api
+    api_success, api_response = call_external_catalog_api(
+        catalog_name=data.get('catalog_name'),
+        catalog_type=data.get('type', 'General'),
+        description=data.get('description'),
+        instruction=data.get('instruction'),
+        apply=True,
+        jwt_token=jwt_token
+    )
+
+    # Log the external API response
+    print("=" * 80)
+    print(f"EXTERNAL API CALL RESULT: {'SUCCESS' if api_success else 'FAILED'}")
+    print("=" * 80)
+    print("Full external API response object:")
+    import json
+    print(json.dumps(api_response, indent=2, ensure_ascii=False))
+    print("=" * 80)
+
+    # Continue with local catalog creation
     from catalog import create_catalog as create_new_catalog
     result = create_new_catalog(
         data.get('catalog_name'),
@@ -659,10 +683,20 @@ def create_catalog(current_user=None, token_user_data=None, **kwargs):
     if result:
         return jsonify({
             "success": True,
-            "catalog": result
+            "catalog": result,
+            "external_api": {
+                "success": api_success,
+                "response": api_response
+            }
         })
     else:
-        return jsonify({"error": "Failed to create catalog"}), 500
+        return jsonify({
+            "error": "Failed to create catalog locally",
+            "external_api": {
+                "success": api_success,
+                "response": api_response
+            }
+        }), 500
 
 @app.route('/api/catalog-types', methods=['GET'])
 @token_required
