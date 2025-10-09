@@ -567,15 +567,33 @@
   <Header handleLogout={handleLogout} title="Sapientum Chat" />
   {/if}
 
-  <div class="catalog-list">
-    {#each $catalogsStore as catalog (catalog.id)}
-      <div class="catalog {selectedCatalogId === catalog.id ? 'active' : ''}"
-           on:click={() => selectCatalog(catalog.id)}
+  {#if $catalogsStore.length <= 4}
+    <!-- Show tabs when 4 or fewer catalogs -->
+    <div class="catalog-list">
+      {#each $catalogsStore as catalog (catalog.id)}
+        <div class="catalog {selectedCatalogId === catalog.id ? 'active' : ''}"
+             on:click={() => selectCatalog(catalog.id)}
+        >
+          {catalog.name}
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <!-- Show combobox when more than 4 catalogs -->
+    <div class="catalog-combobox-container">
+      <label for="catalog-select">{$i18nStore?.t('select_catalog') || 'Select Catalog'}:</label>
+      <select
+        id="catalog-select"
+        class="catalog-select"
+        bind:value={selectedCatalogId}
+        on:change={() => selectCatalog(selectedCatalogId)}
       >
-        {catalog.name}
-      </div>
-    {/each}
-  </div>
+        {#each $catalogsStore as catalog (catalog.id)}
+          <option value={catalog.id}>{catalog.name}</option>
+        {/each}
+      </select>
+    </div>
+  {/if}
 
   <div class="chat-messages" bind:this={messagesContainer} on:scroll={handleScroll}>
     {#if loadingOlderMessages}
@@ -720,6 +738,7 @@
     right: 0;
     bottom: 0;
     z-index: 9999;
+    overflow-x: hidden;
   }
 
   .chat-wrapper {
@@ -728,6 +747,7 @@
     height: 100%;
     width: 100%;
     background-color: #f8f9fa;
+    overflow-x: hidden;
   }
 
   .chat-messages {
@@ -747,6 +767,9 @@
     border-radius: 8px;
     position: relative;
     margin-bottom: 0.5rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 
   .message.system {
@@ -759,6 +782,13 @@
     align-self: flex-end;
     background-color: #4299e1;
     color: white;
+  }
+
+  .message-content {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
   }
 
   .message-meta {
@@ -1015,6 +1045,9 @@
     transition: background-color 0.2s ease;
     white-space: nowrap;
     user-select: none;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .catalog:hover {
@@ -1046,6 +1079,44 @@
     height: 100%;
     color: #a0aec0;
     font-style: italic;
+  }
+
+  .catalog-combobox-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+    background: linear-gradient(to bottom, #4A5568, #556072);
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .catalog-combobox-container label {
+    color: white;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .catalog-select {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    background-color: white;
+    color: #032b36;
+    font-size: 1rem;
+    cursor: pointer;
+    max-width: 400px;
+    transition: border-color 0.2s ease;
+  }
+
+  .catalog-select:hover {
+    border-color: #4299e1;
+  }
+
+  .catalog-select:focus {
+    outline: none;
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
   }
 
   /* Trace Popup Styles */

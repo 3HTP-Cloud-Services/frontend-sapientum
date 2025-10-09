@@ -13,7 +13,7 @@ from werkzeug.local import LocalProxy
 from chat import generate_ai_response
 from activity import create_activity_chat_log, get_activity_logs_with_pagination
 from urllib.parse import quote
-from auth_decorator import token_required, admin_required, chat_access_required, catalog_admin_required
+from auth_decorator import token_required, admin_required, chat_access_required, catalog_admin_required, invoker_required
 from botocore.exceptions import ClientError
 import re
 import unicodedata
@@ -681,13 +681,50 @@ def create_catalog(current_user=None, token_user_data=None, **kwargs):
     )
 
     if result:
+        print("=" * 80)
+        print("TRIGGERING STEP FUNCTION FOR CATALOG STATUS POLLING")
+        print("=" * 80)
+        print(f"Catalog Name: {data.get('catalog_name')}")
+        print(f"Local Catalog ID: {result.get('id')}")
+        print(f"JWT Token Present: {bool(jwt_token)}")
+        print(f"JWT Token Length: {len(jwt_token) if jwt_token else 0}")
+
+        # Trigger Step Function to poll catalog status
+        from catalog import trigger_catalog_status_poller
+        poller_success, execution_arn, error_details = trigger_catalog_status_poller(
+            catalog_name=data.get('catalog_name'),
+            local_catalog_id=result.get('id'),
+            jwt_token=jwt_token
+        )
+
+        print(f"Step Function Trigger Result:")
+        print(f"  - Success: {poller_success}")
+        print(f"  - Execution ARN: {execution_arn}")
+        if error_details:
+            print(f"  - Error: {error_details}")
+        print("=" * 80)
+
+        step_function_response = {
+            "triggered": poller_success,
+            "execution_arn": execution_arn
+        }
+
+        if poller_success:
+            step_function_response["message"] = "Step Function started - will poll catalog status every 20s for up to 50 minutes"
+            step_function_response["polling_interval"] = "20 seconds"
+            step_function_response["max_attempts"] = 150
+        else:
+            step_function_response["message"] = "Failed to trigger Step Function"
+            step_function_response["error"] = error_details
+
         return jsonify({
             "success": True,
             "catalog": result,
             "external_api": {
                 "success": api_success,
                 "response": api_response
-            }
+            },
+            "step_function": step_function_response
         })
     else:
         return jsonify({
@@ -719,6 +756,95 @@ def get_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
         return jsonify(catalog.to_dict())
 
     return jsonify({"error": "Catálogo no encontrado"}), 404
+
+@app.route('/api/catalogs/<int:catalog_id>/update-aws-resources', methods=['POST'])
+@token_required
+def update_catalog_aws_resources(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    """
+    Update catalog with AWS resource IDs from the Step Function
+    This endpoint is called by the UpdateCatalogDB Lambda function
+    Requires valid JWT token
+    """
+    print(f"[UPDATE_AWS_RESOURCES] ===== RECEIVED REQUEST =====")
+    print(f"[UPDATE_AWS_RESOURCES] Catalog ID: {catalog_id}")
+    print(f"[UPDATE_AWS_RESOURCES] Called by user: {current_user.email}")
+    print(f"[UPDATE_AWS_RESOURCES] JWT token received and validated successfully")
+
+    try:
+        data = request.get_json()
+        print(f"[UPDATE_AWS_RESOURCES] Request body:")
+        print(json.dumps(data, indent=2))
+
+        knowledge_base_id = data.get('knowledge_base_id')
+        data_source_id = data.get('data_source_id')
+        agent_id = data.get('agent_id')
+        agent_alias_id = data.get('agent_alias_id')
+
+        print(f"[UPDATE_AWS_RESOURCES] Extracted values:")
+        print(f"  - knowledge_base_id: {knowledge_base_id}")
+        print(f"  - data_source_id: {data_source_id}")
+        print(f"  - agent_id: {agent_id}")
+        print(f"  - agent_alias_id: {agent_alias_id}")
+
+        if not knowledge_base_id or not data_source_id:
+            error_msg = "Missing required fields: knowledge_base_id and data_source_id"
+            print(f"[UPDATE_AWS_RESOURCES] ERROR: {error_msg}")
+            return jsonify({"success": False, "error": error_msg}), 400
+
+        # Find the catalog
+        catalog = db.session.get(Catalog, catalog_id)
+        if not catalog:
+            error_msg = f"Catalog {catalog_id} not found"
+            print(f"[UPDATE_AWS_RESOURCES] ERROR: {error_msg}")
+            return jsonify({"success": False, "error": error_msg}), 404
+
+        print(f"[UPDATE_AWS_RESOURCES] Found catalog: {catalog.name}")
+        print(f"[UPDATE_AWS_RESOURCES] Current values:")
+        print(f"  - knowledge_base_id: {catalog.knowledge_base_id}")
+        print(f"  - data_source_id: {catalog.data_source_id}")
+        print(f"  - agent_id: {catalog.agent_id}")
+        print(f"  - agent_version_id: {catalog.agent_version_id}")
+
+        # Update the catalog
+        catalog.knowledge_base_id = knowledge_base_id
+        catalog.data_source_id = data_source_id
+        if agent_id:
+            catalog.agent_id = agent_id
+        if agent_alias_id:
+            catalog.agent_version_id = agent_alias_id
+        catalog.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        print(f"[UPDATE_AWS_RESOURCES] ===== UPDATE SUCCESSFUL =====")
+        print(f"[UPDATE_AWS_RESOURCES] Updated catalog {catalog_id}")
+        print(f"[UPDATE_AWS_RESOURCES] New values:")
+        print(f"  - knowledge_base_id: {catalog.knowledge_base_id}")
+        print(f"  - data_source_id: {catalog.data_source_id}")
+        print(f"  - agent_id: {catalog.agent_id}")
+        print(f"  - agent_version_id: {catalog.agent_version_id}")
+
+        result = {
+            "success": True,
+            "catalog_id": catalog_id,
+            "catalog_name": catalog.name,
+            "knowledge_base_id": knowledge_base_id,
+            "data_source_id": data_source_id,
+            "agent_id": agent_id,
+            "agent_alias_id": agent_alias_id,
+            "updated_at": catalog.updated_at.isoformat()
+        }
+
+        print(f"[UPDATE_AWS_RESOURCES] Returning result:")
+        print(json.dumps(result, indent=2))
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        error_msg = f"Error updating catalog: {str(e)}"
+        print(f"[UPDATE_AWS_RESOURCES] ERROR: {error_msg}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": error_msg}), 500
 
 @app.route('/api/documents/<path:doc_id>', methods=['GET'])
 def get_document(doc_id):

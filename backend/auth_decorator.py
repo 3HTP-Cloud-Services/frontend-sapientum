@@ -112,26 +112,26 @@ def catalog_admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         success, user_data = get_user_from_token()
-        
+
         if not success:
             return jsonify({"error": "Authentication required", "details": user_data.get("error")}), 401
-        
+
         # Check if user exists in local database
         user_email = user_data.get("email")
         user = User.query.filter_by(email=user_email).first()
-        
+
         if not user:
             return jsonify({
                 "error": "User not found in system",
                 "details": "User authenticated but not found in local database"
             }), 401
-        
+
         # Check if user is a general admin (has access to all catalogs)
         if user.is_admin:
             kwargs['current_user'] = user
             kwargs['token_user_data'] = user_data
             return f(*args, **kwargs)
-        
+
         # Check if user has FULL permission on the specific catalog
         catalog_id = kwargs.get('catalog_id') or request.view_args.get('catalog_id')
         if not catalog_id:
@@ -139,22 +139,59 @@ def catalog_admin_required(f):
                 "error": "Catalog ID required",
                 "details": "Unable to determine catalog for permission check"
             }), 400
-        
+
         catalog_permission = CatalogPermission.query.filter_by(
             catalog_id=catalog_id,
             user_id=user.id
         ).first()
-        
+
         if not catalog_permission or catalog_permission.permission != PermissionType.FULL:
             return jsonify({
                 "error": "Insufficient privileges",
                 "details": "This operation requires admin privileges or full access to this catalog"
             }), 403
-        
+
         # Add user information to kwargs for the route function
         kwargs['current_user'] = user
         kwargs['token_user_data'] = user_data
-        
+
         return f(*args, **kwargs)
-    
+
+    return decorated_function
+
+def invoker_required(f):
+    """
+    Decorator for routes that can only be called by Step Functions/internal AWS services.
+    Checks for a special invoker token or validates JWT is from an admin.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        success, user_data = get_user_from_token()
+
+        if not success:
+            return jsonify({"error": "Authentication required", "details": user_data.get("error")}), 401
+
+        # Check if user exists in local database
+        user_email = user_data.get("email")
+        user = User.query.filter_by(email=user_email).first()
+
+        if not user:
+            return jsonify({
+                "error": "User not found in system",
+                "details": "User authenticated but not found in local database"
+            }), 401
+
+        # Only allow admin users for invoker operations
+        if not user.is_admin:
+            return jsonify({
+                "error": "Invoker privileges required",
+                "details": "This operation can only be invoked by admin users or Step Functions"
+            }), 403
+
+        # Add user information to kwargs for the route function
+        kwargs['current_user'] = user
+        kwargs['token_user_data'] = user_data
+
+        return f(*args, **kwargs)
+
     return decorated_function

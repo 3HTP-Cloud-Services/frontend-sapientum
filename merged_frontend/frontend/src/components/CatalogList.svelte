@@ -15,6 +15,7 @@
   // State for catalog modal
   let showCatalogModal = false;
   let catalogTypes = [];
+  let isCreatingCatalog = false;
   let newCatalog = {
     catalog_name: '',
     description: '',
@@ -126,6 +127,7 @@
 
   async function submitNewCatalog() {
     console.log("Creating new catalog:", newCatalog);
+    isCreatingCatalog = true;
 
     try {
       const response = await httpCall('/api/catalogs', {
@@ -146,9 +148,13 @@
         console.error("Failed to create catalog:", response.status, response.statusText);
         const errorData = await response.json();
         console.error("Error details:", errorData);
+        alert("Failed to create catalog: " + (errorData.error || response.statusText));
       }
     } catch (error) {
       console.error("Error creating catalog:", error);
+      alert("Error creating catalog: " + error.message);
+    } finally {
+      isCreatingCatalog = false;
     }
   }
 
@@ -224,6 +230,7 @@
             id="catalog-name"
             bind:value={newCatalog.catalog_name}
             placeholder={$i18nStore.t('catalog_name')}
+            disabled={isCreatingCatalog}
           />
         </div>
 
@@ -233,12 +240,13 @@
             id="catalog-description"
             bind:value={newCatalog.description}
             placeholder={$i18nStore.t('catalog_description')}
+            disabled={isCreatingCatalog}
           ></textarea>
         </div>
 
         <div class="form-group">
           <label for="catalog-type">{$i18nStore.t('catalog_type')}</label>
-          <select id="catalog-type" bind:value={newCatalog.type}>
+          <select id="catalog-type" bind:value={newCatalog.type} disabled={isCreatingCatalog}>
             {#each catalogTypes as type}
               <option value={type.id}>{type.name}</option>
             {/each}
@@ -247,8 +255,14 @@
       </div>
 
       <div class="modal-footer">
-        <button class="cancel-button" on:click={closeCatalogModal}>{$i18nStore.t('cancel_button')}</button>
-        <button class="save-button" on:click={submitNewCatalog}>{$i18nStore.t('save_button')}</button>
+        <button class="cancel-button" on:click={closeCatalogModal} disabled={isCreatingCatalog}>{$i18nStore.t('cancel_button')}</button>
+        <button class="save-button" on:click={submitNewCatalog} disabled={isCreatingCatalog}>
+          {#if isCreatingCatalog}
+            Creating...
+          {:else}
+            {$i18nStore.t('save_button')}
+          {/if}
+        </button>
       </div>
     </div>
   </div>

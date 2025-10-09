@@ -575,6 +575,8 @@ def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lam
         request_body = json.dumps(body) if body else ''
         if body:
             print(f"[AWS_UTILS] Request body length: {len(request_body)} characters")
+            print(f"[AWS_UTILS] Full request body:")
+            print(json.dumps(body, indent=2))
 
         aws_request = AWSRequest(
             method=method,

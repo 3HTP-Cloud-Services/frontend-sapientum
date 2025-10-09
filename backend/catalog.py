@@ -15,6 +15,7 @@ import re
 import string
 import requests
 import json
+import boto3
 
 def format_size(size_bytes):
     if size_bytes == 0:
@@ -50,6 +51,82 @@ def get_catalog_types():
         {"id": "Procedimientos_Administrativos", "name": "Procedimientos Administrativos"},
         {"id": "General", "name": "General"}
     ]
+
+def trigger_catalog_status_poller(catalog_name, local_catalog_id, jwt_token=None):
+    """
+    Trigger the Step Function to poll catalog status and update database
+
+    Args:
+        catalog_name: Name of the catalog to poll
+        local_catalog_id: ID of the catalog in local database
+        jwt_token: JWT token for authentication
+
+    Returns:
+        Tuple of (success: bool, execution_arn_or_error: str, error_details: dict)
+    """
+    try:
+        from aws_utils import get_client_with_assumed_role
+        import os
+
+        # Get Step Function ARN - hardcoded for now
+        step_function_arn = "arn:aws:states:us-east-1:369595298303:stateMachine:CatalogStatusPollerStateMachine"
+
+        # Fallback to environment variable
+        env_arn = os.environ.get('CATALOG_POLLER_STEP_FUNCTION_ARN')
+        if env_arn:
+            step_function_arn = env_arn
+            print(f"[INFO] Using Step Function ARN from environment: {step_function_arn}")
+        else:
+            print(f"[WARNING] Using hardcoded Step Function ARN: {step_function_arn}")
+
+        # Get Step Functions client
+        sfn_client = get_client_with_assumed_role('stepfunctions', region_name='us-east-1')
+
+        if not sfn_client:
+            error_msg = "Could not create Step Functions client - IAM role issue (UPDATED CODE)"
+            print(f"[ERROR] {error_msg}")
+            return False, None, {"error": error_msg, "type": "aws_client_error"}
+
+        # Prepare input for Step Function
+        step_function_input = {
+            'catalog_name': catalog_name,
+            'local_catalog_id': local_catalog_id,
+            'jwt_token': jwt_token,
+            'attempt_count': 0
+        }
+
+        print("=" * 80)
+        print("TRIGGERING CATALOG STATUS POLLER STEP FUNCTION")
+        print("=" * 80)
+        print(f"Step Function ARN: {step_function_arn}")
+        print(f"Input: {json.dumps({**step_function_input, 'jwt_token': 'REDACTED'}, indent=2)}")
+        print("=" * 80)
+
+        # Start Step Function execution
+        response = sfn_client.start_execution(
+            stateMachineArn=step_function_arn,
+            input=json.dumps(step_function_input)
+        )
+
+        execution_arn = response.get('executionArn')
+        print(f"Step Function execution started: {execution_arn}")
+        print("=" * 80)
+
+        return True, execution_arn, None
+
+    except Exception as e:
+        error_msg = f"Exception triggering Step Function: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        traceback.print_exc()
+
+        error_details = {
+            "error": error_msg,
+            "type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        }
+
+        return False, None, error_details
+
 
 def call_external_catalog_api(catalog_name, catalog_type, description=None, instruction=None, apply=False, jwt_token=None):
     """

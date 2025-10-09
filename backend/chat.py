@@ -163,15 +163,17 @@ def generate_ai_response(user_query, catalog_id=None, user_id=None, jwt=None, cl
 
         print(f"\n[STEP 2] Building payload for new Lambda URL service...")
 
-        agent_id = get_agent_id()
-        agent_alias_id = get_agent_alias_id()
+        catalog = Catalog.query.get(catalog_id)
+
+        # Use catalog-specific agent_id and agent_version_id, fallback to global config
+        agent_id = catalog.agent_id if catalog and catalog.agent_id else get_agent_id()
+        agent_alias_id = catalog.agent_version_id if catalog and catalog.agent_version_id else get_agent_alias_id()
 
         print(f"[STEP 2] agent_id: {agent_id}")
         print(f"[STEP 2] agent_alias_id: {agent_alias_id}")
         print(f"[STEP 2] message length: {len(user_query)} characters")
         print(f"[STEP 2] enable_trace: True")
 
-        catalog = Catalog.query.get(catalog_id)
         catalog_name = catalog.name if catalog else f"catalog_{catalog_id}"
         catalog_s3_id = catalog.s3Id if catalog else ""
         catalog_type = catalog.type if catalog else ""
