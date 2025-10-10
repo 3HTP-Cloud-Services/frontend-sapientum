@@ -180,7 +180,22 @@ else
         --region $REGION > /dev/null
 
     rm update-catalog-db.zip
-    echo -e "${GREEN}✓${NC} Updated UpdateCatalogDB Lambda function"
+    echo -e "${GREEN}✓${NC} Updated UpdateCatalogDB Lambda function code"
+
+    # Wait for the code update to complete
+    echo "Waiting for code update to complete..."
+    aws lambda wait function-updated $PROFILE_FLAG \
+        --function-name $UPDATE_DB_FUNCTION_NAME \
+        --region $REGION
+
+    # Update environment variables
+    echo "Updating environment variables..."
+    aws lambda update-function-configuration $PROFILE_FLAG \
+        --function-name $UPDATE_DB_FUNCTION_NAME \
+        --environment Variables={BACKEND_LAMBDA_NAME=APIGW-IA-SAPI-FlaskFunction-sZeca781RQ37} \
+        --region $REGION > /dev/null
+
+    echo -e "${GREEN}✓${NC} Updated UpdateCatalogDB Lambda environment variables"
 fi
 
 echo ""

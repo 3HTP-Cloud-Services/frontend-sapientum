@@ -649,6 +649,14 @@ def create_catalog(current_user=None, token_user_data=None, **kwargs):
     if not data or not data.get('catalog_name'):
         return jsonify({"error": "Catalog name is required"}), 400
 
+    # Validate catalog name format
+    catalog_name = data.get('catalog_name')
+    catalog_name_pattern = r'^[a-z0-9][a-z0-9_-]{0,99}$'
+    if not re.match(catalog_name_pattern, catalog_name):
+        return jsonify({
+            "error": "Invalid catalog name. Must start with lowercase letter or digit, contain only lowercase letters, digits, underscores, and hyphens, and be 1-100 characters long."
+        }), 400
+
     # Extract JWT token from request headers
     jwt_token = request.headers.get('Authorization', '').replace('Bearer ', '')
 
@@ -741,6 +749,62 @@ def get_types(current_user=None, token_user_data=None, **kwargs):
     from catalog import get_catalog_types
     catalog_types = get_catalog_types()
     return jsonify(catalog_types)
+
+@app.route('/api/catalogs/<int:catalog_id>/status', methods=['GET'])
+@token_required
+def get_catalog_status(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    """Get only the AWS resource IDs for a catalog"""
+    try:
+        catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
+        if not catalog:
+            return jsonify({"error": "Catalog not found"}), 404
+
+        return jsonify({
+            "knowledge_base_id": catalog.knowledge_base_id,
+            "data_source_id": catalog.data_source_id,
+            "agent_id": catalog.agent_id,
+            "agent_version_id": catalog.agent_version_id
+        })
+    except Exception as e:
+        print(f"Error getting catalog status: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/catalogs/status/batch', methods=['POST'])
+@token_required
+def get_catalogs_status_batch(current_user=None, token_user_data=None, **kwargs):
+    """Get AWS resource IDs for multiple catalogs"""
+    try:
+        data = request.json
+        if not data or 'ids' not in data:
+            return jsonify({"error": "Catalog IDs are required"}), 400
+
+        catalog_ids = data['ids']
+        if not isinstance(catalog_ids, list):
+            return jsonify({"error": "IDs must be a list"}), 400
+
+        # Limit to 20 catalogs per request
+        if len(catalog_ids) > 20:
+            return jsonify({"error": "Maximum 20 catalog IDs per request"}), 400
+
+        # Query all catalogs at once
+        catalogs = Catalog.query.filter(Catalog.id.in_(catalog_ids), Catalog.is_active == True).all()
+
+        # Build response dict keyed by catalog ID
+        result = {}
+        for catalog in catalogs:
+            result[str(catalog.id)] = {
+                "knowledge_base_id": catalog.knowledge_base_id,
+                "data_source_id": catalog.data_source_id,
+                "agent_id": catalog.agent_id,
+                "agent_version_id": catalog.agent_version_id
+            }
+
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error getting catalogs status batch: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/documents', methods=['GET'])
 def get_documents():

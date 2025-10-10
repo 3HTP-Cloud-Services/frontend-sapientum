@@ -34,6 +34,7 @@ Resources:
           COGNITO_USER_POOL_ID: "us-east-1_1pPT6lSMc"
           COGNITO_CLIENT_ID: "4ed15at0palqflefuvlu536mme"
           COGNITO_REGION: "us-east-1"
+          CATALOG_POLLER_STEP_FUNCTION_ARN: "arn:aws:states:us-east-1:369595298303:stateMachine:CatalogStatusPollerStateMachine"
       Policies:
         - Version: "2012-10-17"
           Statement:
@@ -48,6 +49,9 @@ Resources:
               Resource:
                 - "arn:aws:s3:::s3-3htp-sapientum-ai"
                 - "arn:aws:s3:::s3-3htp-sapientum-ai/*"
+            - Effect: Allow
+              Action: "states:StartExecution"
+              Resource: "arn:aws:states:us-east-1:369595298303:stateMachine:CatalogStatusPollerStateMachine"
       Events:
         Api:
           Type: Api

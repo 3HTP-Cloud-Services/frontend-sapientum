@@ -1,6 +1,6 @@
 <script>
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
-  import { onMount, beforeUpdate, afterUpdate } from 'svelte';
+  import { onMount, beforeUpdate, afterUpdate, onDestroy } from 'svelte';
   import { httpCall } from '../../../shared-components/utils/httpCall.js';
   import {
     selectedCatalogStore,
@@ -18,6 +18,11 @@
 
   export let switchSection;
   export let activeSectionStore;
+
+  // Polling interval for catalog status
+  let statusPollingTimeout = null;
+  let currentPollingDelay = 5000; // Start at 5 seconds
+  let pollingCatalogId = null; // Track which catalog we're currently polling
 
   // State for upload modal
   let showUploadModal = false;
@@ -37,10 +42,18 @@
   let permissionCheckError = null;
   let dbPermissionInfo = null;
 
-  // Check if user can manage permissions for this catalog
-  $: if ($selectedCatalogStore && $selectedCatalogStore.id) {
+  // Track the current catalog ID to avoid re-fetching on property changes
+  let currentCatalogId = null;
+
+  // Check if user can manage permissions - only when catalog ID changes
+  $: if ($selectedCatalogStore && $selectedCatalogStore.id !== currentCatalogId) {
+    currentCatalogId = $selectedCatalogStore.id;
     checkCanManagePermissions($selectedCatalogStore.id);
     fetchDbPermissionInfo($selectedCatalogStore.id);
+    startStatusPolling($selectedCatalogStore.id);
+  } else if (!$selectedCatalogStore) {
+    currentCatalogId = null;
+    stopStatusPolling();
   }
 
   async function checkCanManagePermissions(catalogId) {
@@ -75,9 +88,97 @@
     }
   }
 
+  async function pollCatalogStatus(catalogId) {
+    try {
+      const response = await httpCall(`/api/catalogs/${catalogId}/status`, 'GET');
+      if (response.ok) {
+        const statusData = await response.json();
+        console.log('[POLL] Catalog status:', statusData);
+
+        // Update the selected catalog store with new AWS resource IDs
+        if ($selectedCatalogStore && $selectedCatalogStore.id === catalogId) {
+          selectedCatalogStore.update(catalog => ({
+            ...catalog,
+            knowledge_base_id: statusData.knowledge_base_id,
+            data_source_id: statusData.data_source_id,
+            agent_id: statusData.agent_id,
+            agent_version_id: statusData.agent_version_id,
+            // Recalculate state
+            state: calculateCatalogState(statusData)
+          }));
+        }
+      } else {
+        console.error('[POLL] Failed to get catalog status:', response.status);
+      }
+    } catch (error) {
+      console.error('[POLL] Error polling catalog status:', error);
+    }
+
+    // Schedule next poll with increased delay
+    scheduleNextPoll(catalogId);
+  }
+
+  function scheduleNextPoll(catalogId) {
+    console.log(`[POLL] Scheduling next poll in ${currentPollingDelay / 1000} seconds`);
+
+    statusPollingTimeout = setTimeout(() => {
+      pollCatalogStatus(catalogId);
+    }, currentPollingDelay);
+
+    // Increase delay by 1 second for next time
+    currentPollingDelay += 1000;
+  }
+
+  function calculateCatalogState(statusData) {
+    const has_kb = statusData.knowledge_base_id !== null && String(statusData.knowledge_base_id).trim() !== '';
+    const has_ds = statusData.data_source_id !== null && String(statusData.data_source_id).trim() !== '';
+    const has_agent = statusData.agent_id !== null && String(statusData.agent_id).trim() !== '';
+    const has_agent_alias = statusData.agent_version_id !== null && String(statusData.agent_version_id).trim() !== '';
+
+    const field_count = [has_kb, has_ds, has_agent, has_agent_alias].filter(Boolean).length;
+
+    if (field_count === 4) return 'ready';
+    if (field_count === 0) return 'created';
+    return 'in_preparation';
+  }
+
+  function startStatusPolling(catalogId) {
+    // Don't restart if we're already polling this catalog
+    if (pollingCatalogId === catalogId) {
+      console.log('[POLL] Already polling catalog:', catalogId);
+      return;
+    }
+
+    if (statusPollingTimeout) {
+      clearTimeout(statusPollingTimeout);
+    }
+
+    // Reset delay to 5 seconds
+    currentPollingDelay = 5000;
+    pollingCatalogId = catalogId;
+
+    console.log('[POLL] Starting status polling for catalog:', catalogId);
+
+    // Poll immediately (which will schedule the next poll)
+    pollCatalogStatus(catalogId);
+  }
+
+  function stopStatusPolling() {
+    if (statusPollingTimeout) {
+      console.log('[POLL] Stopping status polling');
+      clearTimeout(statusPollingTimeout);
+      statusPollingTimeout = null;
+      pollingCatalogId = null;
+    }
+  }
+
   onMount(() => {
     console.log("CatalogDetail component mounted, selectedCatalog:", $selectedCatalogStore);
     updateCount++;
+  });
+
+  onDestroy(() => {
+    stopStatusPolling();
   });
 
   beforeUpdate(() => {
@@ -315,7 +416,11 @@
 
 <div class="section-header">
   <button class="back-button" on:click={backToCatalogs}>← {$i18nStore.t('back_to_catalogs')}</button>
-  <button class="sap_button upload-document-button" on:click={() => uploadDocument($selectedCatalogStore?.id)}>
+  <button
+    class="sap_button upload-document-button"
+    on:click={() => uploadDocument($selectedCatalogStore?.id)}
+    disabled={$selectedCatalogStore?.state && $selectedCatalogStore.state !== 'ready'}
+  >
     <img src="./images/upload-white.png" alt="Upload" class="upload-icon"/>
     {$i18nStore.t('upload_document')}
   </button>
@@ -336,6 +441,11 @@
           Tipo: {$selectedCatalogStore.type}
           {#if $selectedCatalogStore.type === 'General'}
             <span class="s3-badge">S3</span>
+          {/if}
+          {#if $selectedCatalogStore.state}
+            <span class="catalog-state catalog-state-{$selectedCatalogStore.state}">
+              {$i18nStore.t(`catalog_state_${$selectedCatalogStore.state}`)}
+            </span>
           {/if}
         </div>
 
@@ -441,7 +551,12 @@
                   </button>
                 </td>
                 <td>
-                <button class="icon-button upload-button" on:click={() => uploadNewVersion(file)} title={$i18nStore.t('upload_new_version') || 'Upload new version'}>
+                <button
+                  class="icon-button upload-button"
+                  on:click={() => uploadNewVersion(file)}
+                  title={$i18nStore.t('upload_new_version') || 'Upload new version'}
+                  disabled={$selectedCatalogStore?.state && $selectedCatalogStore.state !== 'ready'}
+                >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                       <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
@@ -538,6 +653,30 @@
     margin-left: 0.5rem;
   }
 
+  .catalog-state {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
+  }
+
+  .catalog-state-ready {
+    background-color: #48bb78;
+    color: white;
+  }
+
+  .catalog-state-created {
+    background-color: #cbd5e0;
+    color: #2d3748;
+  }
+
+  .catalog-state-in_preparation {
+    background-color: #ed8936;
+    color: white;
+  }
+
   .catalog-detail h1 {
     margin-top: 0;
     color: #032b36;
@@ -627,8 +766,13 @@
     transition: background-color 0.2s ease;
   }
 
-  .icon-button:hover {
+  .icon-button:hover:not(:disabled) {
     background-color: #edf2f7;
+  }
+
+  .icon-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .edit-button {
@@ -738,6 +882,12 @@
     padding: 20px 30px;
     margin: 1rem;
     font-size: 1.2em;
+  }
+
+  .upload-document-button:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
+    opacity: 0.6;
   }
 
   .upload-icon {

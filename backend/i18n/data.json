@@ -181,7 +181,10 @@
         "next": "Siguiente",
         "previous_page": "Página anterior",
         "next_page": "Página siguiente",
-        "no_activity_logs": "No se encontraron registros de actividad"
+        "no_activity_logs": "No se encontraron registros de actividad",
+        "catalog_state_ready": "Disponible",
+        "catalog_state_created": "Creado",
+        "catalog_state_in_preparation": "En preparación"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -365,7 +368,10 @@
         "next": "Next",
         "previous_page": "Previous page",
         "next_page": "Next page",
-        "no_activity_logs": "No activity logs found"
+        "no_activity_logs": "No activity logs found",
+        "catalog_state_ready": "Ready",
+        "catalog_state_created": "Created",
+        "catalog_state_in_preparation": "In Preparation"
     },
     "pt": {
         "title": "Console de Administração Sapientum AI",
@@ -549,6 +555,9 @@
         "next": "Próximo",
         "previous_page": "Página anterior",
         "next_page": "Próxima página",
-        "no_activity_logs": "Nenhum registro de atividade encontrado"
+        "no_activity_logs": "Nenhum registro de atividade encontrado",
+        "catalog_state_ready": "Pronto",
+        "catalog_state_created": "Criado",
+        "catalog_state_in_preparation": "Em Preparação"
     }
 }

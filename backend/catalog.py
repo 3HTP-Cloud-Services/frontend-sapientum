@@ -13,6 +13,7 @@ from datetime import datetime
 import random
 import re
 import string
+from urllib.parse import quote
 import requests
 import json
 import boto3
@@ -52,7 +53,7 @@ def get_catalog_types():
         {"id": "General", "name": "General"}
     ]
 
-def trigger_catalog_status_poller(catalog_name, local_catalog_id, jwt_token=None):
+def trigger_catalog_status_poller(catalog_name, local_catalog_id, jwt_token=None, backend_url=None):
     """
     Trigger the Step Function to poll catalog status and update database
 
@@ -60,6 +61,7 @@ def trigger_catalog_status_poller(catalog_name, local_catalog_id, jwt_token=None
         catalog_name: Name of the catalog to poll
         local_catalog_id: ID of the catalog in local database
         jwt_token: JWT token for authentication
+        backend_url: The backend Lambda URL (extracted from request)
 
     Returns:
         Tuple of (success: bool, execution_arn_or_error: str, error_details: dict)
@@ -68,16 +70,14 @@ def trigger_catalog_status_poller(catalog_name, local_catalog_id, jwt_token=None
         from aws_utils import get_client_with_assumed_role
         import os
 
-        # Get Step Function ARN - hardcoded for now
-        step_function_arn = "arn:aws:states:us-east-1:369595298303:stateMachine:CatalogStatusPollerStateMachine"
+        # Get Step Function ARN from environment variable (required)
+        step_function_arn = os.environ.get('CATALOG_POLLER_STEP_FUNCTION_ARN')
+        if not step_function_arn:
+            error_msg = "CATALOG_POLLER_STEP_FUNCTION_ARN environment variable is not set"
+            print(f"[ERROR] {error_msg}")
+            return False, None, {"error": error_msg, "type": "configuration_error"}
 
-        # Fallback to environment variable
-        env_arn = os.environ.get('CATALOG_POLLER_STEP_FUNCTION_ARN')
-        if env_arn:
-            step_function_arn = env_arn
-            print(f"[INFO] Using Step Function ARN from environment: {step_function_arn}")
-        else:
-            print(f"[WARNING] Using hardcoded Step Function ARN: {step_function_arn}")
+        print(f"[INFO] Using Step Function ARN: {step_function_arn}")
 
         # Get Step Functions client
         sfn_client = get_client_with_assumed_role('stepfunctions', region_name='us-east-1')
@@ -161,7 +161,7 @@ def call_external_catalog_api(catalog_name, catalog_type, description=None, inst
         # Prepare request body
         request_body = {
             "catalog_type": api_catalog_type,
-            "catalog_name": catalog_name
+            "catalog_name": catalog_name.lower()
         }
 
         if description:
@@ -366,6 +366,22 @@ def get_all_catalogs(user=None, for_chat=False):
                 .count()
 
             catalog_dict['document_count'] = file_count
+
+            # Calculate catalog state based on AWS resource IDs
+            has_kb = catalog.knowledge_base_id is not None and str(catalog.knowledge_base_id).strip() != ''
+            has_ds = catalog.data_source_id is not None and str(catalog.data_source_id).strip() != ''
+            has_agent = catalog.agent_id is not None and str(catalog.agent_id).strip() != ''
+            has_agent_alias = catalog.agent_version_id is not None and str(catalog.agent_version_id).strip() != ''
+
+            field_count = sum([has_kb, has_ds, has_agent, has_agent_alias])
+
+            if field_count == 4:
+                catalog_dict['state'] = 'ready'
+            elif field_count == 0:
+                catalog_dict['state'] = 'created'
+            else:
+                catalog_dict['state'] = 'in_preparation'
+
             catalog_list.append(catalog_dict)
 
         return catalog_list
@@ -596,6 +612,13 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 
         if not catalog_name:
             print("Error: No catalog name provided")
+            return None
+
+        # Validate catalog name format
+        catalog_name_pattern = r'^[a-z0-9][a-z0-9_-]{0,99}$'
+        if not re.match(catalog_name_pattern, catalog_name):
+            print(f"Error: Invalid catalog name format: {catalog_name}")
+            print("Catalog name must start with lowercase letter or digit, contain only lowercase letters, digits, underscores, and hyphens, and be 1-100 characters long.")
             return None
 
         # Use default catalog_type if not provided

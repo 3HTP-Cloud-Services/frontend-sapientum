@@ -2,13 +2,14 @@
   import { push } from 'svelte-spa-router';
   import { fade } from 'svelte/transition';
   import { i18nStore } from '../../../shared-components/utils/i18n.js';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { httpCall } from '../../../shared-components/utils/httpCall.js';
   import {
     catalogsStore,
     loadingStore,
     errorStore,
-    fetchCatalogs
+    fetchCatalogs,
+    selectedCatalogStore
   } from './stores.js';
   import UploadModal from './UploadModal.svelte';
 
@@ -16,6 +17,7 @@
   let showCatalogModal = false;
   let catalogTypes = [];
   let isCreatingCatalog = false;
+  let catalogCreationError = '';
   let newCatalog = {
     catalog_name: '',
     description: '',
@@ -26,6 +28,10 @@
   let showUploadModal = false;
   let currentCatalogId = null;
   let currentCatalogName = '';
+
+  // Polling state
+  let statusPollingTimeout = null;
+  let currentPollingDelay = 5000; // Start at 5 seconds
 
   const dispatch = createEventDispatcher();
 
@@ -118,6 +124,7 @@
 
   function closeCatalogModal() {
     showCatalogModal = false;
+    catalogCreationError = '';
     newCatalog = {
       catalog_name: '',
       description: '',
@@ -125,9 +132,27 @@
     };
   }
 
+  function validateCatalogName(name) {
+    const catalogNamePattern = /^[a-z0-9][a-z0-9_-]{0,99}$/;
+    return catalogNamePattern.test(name);
+  }
+
   async function submitNewCatalog() {
     console.log("Creating new catalog:", newCatalog);
+
+    // Validate catalog name on frontend before sending to backend
+    if (!newCatalog.catalog_name) {
+      catalogCreationError = 'Catalog name is required';
+      return;
+    }
+
+    if (!validateCatalogName(newCatalog.catalog_name)) {
+      catalogCreationError = 'Invalid catalog name. Must start with lowercase letter or digit, contain only lowercase letters, digits, underscores, and hyphens, and be 1-100 characters long.';
+      return;
+    }
+
     isCreatingCatalog = true;
+    catalogCreationError = '';
 
     try {
       const response = await httpCall('/api/catalogs', {
@@ -148,13 +173,132 @@
         console.error("Failed to create catalog:", response.status, response.statusText);
         const errorData = await response.json();
         console.error("Error details:", errorData);
-        alert("Failed to create catalog: " + (errorData.error || response.statusText));
+        catalogCreationError = errorData.error || response.statusText;
       }
     } catch (error) {
       console.error("Error creating catalog:", error);
-      alert("Error creating catalog: " + error.message);
+      catalogCreationError = error.message;
     } finally {
       isCreatingCatalog = false;
+    }
+  }
+
+  function calculateCatalogState(statusData) {
+    const has_kb = statusData.knowledge_base_id !== null && String(statusData.knowledge_base_id).trim() !== '';
+    const has_ds = statusData.data_source_id !== null && String(statusData.data_source_id).trim() !== '';
+    const has_agent = statusData.agent_id !== null && String(statusData.agent_id).trim() !== '';
+    const has_agent_alias = statusData.agent_version_id !== null && String(statusData.agent_version_id).trim() !== '';
+
+    const field_count = [has_kb, has_ds, has_agent, has_agent_alias].filter(Boolean).length;
+
+    if (field_count === 4) return 'ready';
+    if (field_count === 0) return 'created';
+    return 'in_preparation';
+  }
+
+  async function pollCatalogsBatch(catalogIds) {
+    try {
+      console.log(`[POLL] Polling batch of ${catalogIds.length} catalogs`);
+
+      const response = await httpCall('/api/catalogs/status/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ ids: catalogIds })
+      });
+
+      if (response.ok) {
+        const statusData = await response.json();
+        console.log('[POLL] Batch status received:', statusData);
+
+        // Update catalog store with new statuses
+        catalogsStore.update(catalogs => {
+          return catalogs.map(catalog => {
+            const status = statusData[String(catalog.id)];
+            if (status) {
+              return {
+                ...catalog,
+                knowledge_base_id: status.knowledge_base_id,
+                data_source_id: status.data_source_id,
+                agent_id: status.agent_id,
+                agent_version_id: status.agent_version_id,
+                state: calculateCatalogState(status)
+              };
+            }
+            return catalog;
+          });
+        });
+      } else {
+        console.error('[POLL] Failed to get batch status:', response.status);
+      }
+    } catch (error) {
+      console.error('[POLL] Error polling batch:', error);
+    }
+  }
+
+  async function pollAllNonReadyCatalogs() {
+    // Get all non-ready catalogs
+    const nonReadyCatalogs = $catalogsStore.filter(c => c.state !== 'ready');
+
+    if (nonReadyCatalogs.length === 0) {
+      console.log('[POLL] No non-ready catalogs to poll');
+      scheduleNextPollRound();
+      return;
+    }
+
+    console.log(`[POLL] Polling ${nonReadyCatalogs.length} non-ready catalogs`);
+
+    // Split into batches of 20
+    const batches = [];
+    for (let i = 0; i < nonReadyCatalogs.length; i += 20) {
+      batches.push(nonReadyCatalogs.slice(i, i + 20).map(c => c.id));
+    }
+
+    // Poll first batch immediately
+    await pollCatalogsBatch(batches[0]);
+
+    // Poll remaining batches with 1 second delay between them
+    for (let i = 1; i < batches.length; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await pollCatalogsBatch(batches[i]);
+    }
+
+    // Schedule next poll round with increasing delay
+    scheduleNextPollRound();
+  }
+
+  function scheduleNextPollRound() {
+    console.log(`[POLL] Scheduling next poll round in ${currentPollingDelay / 1000} seconds`);
+
+    statusPollingTimeout = setTimeout(() => {
+      pollAllNonReadyCatalogs();
+    }, currentPollingDelay);
+
+    // Increase delay by 1 second for next round
+    currentPollingDelay += 1000;
+  }
+
+  function startStatusPolling() {
+    if (statusPollingTimeout) {
+      clearTimeout(statusPollingTimeout);
+    }
+
+    // Reset delay to 5 seconds
+    currentPollingDelay = 5000;
+
+    console.log('[POLL] Starting status polling for catalog list');
+
+    // Poll immediately
+    pollAllNonReadyCatalogs();
+  }
+
+  function stopStatusPolling() {
+    if (statusPollingTimeout) {
+      console.log('[POLL] Stopping status polling');
+      clearTimeout(statusPollingTimeout);
+      statusPollingTimeout = null;
     }
   }
 
@@ -166,9 +310,17 @@
     }
   });
 
-  $: if ($activeSectionStore === 'catalogs') {
-    console.log("Catalogs section is now active");
+  onDestroy(() => {
+    stopStatusPolling();
+  });
+
+  $: if ($activeSectionStore === 'catalogs' && !$selectedCatalogStore) {
+    console.log("Catalogs section is now active and no catalog selected");
     fetchCatalogs();
+    startStatusPolling();
+  } else {
+    console.log("Stopping list polling - either not in catalogs section or catalog detail is open");
+    stopStatusPolling();
   }
 </script>
 
@@ -196,6 +348,11 @@
               {#if catalog.type === 'General'}
                 <div class="catalog-badge">S3</div>
               {/if}
+              {#if catalog.state}
+                <div class="catalog-state catalog-state-{catalog.state}">
+                  {$i18nStore.t(`catalog_state_${catalog.state}`)}
+                </div>
+              {/if}
             </div>
             <p>{catalog.description && catalog.description}</p>
           </div>
@@ -203,7 +360,11 @@
             <button class="view-catalog-button" on:click={() => viewCatalog(catalog.id)}>
               {$i18nStore.t('view_catalog_documents', {count: catalog.document_count})}
             </button>
-            <button class="sap_button upload-document-button" on:click={() => uploadDocument(catalog.id, catalog.catalog_name)}>
+            <button
+              class="sap_button upload-document-button"
+              on:click={() => uploadDocument(catalog.id, catalog.catalog_name)}
+              disabled={catalog.state && catalog.state !== 'ready'}
+            >
               <img src="./images/upload-white.png" alt="Upload" class="upload-icon"/>
               {$i18nStore.t('upload_document')}
             </button>
@@ -223,6 +384,12 @@
       </div>
 
       <div class="modal-body">
+        {#if catalogCreationError}
+          <div class="error-message">
+            {catalogCreationError}
+          </div>
+        {/if}
+
         <div class="form-group">
           <label for="catalog-name">{$i18nStore.t('catalog_name')}</label>
           <input
@@ -341,9 +508,15 @@
     transition: all 0.2s;
   }
 
-  .upload-document-button:hover {
+  .upload-document-button:hover:not(:disabled) {
     background-color: #68D391;
     color: white;
+  }
+
+  .upload-document-button:disabled {
+    background-color: #a0aec0;
+    cursor: not-allowed;
+    opacity: 0.6;
   }
 
   .upload-icon {
@@ -406,6 +579,31 @@
     margin-bottom: 0.5rem;
   }
 
+  .catalog-state {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .catalog-state-ready {
+    background-color: #48bb78;
+    color: white;
+  }
+
+  .catalog-state-created {
+    background-color: #cbd5e0;
+    color: #2d3748;
+  }
+
+  .catalog-state-in_preparation {
+    background-color: #ed8936;
+    color: white;
+  }
+
   /* Modal Styles */
   .modal-overlay {
     position: fixed;
@@ -454,6 +652,16 @@
 
   .modal-body {
     padding: 1.5rem;
+  }
+
+  .error-message {
+    background-color: #fed7d7;
+    color: #c53030;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    border: 1px solid #fc8181;
   }
 
   .form-group {

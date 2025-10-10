@@ -5,6 +5,29 @@ This function is called by the Step Function once the catalog is ready
 import json
 import os
 import requests
+import boto3
+
+
+def get_backend_lambda_url():
+    """
+    Get the backend Lambda function URL from AWS by querying the Lambda service.
+    The Lambda function name comes from the BACKEND_LAMBDA_NAME environment variable.
+    """
+    backend_lambda_name = os.environ['BACKEND_LAMBDA_NAME']  # Will fail if not set
+    print(f"[UPDATE_CATALOG_DB] Getting URL for Lambda: {backend_lambda_name}")
+
+    try:
+        lambda_client = boto3.client('lambda', region_name='us-east-1')
+
+        # Get the function URL configuration
+        response = lambda_client.get_function_url_config(FunctionName=backend_lambda_name)
+        function_url = response['FunctionUrl'].rstrip('/')
+
+        print(f"[UPDATE_CATALOG_DB] Found Lambda URL: {function_url}")
+        return function_url
+    except Exception as e:
+        print(f"[UPDATE_CATALOG_DB] ERROR getting Lambda URL: {str(e)}")
+        raise
 
 
 def lambda_handler(event, context):
@@ -70,8 +93,8 @@ def lambda_handler(event, context):
     print(f"[UPDATE_CATALOG_DB] agent_alias_id: {agent_alias_id}")
 
     try:
-        # Call the backend API endpoint
-        backend_url = "https://kf75zv6hbtup4a7cpjx2daat2q0lwgnt.lambda-url.us-east-1.on.aws"
+        # Get the backend Lambda URL dynamically
+        backend_url = get_backend_lambda_url()
         endpoint = f"{backend_url}/api/catalogs/{local_catalog_id}/update-aws-resources"
 
         headers = {

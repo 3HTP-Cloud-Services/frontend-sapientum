@@ -5,6 +5,7 @@ This function is called by the Step Function to poll the catalog status
 import json
 import os
 import requests
+from urllib.parse import quote
 
 
 def lambda_handler(event, context):
@@ -45,7 +46,9 @@ def lambda_handler(event, context):
 
     # Prepare API request
     base_url = "https://yx8b0cx4za.execute-api.us-east-1.amazonaws.com"
-    endpoint = f"{base_url}/api/v1/catalogs/{catalog_name}"
+    # URL-encode the catalog name to handle special characters like #
+    encoded_name = quote(catalog_name.lower(), safe='')
+    endpoint = f"{base_url}/api/v1/catalogs/{encoded_name}"
 
     headers = {
         "Content-Type": "application/json"
@@ -72,27 +75,38 @@ def lambda_handler(event, context):
         if response.status_code == 200:
             catalog_data = response.json()
 
-            # Extract kb_name and data_source_name
-            kb_name = catalog_data.get('kb_name')
-            data_source_name = catalog_data.get('data_source_name')
+            # Extract from metadata.aws_resources
+            metadata = catalog_data.get('metadata', {})
+            aws_resources = metadata.get('aws_resources', {})
 
-            print(f"[CHECK_CATALOG_STATUS] kb_name: {kb_name}")
-            print(f"[CHECK_CATALOG_STATUS] data_source_name: {data_source_name}")
+            knowledge_base_id = aws_resources.get('knowledge_base_id')
+            data_source_id = aws_resources.get('data_source_id')
+            agent_id = aws_resources.get('agent_id')
+            agent_alias_id = aws_resources.get('agent_alias_id')
 
-            # Check if both are valid (not None, not empty, not "PENDING" or similar)
-            kb_valid = kb_name and kb_name.strip() and kb_name.upper() not in ['PENDING', 'NULL', 'NONE', '']
-            ds_valid = data_source_name and data_source_name.strip() and data_source_name.upper() not in ['PENDING', 'NULL', 'NONE', '']
+            print(f"[CHECK_CATALOG_STATUS] Extracted knowledge_base_id: {knowledge_base_id}")
+            print(f"[CHECK_CATALOG_STATUS] Extracted data_source_id: {data_source_id}")
+            print(f"[CHECK_CATALOG_STATUS] Extracted agent_id: {agent_id}")
+            print(f"[CHECK_CATALOG_STATUS] Extracted agent_alias_id: {agent_alias_id}")
 
-            catalog_ready = kb_valid and ds_valid
+            # Check if required fields are valid (not None, not empty)
+            kb_valid = knowledge_base_id is not None and str(knowledge_base_id).strip() != ''
+            ds_valid = data_source_id is not None and str(data_source_id).strip() != ''
+            agent_valid = agent_id is not None and str(agent_id).strip() != ''
+            agent_alias_valid = agent_alias_id is not None and str(agent_alias_id).strip() != ''
 
-            print(f"[CHECK_CATALOG_STATUS] KB valid: {kb_valid}, DS valid: {ds_valid}")
+            catalog_ready = kb_valid and ds_valid and agent_valid and agent_alias_valid
+
+            print(f"[CHECK_CATALOG_STATUS] KB valid: {kb_valid}, DS valid: {ds_valid}, Agent valid: {agent_valid}, Agent Alias valid: {agent_alias_valid}")
             print(f"[CHECK_CATALOG_STATUS] Catalog ready: {catalog_ready}")
 
             return {
                 'success': True,
                 'catalog_ready': catalog_ready,
-                'kb_name': kb_name,
-                'data_source_name': data_source_name,
+                'kb_name': knowledge_base_id,
+                'data_source_name': data_source_id,
+                'agent_id': agent_id,
+                'agent_alias_id': agent_alias_id,
                 'catalog_data': catalog_data,
                 'local_catalog_id': local_catalog_id,
                 'catalog_name': catalog_name,

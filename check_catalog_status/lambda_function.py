@@ -5,6 +5,7 @@ This function is called by the Step Function to poll the catalog status
 import json
 import os
 import requests
+from urllib.parse import quote
 
 
 def lambda_handler(event, context):
@@ -60,7 +61,9 @@ def lambda_handler(event, context):
 
     # Prepare API request
     base_url = "https://yx8b0cx4za.execute-api.us-east-1.amazonaws.com"
-    endpoint = f"{base_url}/api/v1/catalogs/{catalog_name}"
+    # URL-encode the catalog name to handle special characters like #
+    encoded_name = quote(catalog_name.lower(), safe='')
+    endpoint = f"{base_url}/api/v1/catalogs/{encoded_name}"
 
     headers = {
         "Content-Type": "application/json",
@@ -106,10 +109,11 @@ def lambda_handler(event, context):
             kb_valid = knowledge_base_id is not None and str(knowledge_base_id).strip() != ''
             ds_valid = data_source_id is not None and str(data_source_id).strip() != ''
             agent_valid = agent_id is not None and str(agent_id).strip() != ''
+            agent_alias_valid = agent_alias_id is not None and str(agent_alias_id).strip() != ''
 
-            catalog_ready = kb_valid and ds_valid and agent_valid
+            catalog_ready = kb_valid and ds_valid and agent_valid and agent_alias_valid
 
-            print(f"[CHECK_CATALOG_STATUS] KB valid: {kb_valid}, DS valid: {ds_valid}, Agent valid: {agent_valid}")
+            print(f"[CHECK_CATALOG_STATUS] KB valid: {kb_valid}, DS valid: {ds_valid}, Agent valid: {agent_valid}, Agent Alias valid: {agent_alias_valid}")
             print(f"[CHECK_CATALOG_STATUS] Catalog ready: {catalog_ready}")
 
             return {
