@@ -52,6 +52,9 @@ Resources:
             - Effect: Allow
               Action: "states:StartExecution"
               Resource: "arn:aws:states:us-east-1:369595298303:stateMachine:CatalogStatusPollerStateMachine"
+            - Effect: Allow
+              Action: "sts:AssumeRole"
+              Resource: "arn:aws:iam::369595298303:role/sapientum_role"
       Events:
         Api:
           Type: Api

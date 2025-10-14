@@ -13,7 +13,6 @@ from datetime import datetime
 _credentials = None
 _credentials_expiry = 0
 _last_refresh_attempt = 0
-_using_instance_profile = False
 
 # Load config values
 def get_config_value(key, default=None):
@@ -48,11 +47,10 @@ def get_agent_alias_id():
 def refresh_credentials():
     """
     Refreshes temporary credentials with single retry.
-    If running on EC2, uses instance profile credentials.
-    If running locally, assumes the configured role.
+    Always assumes the configured sapientum_role for consistent permissions.
     This is the ONLY function that should call assume_role.
     """
-    global _credentials, _credentials_expiry, _last_refresh_attempt, _using_instance_profile
+    global _credentials, _credentials_expiry, _last_refresh_attempt
 
     current_time = time.time()
 
@@ -65,42 +63,29 @@ def refresh_credentials():
         try:
             _last_refresh_attempt = current_time
 
-            # Check if running on AWS Lambda
-            is_lambda = os.environ.get('AWS_LAMBDA_FUNCTION_NAME') is not None
+            # Always assume sapientum_role for consistent permissions
+            _using_instance_profile = False
 
-            if is_lambda:
-                print("Running on AWS Lambda, using Lambda execution role credentials")
-                _using_instance_profile = True
+            # Get the AWS role ARN from config
+            role_arn = get_aws_role_arn()
+            if not role_arn:
+                print("Error: AWS Role ARN not found in config")
+                return False
 
-                # When using Lambda execution role, we don't need to store credentials
-                # as boto3 will automatically use the Lambda execution role
-                _credentials = {}
-                _credentials_expiry = current_time + 3600  # Set a dummy expiry time
-                return True
-            else:
-                # Running locally, assume a role
-                _using_instance_profile = False
+            print(f"Creating a fresh STS client... (attempt {attempt + 1})")
+            # Create a fresh STS client - do not reuse any existing client
+            sts_client = boto3.client('sts', region_name='us-east-1')
 
-                # Get the AWS role ARN from config
-                role_arn = get_aws_role_arn()
-                if not role_arn:
-                    print("Error: AWS Role ARN not found in config")
-                    return False
+            print(f"Attempting to assume role: {role_arn}")
+            # This is the only place where assume_role should be called
+            assumed_role = sts_client.assume_role(
+                RoleArn=role_arn,
+                RoleSessionName=f'AssumeRoleSession-{int(current_time)}',
+                DurationSeconds=3600
+            )
 
-                print(f"Creating a fresh STS client... (attempt {attempt + 1})")
-                # Create a fresh STS client - do not reuse any existing client
-                sts_client = boto3.client('sts', region_name='us-east-1')
-
-                print(f"Attempting to assume role: {role_arn}")
-                # This is the only place where assume_role should be called
-                assumed_role = sts_client.assume_role(
-                    RoleArn=role_arn,
-                    RoleSessionName=f'AssumeRoleSession-{int(current_time)}',
-                    DurationSeconds=3600
-                )
-
-                _credentials = assumed_role['Credentials']
-                _credentials_expiry = time.mktime(_credentials['Expiration'].timetuple())
+            _credentials = assumed_role['Credentials']
+            _credentials_expiry = time.mktime(_credentials['Expiration'].timetuple())
 
             expiry_time = datetime.fromtimestamp(_credentials_expiry)
             current_time_dt = datetime.now()
@@ -121,12 +106,11 @@ def refresh_credentials():
 
 def get_client_with_assumed_role(service_name, region_name='us-east-1'):
     """
-    Create a boto3 client for the specified service using:
-    - Instance profile credentials when on EC2
-    - Assumed role credentials when running locally
+    Create a boto3 client for the specified service using assumed role credentials.
+    Always assumes sapientum_role for consistent permissions across all environments.
     Only refreshes credentials if they don't exist or are expired.
     """
-    global _credentials, _credentials_expiry, _using_instance_profile
+    global _credentials, _credentials_expiry
 
     # Check if we need to initialize credentials
     current_time = time.time()
@@ -148,23 +132,15 @@ def get_client_with_assumed_role(service_name, region_name='us-east-1'):
             print("FAILED to refresh credentials!")
             raise Exception("Failed to get credentials, cannot proceed with AWS operations")
 
-    # If using Lambda execution role, just create client without explicit credentials
-    if _using_instance_profile:
-        print(f"Creating {service_name} client with Lambda execution role credentials")
-        return boto3.client(
-            service_name,
-            region_name=region_name
-        )
-    else:
-        # Create a fresh client with assumed role credentials
-        print(f"Creating {service_name} client with assumed role credentials")
-        return boto3.client(
-            service_name,
-            region_name=region_name,
-            aws_access_key_id=_credentials['AccessKeyId'],
-            aws_secret_access_key=_credentials['SecretAccessKey'],
-            aws_session_token=_credentials['SessionToken']
-        )
+    # Create a fresh client with assumed role credentials
+    print(f"Creating {service_name} client with assumed role credentials")
+    return boto3.client(
+        service_name,
+        region_name=region_name,
+        aws_access_key_id=_credentials['AccessKeyId'],
+        aws_secret_access_key=_credentials['SecretAccessKey'],
+        aws_session_token=_credentials['SessionToken']
+    )
 
 
 def list_s3_folder_contents(bucket_name, prefix=''):
@@ -334,7 +310,7 @@ def upload_file_to_s3(bucket_name, catalog_folder, file_obj, file_content, conte
         # Get a fresh S3 client with assumed role credentials
         s3_client = get_client_with_assumed_role('s3')
 
-        folder_path = f"catalog_dir/{catalog_folder}/"
+        folder_path = f"catalog_dir/{catalog_folder}/documents/"
         file_key = f"{folder_path}{file_obj.filename}"
 
         if not content_type:
@@ -545,11 +521,9 @@ def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lam
             print(f"[AWS_UTILS] Body keys: {list(body.keys()) if isinstance(body, dict) else 'not a dict'}")
 
         print(f"\n[AWS_UTILS] Getting AWS credentials...")
-        session = boto3.Session()
-        credentials = session.get_credentials()
 
-        global _credentials, _using_instance_profile
-        if not _using_instance_profile and _credentials:
+        global _credentials
+        if _credentials:
             print(f"[AWS_UTILS] Using assumed role credentials")
             from botocore.credentials import Credentials
             credentials = Credentials(
@@ -558,7 +532,9 @@ def invoke_lambda_with_sigv4(url, method='GET', region='us-east-1', service='lam
                 token=_credentials['SessionToken']
             )
         else:
-            print(f"[AWS_UTILS] Using instance profile/Lambda execution role credentials")
+            print(f"[AWS_UTILS] Using default session credentials")
+            session = boto3.Session()
+            credentials = session.get_credentials()
 
         print(f"[AWS_UTILS] ✓ Credentials obtained")
 

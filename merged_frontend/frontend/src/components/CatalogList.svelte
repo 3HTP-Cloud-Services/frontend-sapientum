@@ -21,7 +21,7 @@
   let newCatalog = {
     catalog_name: '',
     description: '',
-    type: 'manual'
+    type: 'general'
   };
 
   // State for upload modal
@@ -109,15 +109,19 @@
       } else {
         console.error('Error fetching catalog types:', response.status);
         catalogTypes = [
-          {id: 'manual', name: 'manual'},
-          {id: 'contract', name: 'contract'}
+          {id: 'general', name: 'General'},
+          {id: 'legal', name: 'Legal'},
+          {id: 'technical', name: 'Manuales Tecnicos'},
+          {id: 'administrative', name: 'Procedimientos Administrativos'}
         ];
       }
     } catch (err) {
       console.error('Catalog types fetch error:', err);
       catalogTypes = [
-        {id: 'manual', name: 'manual'},
-        {id: 'contract', name: 'contract'}
+        {id: 'general', name: 'General'},
+        {id: 'legal', name: 'Legal'},
+        {id: 'technical', name: 'Manuales Tecnicos'},
+        {id: 'administrative', name: 'Procedimientos Administrativos'}
       ];
     }
   }
@@ -128,7 +132,7 @@
     newCatalog = {
       catalog_name: '',
       description: '',
-      type: 'manual'
+      type: 'general'
     };
   }
 
@@ -181,6 +185,11 @@
     } finally {
       isCreatingCatalog = false;
     }
+  }
+
+  function getCatalogTypeName(typeId) {
+    const type = catalogTypes.find(t => t.id === typeId);
+    return type ? type.name : typeId;
   }
 
   function calculateCatalogState(statusData) {
@@ -304,6 +313,7 @@
 
   onMount(() => {
     console.log("CatalogList component mounted");
+    fetchCatalogTypes();
     if ($activeSectionStore === 'catalogs') {
       console.log("Catalogs section is active, fetching catalogs");
       fetchCatalogs();
@@ -344,8 +354,8 @@
           <div class="catalog-info">
             <div class="catalog-header">
               <h3>{catalog.catalog_name}</h3>
-              <div class="catalog-type">{catalog.type}</div>
-              {#if catalog.type === 'General'}
+              <div class="catalog-type">{getCatalogTypeName(catalog.type)}</div>
+              {#if catalog.type === 'general'}
                 <div class="catalog-badge">S3</div>
               {/if}
               {#if catalog.state}

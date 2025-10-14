@@ -28,6 +28,7 @@
   let loadingOlderMessages = false;
   let hasMoreMessages = writable({});
   let isLoadingOlder = false;
+  let selectedCatalogIsReady = true;
 
   let showTracePopup = false;
   let traceData = null;
@@ -194,11 +195,18 @@
   function selectCatalog(id) {
     console.log('selectCatalog clicked', id, 'has messages:', !!$messagesByCatalog[id]);
     selectedCatalogId = id;
-    if (!$messagesByCatalog[id]) {
+
+    const catalog = $catalogsStore.find(c => c.id === id);
+    selectedCatalogIsReady = catalog?.state === 'ready';
+    console.log('Selected catalog state:', catalog?.state, 'isReady:', selectedCatalogIsReady);
+
+    if (selectedCatalogIsReady && !$messagesByCatalog[id]) {
       console.log('Loading messages for catalog', id);
       loadConversationMessages(id);
-    } else {
+    } else if (selectedCatalogIsReady) {
       console.log('Catalog already has messages, count:', $messagesByCatalog[id].length);
+    } else {
+      console.log('Catalog is not ready, skipping message load');
     }
   }
 
@@ -571,10 +579,14 @@
     <!-- Show tabs when 4 or fewer catalogs -->
     <div class="catalog-list">
       {#each $catalogsStore as catalog (catalog.id)}
-        <div class="catalog {selectedCatalogId === catalog.id ? 'active' : ''}"
+        <div class="catalog {selectedCatalogId === catalog.id ? 'active' : ''} {catalog.state !== 'ready' ? 'not-ready' : ''}"
              on:click={() => selectCatalog(catalog.id)}
+             title={catalog.state !== 'ready' ? ($i18nStore?.t('catalog_not_ready') || 'This catalog is not ready yet') : ''}
         >
           {catalog.name}
+          {#if catalog.state !== 'ready'}
+            <span class="catalog-state-indicator">⚠</span>
+          {/if}
         </div>
       {/each}
     </div>
@@ -589,7 +601,9 @@
         on:change={() => selectCatalog(selectedCatalogId)}
       >
         {#each $catalogsStore as catalog (catalog.id)}
-          <option value={catalog.id}>{catalog.name}</option>
+          <option value={catalog.id}>
+            {catalog.name}{catalog.state !== 'ready' ? ' ⚠' : ''}
+          </option>
         {/each}
       </select>
     </div>
@@ -645,22 +659,28 @@
   </div>
 
   <div class="chat-input">
-    <div class="input-row">
-      <textarea
-              placeholder={$i18nStore?.t('chat_placeholder') || 'Type your message...'}
-              bind:value={userInput}
-              on:keydown={handleKeydown}
-              disabled={!selectedCatalogId}
-      ></textarea>
-      <div class="button-column">
-        <button class="send-button" on:click={sendMessage} disabled={!userInput.trim() || !selectedCatalogId}>
-          {$i18nStore?.t('send_button') || 'Send'}
-        </button>
-        <button class="download-conversation-button" on:click={openDownloadDialog} disabled={!selectedCatalogId}>
-          📄 {$i18nStore?.t('download_conversation') || 'Download Conversation'}
-        </button>
+    {#if !selectedCatalogIsReady && selectedCatalogId}
+      <div class="catalog-not-ready-message">
+        {$i18nStore?.t('catalog_not_ready') || 'This catalog is not ready yet'}
       </div>
-    </div>
+    {:else}
+      <div class="input-row">
+        <textarea
+                placeholder={$i18nStore?.t('chat_placeholder') || 'Type your message...'}
+                bind:value={userInput}
+                on:keydown={handleKeydown}
+                disabled={!selectedCatalogId || !selectedCatalogIsReady}
+        ></textarea>
+        <div class="button-column">
+          <button class="send-button" on:click={sendMessage} disabled={!userInput.trim() || !selectedCatalogId || !selectedCatalogIsReady}>
+            {$i18nStore?.t('send_button') || 'Send'}
+          </button>
+          <button class="download-conversation-button" on:click={openDownloadDialog} disabled={!selectedCatalogId || !selectedCatalogIsReady}>
+            📄 {$i18nStore?.t('download_conversation') || 'Download Conversation'}
+          </button>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -923,6 +943,17 @@
     border-top: 1px solid #e2e8f0;
   }
 
+  .catalog-not-ready-message {
+    padding: 1rem;
+    background-color: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    color: #856404;
+    text-align: center;
+    font-weight: 500;
+    font-size: 1rem;
+  }
+
   .input-row {
     display: flex;
     gap: 0.5rem;
@@ -1048,6 +1079,9 @@
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
   }
 
   .catalog:hover {
@@ -1060,6 +1094,25 @@
     border: 1px solid #e2e8f0;
     border-bottom: none;
     position: relative;
+  }
+
+  .catalog.not-ready {
+    opacity: 0.7;
+    background-color: #9ca3af;
+  }
+
+  .catalog.not-ready:hover {
+    background-color: #6b7280;
+  }
+
+  .catalog.not-ready.active {
+    background-color: #6b7280;
+  }
+
+  .catalog-state-indicator {
+    font-size: 0.875rem;
+    color: #fbbf24;
+    margin-left: 0.25rem;
   }
 
   .catalog.active::after {

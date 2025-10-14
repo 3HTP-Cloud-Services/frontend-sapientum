@@ -47,10 +47,10 @@ def sanitize_s3_folder_name(name):
 
 def get_catalog_types():
     return [
-        {"id": "Legal", "name": "Legal"},
-        {"id": "Manuales_Tecnicos", "name": "Manuales Tecnicos"},
-        {"id": "Procedimientos_Administrativos", "name": "Procedimientos Administrativos"},
-        {"id": "General", "name": "General"}
+        {"id": "legal", "name": "Legal"},
+        {"id": "technical", "name": "Manuales Tecnicos"},
+        {"id": "administrative", "name": "Procedimientos Administrativos"},
+        {"id": "general", "name": "General"}
     ]
 
 def trigger_catalog_status_poller(catalog_name, local_catalog_id, jwt_token=None, backend_url=None):
@@ -144,23 +144,13 @@ def call_external_catalog_api(catalog_name, catalog_type, description=None, inst
         Tuple of (success: bool, response_data: dict)
     """
     try:
-        # Map internal catalog types to API enum values
-        catalog_type_mapping = {
-            'General': 'general',
-            'Legal': 'legal',
-            'Manuales_Tecnicos': 'technical',
-            'Procedimientos_Administrativos': 'administrative'
-        }
-
-        api_catalog_type = catalog_type_mapping.get(catalog_type, 'general')
-
         # Prepare the API endpoint
         base_url = "https://yx8b0cx4za.execute-api.us-east-1.amazonaws.com"
         endpoint = f"{base_url}/api/v1/catalogs"
 
         # Prepare request body
         request_body = {
-            "catalog_type": api_catalog_type,
+            "catalog_type": catalog_type,
             "catalog_name": catalog_name.lower()
         }
 
@@ -257,25 +247,47 @@ def call_external_catalog_api(catalog_name, catalog_type, description=None, inst
 def trigger_bedrock_ingestion(catalog):
     try:
         if not catalog:
-            print("Warning: No catalog provided for ingestion trigger")
-            return False
+            error_msg = "No catalog provided for ingestion trigger"
+            print(f"Warning: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "catalog_name": None,
+                "catalog_type": None
+            }
 
         knowledge_base_id = catalog.knowledge_base_id
         data_source_id = catalog.data_source_id
 
         if not knowledge_base_id or not data_source_id:
-            print(f"Warning: Missing knowledge_base_id or data_source_id for catalog '{catalog.name}' (ID: {catalog.id})")
+            error_msg = f"Missing knowledge_base_id or data_source_id for catalog '{catalog.name}' (ID: {catalog.id})"
+            print(f"Warning: {error_msg}")
             print(f"  - knowledge_base_id: {knowledge_base_id}")
             print(f"  - data_source_id: {data_source_id}")
-            return False
+            return {
+                "success": False,
+                "error": error_msg,
+                "catalog_name": catalog.name,
+                "catalog_type": catalog.type,
+                "knowledge_base_id": knowledge_base_id,
+                "data_source_id": data_source_id
+            }
 
         from aws_utils import get_client_with_assumed_role
 
         bedrock_agent = get_client_with_assumed_role('bedrock-agent', region_name='us-east-1')
 
         if not bedrock_agent:
-            print("Error: Could not create bedrock-agent client")
-            return False
+            error_msg = "Could not create bedrock-agent client"
+            print(f"Error: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "catalog_name": catalog.name,
+                "catalog_type": catalog.type,
+                "knowledge_base_id": knowledge_base_id,
+                "data_source_id": data_source_id
+            }
 
         print(f"Starting Bedrock ingestion job for catalog '{catalog.name}' (type: {catalog.type})")
         print(f"  - Knowledge Base ID: {knowledge_base_id}")
@@ -286,15 +298,33 @@ def trigger_bedrock_ingestion(catalog):
             dataSourceId=data_source_id
         )
 
-        ingestion_job_id = response.get('ingestionJob', {}).get('ingestionJobId', 'Unknown')
+        ingestion_job = response.get('ingestionJob', {})
+        ingestion_job_id = ingestion_job.get('ingestionJobId', 'Unknown')
         print(f"Bedrock ingestion job started successfully: {ingestion_job_id}")
 
-        return True
+        return {
+            "success": True,
+            "catalog_name": catalog.name,
+            "catalog_type": catalog.type,
+            "knowledge_base_id": knowledge_base_id,
+            "data_source_id": data_source_id,
+            "ingestion_job_id": ingestion_job_id,
+            "ingestion_job": ingestion_job,
+            "full_response": response
+        }
 
     except Exception as e:
-        print(f"Error triggering Bedrock ingestion: {e}")
+        error_msg = f"Error triggering Bedrock ingestion: {str(e)}"
+        print(error_msg)
         traceback.print_exc()
-        return False
+        return {
+            "success": False,
+            "error": error_msg,
+            "error_type": type(e).__name__,
+            "catalog_name": catalog.name if catalog else None,
+            "catalog_type": catalog.type if catalog else None,
+            "traceback": traceback.format_exc()
+        }
 
 def get_s3_folders():
     try:
@@ -529,7 +559,7 @@ def get_catalog_files(catalog_id):
             return file_dicts
 
         # If no files in database, try S3 as fallback (older files might not be in DB)
-        if catalog.type == 'General':
+        if catalog.type == 'general':
             s3_files = get_s3_catalog_files(catalog.id)
             if s3_files:
                 return s3_files
@@ -623,7 +653,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
 
         # Use default catalog_type if not provided
         if not catalog_type:
-            catalog_type = 'General'
+            catalog_type = 'general'
 
         # Sanitize catalog name for S3 compatibility
         sanitized_s3_name = sanitize_s3_folder_name(catalog_name)
@@ -653,6 +683,14 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
             Body=''
         )
 
+        # Create documents subfolder
+        documents_folder_path = f"{folder_path}documents/"
+        s3_client.put_object(
+            Bucket=bucket_name,
+            Key=documents_folder_path,
+            Body=''
+        )
+
         # Create a .metadata file inside the folder with catalog details
         import json
         from datetime import datetime
@@ -674,6 +712,7 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
         )
 
         print(f"Successfully created folder {folder_path} in bucket {bucket_name}")
+        print(f"Successfully created documents folder {documents_folder_path} in bucket {bucket_name}")
         print(f"Added metadata file {metadata_key} in bucket {bucket_name}")
 
         if not folder_path:
@@ -831,7 +870,7 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
 
                     create_activity_catalog_log(EventType.FILE_UPLOAD, user_email, catalog.id, 'User ' + user_email + ' uploaded the file ' + file_obj.filename)
 
-                    trigger_bedrock_ingestion(catalog)
+                    bedrock_response = trigger_bedrock_ingestion(catalog)
 
                     # Return the file dictionary
                     file_dict = new_file.to_dict()
@@ -841,6 +880,8 @@ def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None
                     file_dict['description'] = file_dict.get('summary')
                     if 'size_formatted' not in file_dict:
                         file_dict['size'] = file_dict.get('size_formatted', f"{file_size / 1024:.1f} KB")
+
+                    file_dict['bedrock_ingestion'] = bedrock_response
 
                     return file_dict
                 else:

@@ -184,7 +184,8 @@
         "no_activity_logs": "No se encontraron registros de actividad",
         "catalog_state_ready": "Disponible",
         "catalog_state_created": "Creado",
-        "catalog_state_in_preparation": "En preparación"
+        "catalog_state_in_preparation": "En preparación",
+        "catalog_not_ready": "Este catálogo no está listo aún"
     },
     "en": {
         "title": "Sapientum AI Administration Console",
@@ -371,7 +372,8 @@
         "no_activity_logs": "No activity logs found",
         "catalog_state_ready": "Ready",
         "catalog_state_created": "Created",
-        "catalog_state_in_preparation": "In Preparation"
+        "catalog_state_in_preparation": "In Preparation",
+        "catalog_not_ready": "This catalog is not ready yet"
     },
     "pt": {
         "title": "Console de Administração Sapientum AI",
@@ -558,6 +560,7 @@
         "no_activity_logs": "Nenhum registro de atividade encontrado",
         "catalog_state_ready": "Pronto",
         "catalog_state_created": "Criado",
-        "catalog_state_in_preparation": "Em Preparação"
+        "catalog_state_in_preparation": "Em Preparação",
+        "catalog_not_ready": "Este catálogo ainda não está pronto"
     }
 }
