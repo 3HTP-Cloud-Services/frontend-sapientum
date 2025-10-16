@@ -95,6 +95,8 @@
         const statusData = await response.json();
         console.log('[POLL] Catalog status:', statusData);
 
+        const newState = calculateCatalogState(statusData);
+
         // Update the selected catalog store with new AWS resource IDs
         if ($selectedCatalogStore && $selectedCatalogStore.id === catalogId) {
           selectedCatalogStore.update(catalog => ({
@@ -103,9 +105,14 @@
             data_source_id: statusData.data_source_id,
             agent_id: statusData.agent_id,
             agent_version_id: statusData.agent_version_id,
-            // Recalculate state
-            state: calculateCatalogState(statusData)
+            state: newState
           }));
+        }
+
+        if (newState === 'ready') {
+          console.log('[POLL] Catalog is ready, stopping status polling');
+          stopStatusPolling();
+          return;
         }
       } else {
         console.error('[POLL] Failed to get catalog status:', response.status);
@@ -114,7 +121,6 @@
       console.error('[POLL] Error polling catalog status:', error);
     }
 
-    // Schedule next poll with increased delay
     scheduleNextPoll(catalogId);
   }
 
