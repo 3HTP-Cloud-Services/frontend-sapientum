@@ -1,0 +1,9 @@
+{
+  "apiUrl": "http://localhost:8000",
+  "description": "Configure this file to point to your backend API server",
+  "examples": {
+    "local": "http://localhost:8000",
+    "staging": "https://api-staging.yourapp.com",
+    "production": "https://api.yourapp.com"
+  }
+}
