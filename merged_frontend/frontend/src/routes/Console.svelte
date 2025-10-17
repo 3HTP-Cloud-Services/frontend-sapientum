@@ -31,7 +31,6 @@
 
   $: {
     $activeSectionStore = activeSection;
-    console.log(`Active section changed to ${activeSection}`);
   }
 
   // Flag to determine if catalog menu should be shown
@@ -51,7 +50,16 @@
   $: {
     if (!$loadingStore) {
       showCatalogMenu = $catalogsStore && $catalogsStore.length > 0;
-      console.log(`Catalog menu visibility: ${showCatalogMenu} (${$catalogsStore.length} catalogs)`);
+
+      console.log('[SIDEBAR DEBUG] Catalog menu update:', {
+        showCatalogMenu,
+        catalogCount: $catalogsStore.length,
+        simpleMode,
+        userRole: $userRole,
+        willShowCatalogMenu: showCatalogMenu || $userRole === 'admin',
+        willShowAdminMenus: $userRole === 'admin',
+        fullCondition: !simpleMode && (showCatalogMenu || $userRole === 'admin')
+      });
 
       // Only auto-switch to catalogs if user hasn't explicitly selected a section yet
       if (activeSection === 'chat' && !userSelectedSection && ($userRole === 'admin' || showCatalogMenu)) {
@@ -135,8 +143,6 @@
   }
 
   function switchSection(section) {
-    console.log(`Switching to section: ${section}`);
-
     // Mark that user has explicitly selected a section
     userSelectedSection = true;
 
@@ -193,8 +199,13 @@
       const response = await httpCall('/api/simple-mode', 'GET');
       const data = await response.json();
       simpleMode = data.simple_mode;
+      console.log('[SIDEBAR DEBUG] Simple mode loaded:', {
+        simpleMode,
+        userRole: $userRole,
+        isAuthenticated: $isAuthenticated
+      });
     } catch (error) {
-      console.error('Error loading simple mode:', error);
+      console.log('[SIDEBAR DEBUG] Failed to load simple mode:', error);
     }
 
     checkMobile();
@@ -202,7 +213,6 @@
     // Add event listener for catalog permissions
     window.addEventListener('viewPermissions', (event) => {
       const catalogId = event.detail.catalogId;
-      console.log('Console received viewPermissions event with catalogId:', catalogId);
       $currentCatalogIdStore = catalogId;
     });
 

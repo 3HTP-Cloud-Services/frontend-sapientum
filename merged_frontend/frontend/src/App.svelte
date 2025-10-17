@@ -27,8 +27,6 @@
     const message = event.data;
     if (!message || !message.type) return;
 
-    console.log('Handling embedded message:', message);
-
     // Handle specific message types
     if (message.type === 'sapientum:navigate') {
       if (message.path) {
@@ -58,16 +56,13 @@
     }
 
     if (window.isStaticMode) {
-      console.log('App component running in static mode');
       // In static mode, we'll still try auth checks since our API is available
       try {
         await checkAuth();
       } catch (e) {
-        console.error('Auth check failed, setting authenticated anyway in static mode:', e);
         isAuthenticated.set(true);
       }
     } else {
-      console.log('App component running in development mode');
       await checkAuth();
     }
 
@@ -75,16 +70,13 @@
     if (isEmbedded || inEmbeddedMode) {
       // If we're in embedded mode but not on an embedded route, redirect to embedded
       if (!$location.startsWith('/embedded')) {
-        console.log('Embedded mode detected, redirecting to embedded route');
         push('/embedded');
       }
     } else if ($location === '' || $location === '/') {
       // If regular mode and the route is empty, go to the console
-      console.log('Empty location detected in regular mode, pushing to console');
       push('/console');
     }
 
-    console.log('Current route at mount:', $location);
     isLoading.set(false);
 
     // Notify parent when navigation occurs (for embedded mode)
@@ -120,7 +112,6 @@
         $location !== '' &&
         $location !== '/' &&
         !$location.startsWith('/embedded')) {
-      console.log('Not authenticated, redirecting to login from', $location);
       push('/login');
     }
   }

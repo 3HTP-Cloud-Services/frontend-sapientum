@@ -39,7 +39,6 @@
   export let activeSectionStore;
 
   function viewCatalog(id) {
-    console.log('viewCatalog: ' + id);
     dispatch('viewCatalog', id);
   }
 
@@ -57,43 +56,89 @@
   }
 
   async function handleUpload(event) {
-    console.log("Uploading files to catalog:", event.detail.catalogId, event.detail.files);
     const onComplete = event.detail.onComplete;
-    let success = false;
+    let successCount = 0;
+    let errorCount = 0;
 
     try {
-      const formData = new FormData();
-
       for (const file of event.detail.files) {
-        formData.append('file', file);
+        try {
+
+          const urlResponse = await httpCall(`/api/catalogs/${event.detail.catalogId}/generate-upload-url`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              filename: file.name,
+              content_type: file.type || 'application/octet-stream'
+            })
+          });
+
+          if (!urlResponse.ok) {
+            errorCount++;
+            continue;
+          }
+
+          const urlData = await urlResponse.json();
+
+          const uploadResponse = await fetch(urlData.upload_url, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              'Content-Type': file.type || 'application/octet-stream'
+            }
+          });
+
+          if (!uploadResponse.ok) {
+            errorCount++;
+            continue;
+          }
+
+          const completeResponse = await httpCall(`/api/catalogs/${event.detail.catalogId}/upload-complete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              s3_key: urlData.s3_key,
+              filename: file.name,
+              file_size: file.size,
+              file_id: urlData.file_id,
+              version_id: urlData.version_id
+            })
+          });
+
+          if (completeResponse.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+
+        } catch (fileError) {
+          errorCount++;
+        }
       }
 
-      const response = await httpCall(`/api/catalogs/${event.detail.catalogId}/upload`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
+      fetchCatalogs();
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log("Upload successful:", result);
-        fetchCatalogs();
-        success = true;
-      } else {
-        console.error("Upload failed:", response.status, response.statusText);
-        const errorData = await response.json();
-        console.error("Error details:", errorData);
-      }
     } catch (error) {
-      console.error("Upload error:", error);
     } finally {
+      const success = successCount > 0;
       if (onComplete) onComplete(success);
       closeUploadModal();
+
+      if (successCount > 0 && errorCount > 0) {
+        alert(`Uploaded ${successCount} file(s) successfully. ${errorCount} file(s) failed.`);
+      } else if (errorCount > 0) {
+        alert(`Failed to upload ${errorCount} file(s).`);
+      }
     }
   }
 
   function addNewCatalog() {
-    console.log("Opening add catalog modal");
     fetchCatalogTypes();
     showCatalogModal = true;
   }
@@ -142,8 +187,6 @@
   }
 
   async function submitNewCatalog() {
-    console.log("Creating new catalog:", newCatalog);
-
     // Validate catalog name on frontend before sending to backend
     if (!newCatalog.catalog_name) {
       catalogCreationError = 'Catalog name is required';
@@ -170,17 +213,13 @@
 
       if (response.ok) {
         const result = await response.json();
-        console.log("Created catalog:", result);
         closeCatalogModal();
         fetchCatalogs();
       } else {
-        console.error("Failed to create catalog:", response.status, response.statusText);
         const errorData = await response.json();
-        console.error("Error details:", errorData);
         catalogCreationError = errorData.error || response.statusText;
       }
     } catch (error) {
-      console.error("Error creating catalog:", error);
       catalogCreationError = error.message;
     } finally {
       isCreatingCatalog = false;
@@ -207,8 +246,6 @@
 
   async function pollCatalogsBatch(catalogIds) {
     try {
-      console.log(`[POLL] Polling batch of ${catalogIds.length} catalogs`);
-
       const response = await httpCall('/api/catalogs/status/batch', {
         method: 'POST',
         headers: {
@@ -220,7 +257,6 @@
 
       if (response.ok) {
         const statusData = await response.json();
-        console.log('[POLL] Batch status received:', statusData);
 
         // Update catalog store with new statuses
         catalogsStore.update(catalogs => {
@@ -239,11 +275,8 @@
             return catalog;
           });
         });
-      } else {
-        console.error('[POLL] Failed to get batch status:', response.status);
       }
     } catch (error) {
-      console.error('[POLL] Error polling batch:', error);
     }
   }
 
@@ -252,12 +285,9 @@
     const nonReadyCatalogs = $catalogsStore.filter(c => c.state !== 'ready');
 
     if (nonReadyCatalogs.length === 0) {
-      console.log('[POLL] No non-ready catalogs to poll');
       scheduleNextPollRound();
       return;
     }
-
-    console.log(`[POLL] Polling ${nonReadyCatalogs.length} non-ready catalogs`);
 
     // Split into batches of 20
     const batches = [];
@@ -279,8 +309,6 @@
   }
 
   function scheduleNextPollRound() {
-    console.log(`[POLL] Scheduling next poll round in ${currentPollingDelay / 1000} seconds`);
-
     statusPollingTimeout = setTimeout(() => {
       pollAllNonReadyCatalogs();
     }, currentPollingDelay);
@@ -297,25 +325,20 @@
     // Reset delay to 5 seconds
     currentPollingDelay = 5000;
 
-    console.log('[POLL] Starting status polling for catalog list');
-
     // Poll immediately
     pollAllNonReadyCatalogs();
   }
 
   function stopStatusPolling() {
     if (statusPollingTimeout) {
-      console.log('[POLL] Stopping status polling');
       clearTimeout(statusPollingTimeout);
       statusPollingTimeout = null;
     }
   }
 
   onMount(() => {
-    console.log("CatalogList component mounted");
     fetchCatalogTypes();
     if ($activeSectionStore === 'catalogs') {
-      console.log("Catalogs section is active, fetching catalogs");
       fetchCatalogs();
     }
   });
@@ -325,11 +348,9 @@
   });
 
   $: if ($activeSectionStore === 'catalogs' && !$selectedCatalogStore) {
-    console.log("Catalogs section is now active and no catalog selected");
     fetchCatalogs();
     startStatusPolling();
   } else {
-    console.log("Stopping list polling - either not in catalogs section or catalog detail is open");
     stopStatusPolling();
   }
 </script>

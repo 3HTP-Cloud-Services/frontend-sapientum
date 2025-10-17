@@ -771,6 +771,142 @@ def create_catalog(catalog_name, description=None, catalog_type=None):
         return None
 
 
+def generate_presigned_upload_url(catalog_id, filename, content_type, current_user):
+    try:
+        catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
+
+        if not catalog:
+            catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
+
+        if not catalog:
+            print(f"Catalog not found: {catalog_id}")
+            return None
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return None
+
+        user_id = current_user.id
+        current_time = datetime.now()
+
+        new_file = File(
+            name=filename,
+            summary=f"Uploaded to {catalog.name}",
+            catalog_id=catalog.id,
+            created_at=current_time,
+            uploaded_at=current_time,
+            created_by_id=user_id,
+            status="pending",
+            confidentiality=False,
+            size=0
+        )
+
+        db.session.add(new_file)
+        db.session.flush()
+
+        version_record = Version(
+            active=True,
+            version=1,
+            s3Id='',
+            size=0,
+            filename=filename,
+            uploader_id=user_id,
+            file_id=new_file.id
+        )
+
+        db.session.add(version_record)
+        db.session.flush()
+
+        file_extension = ""
+        if '.' in filename:
+            file_extension = filename.rsplit('.', 1)[1].lower()
+
+        new_filename = f"{catalog.id}-{new_file.id}-{version_record.id}"
+        if file_extension:
+            new_filename = f"{new_filename}.{file_extension}"
+
+        s3_folder_name = catalog.s3Id
+        s3_key = f"catalog_dir/{s3_folder_name}/documents/{new_filename}"
+
+        from aws_utils import get_client_with_assumed_role
+        s3_client = get_client_with_assumed_role('s3')
+
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': s3_key,
+                'ContentType': content_type
+            },
+            ExpiresIn=900
+        )
+
+        db.session.commit()
+
+        return {
+            'upload_url': presigned_url,
+            's3_key': s3_key,
+            'file_id': new_file.id,
+            'version_id': version_record.id,
+            'filename': new_filename
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error generating presigned URL: {e}")
+        traceback.print_exc()
+        return None
+
+
+def finalize_file_upload(catalog_id, s3_key, filename, file_size, file_id, version_id, current_user):
+    try:
+        catalog = Catalog.query.filter_by(id=catalog_id, is_active=True).first()
+
+        if not catalog:
+            catalog = Catalog.query.filter_by(s3Id=catalog_id, is_active=True).first()
+
+        if not catalog:
+            print(f"Catalog not found: {catalog_id}")
+            return None
+
+        file_record = File.query.filter_by(id=file_id, catalog_id=catalog.id).first()
+        if not file_record:
+            print(f"File record not found: {file_id}")
+            return None
+
+        version_record = Version.query.filter_by(id=version_id, file_id=file_id).first()
+        if not version_record:
+            print(f"Version record not found: {version_id}")
+            return None
+
+        file_record.s3Id = s3_key
+        file_record.size = file_size
+        file_record.status = "published"
+
+        version_record.s3Id = s3_key
+        version_record.size = file_size
+
+        db.session.commit()
+
+        create_activity_catalog_log(EventType.FILE_UPLOAD, current_user.email, catalog.id, f'User {current_user.email} uploaded the file {filename}')
+
+        bedrock_response = trigger_bedrock_ingestion(catalog)
+
+        file_dict = file_record.to_dict()
+        file_dict['uploadDate'] = file_dict.get('uploaded_at')
+        file_dict['description'] = file_dict.get('summary')
+        file_dict['size'] = format_size(file_size)
+        file_dict['bedrock_ingestion'] = bedrock_response
+
+        return file_dict
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error finalizing upload: {e}")
+        traceback.print_exc()
+        return None
+
+
 def upload_file_to_catalog(catalog_id, file_obj, file_content, content_type=None):
     """Upload a file to a catalog"""
     try:

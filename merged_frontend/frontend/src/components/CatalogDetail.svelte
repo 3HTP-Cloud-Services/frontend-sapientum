@@ -62,7 +62,6 @@
       const data = await response.json();
       permissionCheckResult = data;
       permissionCheckError = null;
-      console.log('Permission check response:', data);
       if (data && data.can_manage) {
         canManagePermissions = true;
       } else {
@@ -81,7 +80,6 @@
       const response = await httpCall(`/api/catalogs/${catalogId}/my-permission`, 'GET');
       const data = await response.json();
       dbPermissionInfo = data;
-      console.log('DB Permission info:', data);
     } catch (error) {
       console.error('Error fetching DB permission info:', error);
       dbPermissionInfo = { error: error.message || error.toString() };
@@ -93,11 +91,9 @@
       const response = await httpCall(`/api/catalogs/${catalogId}/status`, 'GET');
       if (response.ok) {
         const statusData = await response.json();
-        console.log('[POLL] Catalog status:', statusData);
 
         const newState = calculateCatalogState(statusData);
 
-        // Update the selected catalog store with new AWS resource IDs
         if ($selectedCatalogStore && $selectedCatalogStore.id === catalogId) {
           selectedCatalogStore.update(catalog => ({
             ...catalog,
@@ -110,7 +106,6 @@
         }
 
         if (newState === 'ready') {
-          console.log('[POLL] Catalog is ready, stopping status polling');
           stopStatusPolling();
           return;
         }
@@ -125,13 +120,10 @@
   }
 
   function scheduleNextPoll(catalogId) {
-    console.log(`[POLL] Scheduling next poll in ${currentPollingDelay / 1000} seconds`);
-
     statusPollingTimeout = setTimeout(() => {
       pollCatalogStatus(catalogId);
     }, currentPollingDelay);
 
-    // Increase delay by 1 second for next time
     currentPollingDelay += 1000;
   }
 
@@ -149,9 +141,7 @@
   }
 
   function startStatusPolling(catalogId) {
-    // Don't restart if we're already polling this catalog
     if (pollingCatalogId === catalogId) {
-      console.log('[POLL] Already polling catalog:', catalogId);
       return;
     }
 
@@ -159,19 +149,14 @@
       clearTimeout(statusPollingTimeout);
     }
 
-    // Reset delay to 5 seconds
     currentPollingDelay = 5000;
     pollingCatalogId = catalogId;
 
-    console.log('[POLL] Starting status polling for catalog:', catalogId);
-
-    // Poll immediately (which will schedule the next poll)
     pollCatalogStatus(catalogId);
   }
 
   function stopStatusPolling() {
     if (statusPollingTimeout) {
-      console.log('[POLL] Stopping status polling');
       clearTimeout(statusPollingTimeout);
       statusPollingTimeout = null;
       pollingCatalogId = null;
@@ -179,7 +164,6 @@
   }
 
   onMount(() => {
-    console.log("CatalogDetail component mounted, selectedCatalog:", $selectedCatalogStore);
     updateCount++;
   });
 
@@ -188,23 +172,17 @@
   });
 
   beforeUpdate(() => {
-    console.log(`Before update #${updateCount}, selectedCatalog:`, $selectedCatalogStore);
   });
 
   afterUpdate(() => {
     updateCount++;
-    console.log(`After update #${updateCount}, selectedCatalog:`, $selectedCatalogStore);
   });
 
   function viewCatalogPermissions(id) {
-    console.log('viewCatalogPermissions called with ID:', id);
-
-    // Use a custom event to pass the catalog ID to parent components
     const event = new CustomEvent('viewPermissions', {
       detail: { catalogId: id }
     });
     window.dispatchEvent(event);
-    console.log('Dispatched viewPermissions event with catalogId:', id);
 
     switchSection('catalog-permissions');
   }
@@ -264,51 +242,88 @@
   }
 
   async function handleUpload(event) {
-    console.log("Uploading files:", event.detail);
     const onComplete = event.detail.onComplete;
     let success = false;
 
     try {
-      const formData = new FormData();
-
-      for (const file of event.detail.files) {
-        formData.append('file', file);
+      const file = event.detail.files[0];
+      if (!file) {
+        return;
       }
 
-      let url;
+      let presignedUrlEndpoint, completeUploadEndpoint;
+
       if (event.detail.isNewVersion && event.detail.existingFileId) {
-        console.log(`[VERSION DEBUG] Uploading NEW VERSION for file ID: ${event.detail.existingFileId}`);
-        url = `/api/files/${event.detail.existingFileId}/version`;
+        presignedUrlEndpoint = `/api/files/${event.detail.existingFileId}/generate-version-upload-url`;
+        completeUploadEndpoint = `/api/files/${event.detail.existingFileId}/version-upload-complete`;
       } else {
-        console.log(`[VERSION DEBUG] Uploading NEW FILE to catalog ID: ${event.detail.catalogId}`);
-        url = `/api/catalogs/${event.detail.catalogId}/upload`;
+        presignedUrlEndpoint = `/api/catalogs/${event.detail.catalogId}/generate-upload-url`;
+        completeUploadEndpoint = `/api/catalogs/${event.detail.catalogId}/upload-complete`;
       }
 
-      const response = await httpCall(url, {
+      const presignedResponse = await httpCall(presignedUrlEndpoint, {
         method: 'POST',
         credentials: 'include',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          content_type: file.type || 'application/octet-stream'
+        })
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log("Upload successful:", result);
-        if (result.version) {
-          console.log(`[VERSION DEBUG] Server returned version info:`, result.version);
-        }
-        success = true;
-      } else {
-        console.error("Upload failed:", response.status, response.statusText);
-        const errorData = await response.json();
-        console.error("Error details:", errorData);
+      if (!presignedResponse.ok) {
+        const errorData = await presignedResponse.json();
+        throw new Error(`Failed to get pre-signed URL: ${errorData.error || 'Unknown error'}`);
       }
+
+      const presignedData = await presignedResponse.json();
+      const { upload_url, s3_key, file_id, version_id } = presignedData;
+
+      const s3Response = await fetch(upload_url, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream'
+        }
+      });
+
+      if (!s3Response.ok) {
+        throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`);
+      }
+
+      const completeData = {
+        s3_key,
+        filename: file.name,
+        file_size: file.size,
+        file_id,
+        version_id
+      };
+
+      const completeResponse = await httpCall(completeUploadEndpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(completeData)
+      });
+
+      if (!completeResponse.ok) {
+        const errorData = await completeResponse.json();
+        throw new Error(`Failed to complete upload: ${errorData.error || 'Unknown error'}`);
+      }
+
+      const result = await completeResponse.json();
+      success = true;
     } catch (error) {
       console.error("Upload error:", error);
+      alert(`Upload failed: ${error.message}`);
     } finally {
       if (onComplete) onComplete(success);
       closeUploadModal();
       if ($selectedCatalogStore) {
-        console.log(`[VERSION DEBUG] Refreshing file list for catalog ${$selectedCatalogStore.id}`);
         fetchCatalogFiles($selectedCatalogStore.id);
       }
     }
@@ -318,23 +333,17 @@
     try {
       const downloadUrl = `/api/files/${fileId}/download`;
 
-      // Use httpCall to include JWT authentication
       const response = await httpCall(downloadUrl, {
         method: 'GET'
       });
 
       if (response.ok) {
-        // Get the file as a blob
         const blob = await response.blob();
 
-        // Get filename from headers (check both cases due to AWS Lambda normalization)
         let contentDisposition = response.headers.get('Content-Disposition') || response.headers.get('content-disposition');
-        console.log('Content-Disposition header:', contentDisposition);
 
         let filename = fallbackFilename;
         if (contentDisposition) {
-          console.log('Raw Content-Disposition:', JSON.stringify(contentDisposition));
-          // Try multiple patterns to extract filename
           let filenameMatch = contentDisposition.match(/filename\*?="?([^"]+)"?/);
           if (!filenameMatch) {
             filenameMatch = contentDisposition.match(/filename\*?=([^;\s]+)/);
@@ -342,26 +351,20 @@
           if (filenameMatch) {
             const rawFilename = filenameMatch[1].replace(/"/g, '');
             filename = decodeURIComponent(rawFilename);
-            console.log('Extracted filename from header:', filename);
           }
         }
 
-        // Also check for X-Suggested-Filename header as fallback
         if (filename === fallbackFilename) {
           const suggestedFilename = response.headers.get('X-Suggested-Filename') || response.headers.get('x-suggested-filename');
           if (suggestedFilename) {
             filename = suggestedFilename;
-            console.log('Using X-Suggested-Filename:', filename);
           }
         }
 
-        // Create download link
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        console.log('filename:', filename);
         link.download = filename;
-        console.log('link:', link);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -391,33 +394,28 @@
 
       if (response.ok) {
         const result = await response.json();
-        console.log("File update successful:", result);
 
         if ($selectedCatalogStore) {
           await fetchCatalogFiles($selectedCatalogStore.id);
         }
 
-        // After success, close the modal
         setTimeout(() => {
           closeEditModal();
-        }, 500); // Small delay to show the success state
+        }, 500);
       } else {
         console.error("File update failed:", response.status, response.statusText);
         const errorData = await response.json();
         console.error("Error details:", errorData);
         alert("Error updating file. Please try again.");
-        closeEditModal(); // Close on error too
+        closeEditModal();
       }
     } catch (error) {
       console.error("File update error:", error);
       alert("Error updating file. Please try again.");
-      closeEditModal(); // Close on error too
+      closeEditModal();
     }
   }
 
-  // Debug reactive statements
-  $: console.log("REACTIVE: selectedCatalog changed to:", $selectedCatalogStore, "update count:", updateCount);
-  $: console.log("REACTIVE: catalogFiles changed to:", $catalogFilesStore.length, "files");
 </script>
 
 <div class="section-header">

@@ -1073,6 +1073,57 @@ def get_files_for_catalog(catalog_id, current_user=None, token_user_data=None, *
     return jsonify(files)
 
 
+@app.route('/api/catalogs/<string:catalog_id>/generate-upload-url', methods=['POST'])
+@token_required
+def generate_upload_url(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    try:
+        data = request.json
+        filename = data.get('filename')
+        content_type = data.get('content_type', 'application/octet-stream')
+
+        if not filename:
+            return jsonify({"error": "Filename is required"}), 400
+
+        from catalog import generate_presigned_upload_url
+        result = generate_presigned_upload_url(catalog_id, filename, content_type, current_user)
+
+        if result:
+            return jsonify(result)
+        else:
+            return jsonify({"error": "Failed to generate upload URL"}), 500
+
+    except Exception as e:
+        print(f"Error generating upload URL: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/catalogs/<string:catalog_id>/upload-complete', methods=['POST'])
+@token_required
+def upload_complete(catalog_id, current_user=None, token_user_data=None, **kwargs):
+    try:
+        data = request.json
+        s3_key = data.get('s3_key')
+        filename = data.get('filename')
+        file_size = data.get('file_size')
+        file_id = data.get('file_id')
+        version_id = data.get('version_id')
+
+        if not all([s3_key, filename, file_size, file_id, version_id]):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        from catalog import finalize_file_upload
+        result = finalize_file_upload(catalog_id, s3_key, filename, file_size, file_id, version_id, current_user)
+
+        if result:
+            return jsonify(result)
+        else:
+            return jsonify({"error": "Failed to finalize upload"}), 500
+
+    except Exception as e:
+        print(f"Error finalizing upload: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/catalogs/<string:catalog_id>/upload', methods=['POST'])
 @token_required
 def upload_file_to_catalog(catalog_id, current_user=None, token_user_data=None, **kwargs):
@@ -1155,6 +1206,56 @@ def upload_file_to_catalog(catalog_id, current_user=None, token_user_data=None, 
 def upload_new_version_endpoint(file_id, current_user=None, token_user_data=None, **kwargs):
     """Upload a new version of an existing file"""
     return upload_new_version(file_id, current_user.id, current_user.email)
+
+@app.route('/api/files/<int:file_id>/generate-version-upload-url', methods=['POST'])
+@token_required
+def generate_version_upload_url(file_id, current_user=None, token_user_data=None, **kwargs):
+    try:
+        data = request.json
+        filename = data.get('filename')
+        content_type = data.get('content_type', 'application/octet-stream')
+
+        if not filename:
+            return jsonify({"error": "Filename is required"}), 400
+
+        from catalog_files import generate_presigned_version_upload_url
+        result = generate_presigned_version_upload_url(file_id, filename, content_type, current_user)
+
+        if result:
+            return jsonify(result)
+        else:
+            return jsonify({"error": "Failed to generate version upload URL"}), 500
+
+    except Exception as e:
+        print(f"Error generating version upload URL: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/files/<int:file_id>/version-upload-complete', methods=['POST'])
+@token_required
+def version_upload_complete(file_id, current_user=None, token_user_data=None, **kwargs):
+    try:
+        data = request.json
+        s3_key = data.get('s3_key')
+        filename = data.get('filename')
+        file_size = data.get('file_size')
+        version_id = data.get('version_id')
+
+        if not all([s3_key, filename, file_size, version_id]):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        from catalog_files import finalize_version_upload
+        result = finalize_version_upload(file_id, s3_key, filename, file_size, version_id, current_user)
+
+        if result:
+            return jsonify(result)
+        else:
+            return jsonify({"error": "Failed to finalize version upload"}), 500
+
+    except Exception as e:
+        print(f"Error finalizing version upload: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/files/<int:file_id>', methods=['PUT'])

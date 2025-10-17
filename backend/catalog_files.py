@@ -259,3 +259,163 @@ def update_file(file_id):
         print(f"Error updating file: {e}")
         traceback.print_exc()
         return jsonify({"error": f"Error updating file: {str(e)}"}), 500
+
+def generate_presigned_version_upload_url(file_id, filename, content_type, current_user):
+    try:
+        file = db.session.get(File, file_id)
+        if not file:
+            print(f"File not found: {file_id}")
+            return None
+
+        active_version = Version.query.filter_by(file_id=file_id, active=True).first()
+        if not active_version:
+            print(f"No active version found for file {file_id}")
+            return None
+
+        catalog = db.session.get(Catalog, file.catalog_id)
+        if not catalog:
+            print(f"Catalog not found for file {file_id}")
+            return None
+
+        from aws_utils import get_client_with_assumed_role
+        from db import get_bucket_name
+
+        bucket_name = get_bucket_name()
+        if not bucket_name:
+            return None
+
+        s3_client = get_client_with_assumed_role('s3')
+        s3_folder_name = catalog.s3Id
+        versions_folder = f"catalog_dir/{s3_folder_name}/versions/"
+
+        try:
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=versions_folder,
+                Body=''
+            )
+        except Exception as e:
+            print(f"Could not create versions folder: {e}")
+
+        old_s3_key = active_version.s3Id
+        old_file_name = old_s3_key.split('/')[-1]
+        new_versions_key = f"{versions_folder}{old_file_name}"
+
+        try:
+            print(f"Copying active version from {old_s3_key} to {new_versions_key}")
+            s3_client.copy_object(
+                Bucket=bucket_name,
+                CopySource={'Bucket': bucket_name, 'Key': old_s3_key},
+                Key=new_versions_key
+            )
+
+            print(f"Deleting old active version {old_s3_key} in S3")
+            s3_client.delete_object(
+                Bucket=bucket_name,
+                Key=old_s3_key
+            )
+
+            active_version.s3Id = new_versions_key
+            active_version.active = False
+            db.session.flush()
+        except Exception as e:
+            print(f"Error moving old version to versions folder: {e}")
+            db.session.rollback()
+            return None
+
+        user_id = current_user.id
+        new_version_number = active_version.version + 1
+
+        new_version = Version(
+            active=True,
+            version=new_version_number,
+            s3Id='',
+            size=0,
+            filename=filename,
+            uploader_id=user_id,
+            file_id=file.id
+        )
+
+        db.session.add(new_version)
+        db.session.flush()
+
+        file_extension = ""
+        if '.' in filename:
+            file_extension = filename.rsplit('.', 1)[1].lower()
+
+        new_filename = f"{catalog.id}-{file.id}-{new_version.id}"
+        if file_extension:
+            new_filename = f"{new_filename}.{file_extension}"
+
+        s3_key = f"catalog_dir/{s3_folder_name}/documents/{new_filename}"
+
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': s3_key,
+                'ContentType': content_type
+            },
+            ExpiresIn=900
+        )
+
+        db.session.commit()
+
+        return {
+            'upload_url': presigned_url,
+            's3_key': s3_key,
+            'file_id': file.id,
+            'version_id': new_version.id,
+            'filename': new_filename
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error generating presigned version upload URL: {e}")
+        traceback.print_exc()
+        return None
+
+def finalize_version_upload(file_id, s3_key, filename, file_size, version_id, current_user):
+    try:
+        file_record = db.session.get(File, file_id)
+        if not file_record:
+            print(f"File record not found: {file_id}")
+            return None
+
+        version_record = Version.query.filter_by(id=version_id, file_id=file_id).first()
+        if not version_record:
+            print(f"Version record not found: {version_id}")
+            return None
+
+        catalog = db.session.get(Catalog, file_record.catalog_id)
+        if not catalog:
+            print(f"Catalog not found for file {file_id}")
+            return None
+
+        version_record.s3Id = s3_key
+        version_record.size = file_size
+
+        file_record.uploaded_at = datetime.now()
+        file_record.size = file_size
+
+        db.session.commit()
+
+        from activity import create_activity_catalog_log
+        from models import EventType
+        create_activity_catalog_log(EventType.FILE_UPLOAD, current_user.email, catalog.id, f'User {current_user.email} uploaded new version of {filename}')
+
+        from catalog import trigger_bedrock_ingestion
+        bedrock_response = trigger_bedrock_ingestion(catalog)
+
+        return {
+            "success": True,
+            "file": file_record.to_dict(),
+            "version": version_record.to_dict(),
+            "bedrock_ingestion": bedrock_response
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error finalizing version upload: {e}")
+        traceback.print_exc()
+        return None
