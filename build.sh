@@ -7,11 +7,10 @@ echo "🚀 Starting Sapientum Frontend Build Process..."
 # Function to check and install Node.js if needed
 setup_nodejs() {
     if ! command -v node &> /dev/null; then
-        echo "📦 Installing Node.js 18..."
-        curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-        sudo yum install -y nodejs
+        echo "📦 Installing Node.js..."
+        dnf install -y nodejs npm
     fi
-    
+
     NODE_VERSION=$(node -v)
     echo "✅ Using Node.js version: $NODE_VERSION"
 }
@@ -20,31 +19,31 @@ setup_nodejs() {
 build_frontend() {
     local app_dir=$1
     local app_name=$2
-    
+
     echo "🔨 Building $app_name..."
     cd "$app_dir"
-    
+
     # Clean previous builds
     rm -rf node_modules package-lock.json dist
-    
+
     # Install dependencies
     echo "📦 Installing dependencies for $app_name..."
     npm install --legacy-peer-deps --silent --no-audit --no-fund
-    
+
     if [ $? -ne 0 ]; then
         echo "❌ Failed to install dependencies for $app_name"
         exit 1
     fi
-    
+
     # Build the application
     echo "⚡ Compiling $app_name..."
     npm run build
-    
+
     if [ $? -ne 0 ]; then
         echo "❌ Failed to build $app_name"
         exit 1
     fi
-    
+
     echo "✅ $app_name built successfully"
     cd ..
 }
@@ -52,34 +51,32 @@ build_frontend() {
 # Main build process
 main() {
     echo "🏗️  Starting build process..."
-    
-    # Setup Node.js if on Linux
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        setup_nodejs
-    fi
-    
+
+    # Setup Node.js (Amazon Linux 2023)
+    setup_nodejs
+
     # Create build output directory
     mkdir -p dist
     rm -rf dist/*
-    
+
     # Install shared-components dependencies first
     echo "📦 Installing shared-components dependencies..."
     cd shared-components
     npm install --legacy-peer-deps --silent --no-audit --no-fund
     cd ..
-    
+
     # Build main frontend
     build_frontend "frontend" "Main Frontend"
-    
+
     # Copy main frontend build
     cp -r frontend/dist dist/main
-    
+
     # Build chat frontend
     build_frontend "chat-frontend" "Chat Frontend"
-    
+
     # Copy chat frontend build
     cp -r chat-frontend/dist dist/chat
-    
+
     # Create build info
     cat > dist/build-info.json << EOF
 {
@@ -99,7 +96,7 @@ main() {
   }
 }
 EOF
-    
+
     echo ""
     echo "🎉 Build completed successfully!"
     echo "📁 Build output structure:"
