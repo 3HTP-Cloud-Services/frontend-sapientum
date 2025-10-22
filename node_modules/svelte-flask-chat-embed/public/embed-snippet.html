@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sapientum AI Embed Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f7fa;
+    }
+
+    h1 {
+      color: #032b36;
+    }
+
+    .embed-container {
+      margin-top: 20px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>Sapientum AI Embedded</h1>
+
+  <!-- Step 1: Create a container for the embed -->
+  <div id="sapientum-container" class="embed-container"></div>
+
+  <!-- Step 2: Include the embed script -->
+  <script src="embed.js"></script>
+
+  <!-- Step 3: Initialize the embed -->
+  <script>
+    // Create the embed
+    const embed = SapientumEmbed.create('#sapientum-container', {
+      // Width of the embed
+      width: '100%',
+
+      // Height of the embed
+      height: '600px',
+
+      // URL of your Sapientum server (replace with your actual server URL)
+      server: window.location.origin,
+
+      // Theme: 'light' or 'dark'
+      theme: 'light',
+
+      // Called when the embed is ready
+      onReady: function() {
+        console.log('Sapientum embed is ready');
+      },
+
+      // Called when messages are received from the embed
+      onMessage: function(message) {
+        console.log('Received message from Sapientum:', message);
+      }
+    });
+  </script>
+</body>
+</html>
