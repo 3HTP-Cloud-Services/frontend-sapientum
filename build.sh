@@ -7,8 +7,16 @@ echo "🚀 Starting Sapientum Frontend Build Process..."
 # Function to check and install Node.js if needed
 setup_nodejs() {
     if ! command -v node &> /dev/null; then
-        echo "📦 Installing Node.js..."
-        dnf install -y nodejs npm
+        echo "📦 Installing Node.js 18..."
+        # Usar instalación manual para evitar conflictos con dnf
+        curl -fsSL https://nodejs.org/dist/v18.19.0/node-v18.19.0-linux-x64.tar.xz -o node.tar.xz
+        tar -xf node.tar.xz
+        cp -r node-v18.19.0-linux-x64/* /usr/local/
+        rm -rf node.tar.xz node-v18.19.0-linux-x64
+        
+        # Crear enlaces simbólicos
+        ln -sf /usr/local/bin/node /usr/bin/node
+        ln -sf /usr/local/bin/npm /usr/bin/npm
     fi
 
     NODE_VERSION=$(node -v)
@@ -52,7 +60,7 @@ build_frontend() {
 main() {
     echo "🏗️  Starting build process..."
 
-    # Setup Node.js (Amazon Linux 2023)
+    # Setup Node.js
     setup_nodejs
 
     # Create build output directory
