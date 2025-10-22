@@ -1,0 +1,50 @@
+# Cambios Realizados en el Proyecto
+
+## 1. Correcciones en backend/lambda_handler.py
+
+- Reemplazado Mangum por aws-wsgi para resolver problemas de compatibilidad con Flask
+- Añadido manejo de errores más robusto
+- Implementada inicialización de base de datos SQLite como fallback
+- Añadida creación de usuario de prueba cuando se usa SQLite
+
+## 2. Correcciones en backend/db.py
+
+- Añadida importación de traceback
+- Simplificada la función get_secret para usar directamente las credenciales del rol de Lambda
+- Mejorado el manejo de errores y logging
+- Añadida información de depuración para conexiones a PostgreSQL
+
+## 3. Correcciones en backend/users.py
+
+- Cambiadas importaciones relativas a absolutas (backend.models en lugar de models)
+- Añadido current_app de Flask para acceder al contexto de la aplicación
+- Corregido error en session.get['user_id'] cambiándolo a session.get('user_id')
+- Implementado modo de prueba en create_user que se activa con ?source=test en la URL
+- Mejorado manejo de sesiones de base de datos usando with db.session.begin()
+- Añadidos mensajes de error más detallados
+- Mejorado manejo de excepciones
+
+## 4. Correcciones en template.yaml
+
+- Añadidos permisos IAM para acceder al secreto en AWS Secrets Manager
+- Configurado para usar aws-wsgi en lugar de mangum
+
+## 5. Correcciones en requirements.txt
+
+- Reemplazado mangum por aws-wsgi
+- Asegurado que todas las dependencias necesarias estén incluidas
+
+## 6. Documentación
+
+- Creado README.md con visión general del proyecto
+- Creado DEPLOYMENT.md con instrucciones detalladas de despliegue
+- Creado ARCHITECTURE.md con descripción técnica de la arquitectura
+- Creado changes.txt (este archivo) con registro de cambios
+
+## Problemas Resueltos
+
+1. Error "wsgi.url_scheme": Resuelto reemplazando Mangum por aws-wsgi
+2. Error "no such column: users.is_catalog_editor": Resuelto inicializando correctamente la base de datos SQLite
+3. Error "The current Flask app is not registered with this 'SQLAlchemy' instance": Resuelto mejorando el manejo de sesiones de base de datos
+4. Error de acceso al secreto entre cuentas: Documentada la solución (crear secreto con KMS personalizada)
+5. Errores de importación: Resueltos cambiando a importaciones absolutas

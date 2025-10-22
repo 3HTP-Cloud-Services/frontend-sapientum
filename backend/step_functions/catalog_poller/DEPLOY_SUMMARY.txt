@@ -1,0 +1,99 @@
+================================================================================
+              CATALOG STATUS POLLER - DEPLOYMENT SCRIPTS READY
+================================================================================
+
+WHAT YOU NEED TO DEPLOY:
+------------------------
+
+1 Step Function (state machine) that uses:
+  → 2 Lambda Functions
+
+DEPLOYMENT SCRIPTS CREATED:
+--------------------------
+
+1. update-steps.sh
+   - Packages Lambda functions with dependencies
+   - Deploys CheckCatalogStatus Lambda (automatic)
+   - Updates UpdateCatalogDB Lambda (if exists)
+   - Creates deployment packages in lambda_packages/
+
+2. create-step-function.sh
+   - Creates IAM role for Step Function
+   - Creates/updates the Step Function state machine
+   - Outputs the Step Function ARN for backend config
+
+SIMPLE DEPLOYMENT PROCESS:
+--------------------------
+
+Step 1: Deploy Lambda Functions
+   $ cd backend/step_functions/catalog_poller
+   $ ./update-steps.sh
+
+Step 2: Create UpdateCatalogDB (first time only)
+   - AWS Console → Lambda → Create Function
+   - Name: UpdateCatalogDB
+   - Upload: lambda_packages/update_db.zip
+   - Add VPC config + DB environment variables
+   (See QUICK_DEPLOY.md for details)
+
+Step 3: Create Step Function
+   $ ./create-step-function.sh
+
+Step 4: Configure Backend
+   - Copy Step Function ARN from output
+   - Add to backend Lambda environment:
+     CATALOG_POLLER_STEP_FUNCTION_ARN=<the-arn>
+
+Step 5: Grant Backend Permissions
+   - Add policy to backend Lambda role
+   - Allow states:StartExecution
+   (Command provided by create-step-function.sh output)
+
+IMPORTANT NOTES:
+---------------
+
+✓ update-steps.sh only deploys Lambda functions (not the backend Flask app)
+✓ Your regular update-backend script still deploys the Flask backend
+✓ The Flask backend will automatically trigger the Step Function
+✓ UpdateCatalogDB needs VPC access to your RDS database
+✓ Both scripts are idempotent (safe to run multiple times)
+
+FILES REFERENCE:
+---------------
+
+Deployment Scripts:
+  ./update-steps.sh              → Deploy Lambda functions
+  ./create-step-function.sh      → Create Step Function
+
+Lambda Code:
+  ./check_catalog_status.py      → Polls external API
+  ./update_catalog_db.py         → Updates database
+
+Step Function:
+  ./state_machine.json           → State machine definition
+
+Documentation:
+  ./QUICK_DEPLOY.md              → Quick start guide
+  ./DEPLOYMENT.md                → Detailed deployment guide
+  ./README.md                    → Overview and usage
+  ./CATALOG_POLLER_SUMMARY.md    → Complete system summary
+
+TESTING:
+--------
+
+After deployment, create a catalog:
+  → POST /api/catalogs
+  → Check backend logs for "TRIGGERING CATALOG STATUS POLLER"
+  → View execution in AWS Step Functions console
+  → Verify database updates after ~1-2 minutes
+
+NEED HELP?
+----------
+
+See QUICK_DEPLOY.md for step-by-step instructions
+See DEPLOYMENT.md for detailed configuration options
+See README.md for system overview
+
+================================================================================
+                        READY TO DEPLOY!
+================================================================================
