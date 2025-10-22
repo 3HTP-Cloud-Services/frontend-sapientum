@@ -1,0 +1,67 @@
+/* Embedded mode specific styles */
+
+/* Hide elements that shouldn't be visible in embedded mode */
+.embedded .hide-in-embed,
+.embedded .console-header,
+.embedded .sidebar {
+  display: none !important;
+}
+
+/* Adjust spacing for embedded mode */
+.embedded .content-area {
+  padding: 10px;
+  margin: 0;
+}
+
+/* Make embedded content take full space */
+.embedded .content {
+  margin-left: 0 !important;
+  padding: 0 !important;
+}
+
+/* Fix embedded container */
+.embedded .console-container {
+  background: none !important;
+}
+
+/* Theme-specific styles for embedded mode */
+.embedded[data-theme="light"] {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.embedded[data-theme="dark"] {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Remove focus outlines in embedded mode */
+.embedded button:focus,
+.embedded button:focus-visible {
+  outline: none;
+}
+
+/* Adjust headers in embedded mode */
+.embedded h1 {
+  font-size: 1.5rem;
+}
+
+.embedded h2 {
+  font-size: 1.25rem;
+}
+
+/* Make sure embedded content doesn't overflow */
+.embedded {
+  overflow: hidden;
+}
+
+/* Adjust navigation in embedded mode */
+.embedded .nav-sidebar {
+  width: 180px;
+}
+
+/* Reduce padding in embedded tables */
+.embedded table td,
+.embedded table th {
+  padding: 0.5rem;
+}
