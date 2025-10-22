@@ -1,0 +1,51 @@
+{
+  "resource": "/{proxy+}",
+  "path": "/api/login",
+  "httpMethod": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "multiValueHeaders": {
+    "Content-Type": ["application/json"]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": {
+    "proxy": "api/login"
+  },
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "uw1uz5",
+    "resourcePath": "/{proxy+}",
+    "httpMethod": "POST",
+    "extendedRequestId": "Lj_rRGihIAMF96g=",
+    "requestTime": "03/Jun/2025:00:48:07 +0000",
+    "path": "/{proxy+}",
+    "accountId": "183804119221",
+    "protocol": "HTTP/1.1",
+    "stage": "test-invoke-stage",
+    "domainPrefix": "testPrefix",
+    "requestTimeEpoch": 1748911687736,
+    "requestId": "cf815731-0ebf-4d37-b2e6-9de8a02d8a2f",
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "cognitoIdentityId": null,
+      "apiKey": "test-invoke-api-key",
+      "principalOrgId": null,
+      "cognitoAuthenticationType": null,
+      "userArn": "arn:aws:sts::183804119221:assumed-role/3HTP-AdminsFull/lramirez@3htp.com",
+      "apiKeyId": "test-invoke-api-key-id",
+      "userAgent": "Mozilla/5.0",
+      "accountId": "183804119221",
+      "caller": "AROAQNRWGFZD7LFNBZXXX:lramirez@3htp.com",
+      "sourceIp": "54.240.197.236",
+      "accessKey": "ASIAXXXXXXXXXXXX",
+      "cognitoAuthenticationProvider": null,
+      "user": "AROAQNRWGFZD7LFNBZXXX:lramirez@3htp.com"
+    },
+    "domainName": "testPrefix.testDomainName",
+    "apiId": "7kmczih01i"
+  },
+  "body": "{\"username\":\"jpnunez@3htp.com\",\"password\":\"user123\"}",
+  "isBase64Encoded": false
+}
