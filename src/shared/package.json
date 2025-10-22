@@ -1,0 +1,9 @@
+{
+  "name": "shared-components",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "svelte-spa-router": "^4.0.0",
+    "i18n-js": "^4.5.1"
+  }
+}
